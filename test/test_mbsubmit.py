@@ -16,6 +16,7 @@
 from __future__ import division, absolute_import, print_function
 
 import unittest
+from beets.util import text_string
 from test.helper import capture_stdout, control_stdin, TestHelper
 from test.test_importer import ImportHelper, AutotagStub
 from test.test_ui_importer import TerminalImportSessionSetup
@@ -48,7 +49,7 @@ class MBSubmitPluginTest(TerminalImportSessionSetup, unittest.TestCase,
         tracklist = (u'Print tracks? '
                      u'01. Tag Title 1 - Tag Artist (0:01)\n'
                      u'02. Tag Title 2 - Tag Artist (0:01)')
-        self.assertIn(tracklist, output.getvalue())
+        self.assertIn(tracklist, text_string(output.getvalue()))
 
     def test_print_tracks_output_as_tracks(self):
         """Test the output of the "print tracks" choice, as singletons."""
@@ -62,7 +63,7 @@ class MBSubmitPluginTest(TerminalImportSessionSetup, unittest.TestCase,
         # Manually build the string for comparing the output.
         tracklist = (u'Print tracks? '
                      u'02. Tag Title 2 - Tag Artist (0:01)')
-        self.assertIn(tracklist, output.getvalue())
+        self.assertIn(tracklist, text_string(output.getvalue()))
 
 
 def suite():

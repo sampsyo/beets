@@ -1065,52 +1065,57 @@ class ShowChangeTest(_common.TestCase):
         info = info or self.info
         mapping = dict(zip(items, info.tracks))
         config['ui']['color'] = False
-        album_dist = distance(items, info, mapping)
-        album_dist._penalties = {'album': [dist]}
+        config['import']['detail'] = True
+        change_dist = distance(items, info, mapping)
+        change_dist._penalties = {'album': [dist], 'artist': [dist]}
         commands.show_change(
             cur_artist,
             cur_album,
-            autotag.AlbumMatch(album_dist, info, mapping, set(), set()),
+            autotag.AlbumMatch(change_dist, info, mapping, set(), set()),
         )
         # FIXME decoding shouldn't be done here
-        return util.text_string(self.io.getoutput().lower())
+        out = self.io.getoutput()
+        _common.log.info(util.text_string(out))
+        return util.text_string(out.lower())
 
     def test_null_change(self):
         msg = self._show_change()
-        self.assertTrue('similarity: 90' in msg)
-        self.assertTrue('tagging:' in msg)
+        self.assertTrue('match (90.0%)' in msg)
+        self.assertTrue('album, artist' in msg)
 
     def test_album_data_change(self):
         msg = self._show_change(cur_artist='another artist',
                                 cur_album='another album')
-        self.assertTrue('correcting tags from:' in msg)
+        self.assertTrue('another artist -> the artist' in msg)
+        self.assertTrue('another album -> the album' in msg)
 
     def test_item_data_change(self):
+        _common.log.info("item data")
         self.items[0].title = u'different'
         msg = self._show_change()
-        self.assertTrue('different -> the title' in msg)
+        self.assertTrue('different' in msg and 'the title' in msg)
 
     def test_item_data_change_with_unicode(self):
         self.items[0].title = u'caf\xe9'
         msg = self._show_change()
-        self.assertTrue(u'caf\xe9 -> the title' in msg)
+        self.assertTrue(u'caf\xe9' in msg and 'the title' in msg)
 
     def test_album_data_change_with_unicode(self):
         msg = self._show_change(cur_artist=u'caf\xe9',
                                 cur_album=u'another album')
-        self.assertTrue(u'correcting tags from:' in msg)
+        self.assertTrue(u'caf\xe9' in msg and 'the artist' in msg)
 
     def test_item_data_change_title_missing(self):
         self.items[0].title = u''
         msg = re.sub(r'  +', ' ', self._show_change())
-        self.assertTrue(u'file.mp3 -> the title' in msg)
+        self.assertTrue(u'file.mp3' in msg and 'the title' in msg)
 
     def test_item_data_change_title_missing_with_unicode_filename(self):
         self.items[0].title = u''
         self.items[0].path = u'/path/to/caf\xe9.mp3'.encode('utf-8')
         msg = re.sub(r'  +', ' ', self._show_change())
-        self.assertTrue(u'caf\xe9.mp3 -> the title' in msg or
-                        u'caf.mp3 ->' in msg)
+        self.assertTrue(u'caf\xe9.mp3' in msg or
+                        u'caf.mp3' in msg)
 
 
 @patch('beets.library.Item.try_filesize', Mock(return_value=987))

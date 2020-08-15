@@ -196,6 +196,18 @@ def should_move(move_opt=None):
 
 # Input prompts.
 
+def indent(count):
+    """Returns a string with `count` many spaces.
+    """
+    return u' ' * count
+
+
+def indent_str(count, string):
+    """Returns `string`, indented with `count` many spaces.
+    """
+    return indent(count) + string
+
+
 def input_(prompt=None):
     """Like `input`, but decodes the result to a Unicode string.
     Raises a UserError if stdin is not available. The prompt is sent to
@@ -282,8 +294,11 @@ def input_options(options, require=False, prompt=None, fallback_prompt=None,
                                show_letter)
 
         # Insert the highlighted letter back into the word.
+        descr_color = 'action_default' if is_default else 'action_description'
         capitalized.append(
-            option[:index] + show_letter + option[index + 1:]
+            colorize(descr_color, option[:index]) +
+            show_letter +
+            colorize(descr_color, option[index + 1:])
         )
         display_letters.append(found_letter.upper())
 
@@ -316,15 +331,16 @@ def input_options(options, require=False, prompt=None, fallback_prompt=None,
         prompt_part_lengths += [len(s) for s in options]
 
         # Wrap the query text.
-        prompt = ''
+        # Start prompt with U+279C: Heavy Round-Tipped Rightwards Arrow
+        prompt = colorize('action', '\u279C ')
         line_length = 0
         for i, (part, length) in enumerate(zip(prompt_parts,
                                                prompt_part_lengths)):
             # Add punctuation.
             if i == len(prompt_parts) - 1:
-                part += '?'
+                part += colorize('action_description', '?')
             else:
-                part += ','
+                part += colorize('action_description', ',')
             length += 1
 
             # Choose either the current line or the beginning of the next.
@@ -383,8 +399,11 @@ def input_yn(prompt, require=False):
     """Prompts the user for a "yes" or "no" response. The default is
     "yes" unless `require` is `True`, in which case there is no default.
     """
+    # Start prompt with U+279C: Heavy Round-Tipped Rightwards Arrow
+    yesno = colorize('action', '\u279C ') + \
+            colorize('action_description', 'Enter Y or N:')
     sel = input_options(
-        ('y', 'n'), require, prompt, u'Enter Y or N:'
+        ('y', 'n'), require, prompt, yesno
     )
     return sel == u'y'
 
@@ -478,51 +497,90 @@ def human_seconds_short(interval):
 # https://bitbucket.org/birkenfeld/pygments-main/src/default/pygments/console.py
 # (pygments is by Tim Hatch, Armin Ronacher, et al.)
 COLOR_ESCAPE = "\x1b["
-DARK_COLORS = {
-    "black": 0,
-    "darkred": 1,
-    "darkgreen": 2,
-    "brown": 3,
-    "darkyellow": 3,
-    "darkblue": 4,
-    "purple": 5,
-    "darkmagenta": 5,
-    "teal": 6,
-    "darkcyan": 6,
-    "lightgray": 7
+LEGACY_COLORS = {
+    "black":       ['black'],
+    "darkred":     ['red'],
+    "darkgreen":   ['green'],
+    "brown":       ['yellow'],
+    "darkyellow":  ['yellow'],
+    "darkblue":    ['blue'],
+    "purple":      ['magenta'],
+    "darkmagenta": ['magenta'],
+    "teal":        ['cyan'],
+    "darkcyan":    ['cyan'],
+    "lightgray":   ['white'],
+    "darkgray":    ['bold', 'black'],
+    "red":         ['bold', 'red'],
+    "green":       ['bold', 'green'],
+    "yellow":      ['bold', 'yellow'],
+    "blue":        ['bold', 'blue'],
+    "fuchsia":     ['bold', 'magenta'],
+    "magenta":     ['bold', 'magenta'],
+    "turquoise":   ['bold', 'cyan'],
+    "cyan":        ['bold', 'cyan'],
+    "white":       ['bold', 'white']
 }
-LIGHT_COLORS = {
-    "darkgray": 0,
-    "red": 1,
-    "green": 2,
-    "yellow": 3,
-    "blue": 4,
-    "fuchsia": 5,
-    "magenta": 5,
-    "turquoise": 6,
-    "cyan": 6,
-    "white": 7
+# All ANSI Colors.
+ANSI_CODES = {
+    # Styles.
+    "normal":       0,
+    "bold":         1,
+    "faint":        2,
+    #"italic":       3,
+    "underline":    4,
+    #"blink_slow":   5,
+    #"blink_rapid":  6,
+    "inverse":      7,
+    #"conceal":      8,
+    #"crossed_out":  9
+    # Text colors.
+    "black":       30,
+    "red":         31,
+    "green":       32,
+    "yellow":      33,
+    "blue":        34,
+    "magenta":     35,
+    "cyan":        36,
+    "white":       37,
+    # Background colors.
+    "bg_black":    40,
+    "bg_red":      41,
+    "bg_green":    42,
+    "bg_yellow":   43,
+    "bg_blue":     44,
+    "bg_magenta":  45,
+    "bg_cyan":     46,
+    "bg_white":    47
 }
 RESET_COLOR = COLOR_ESCAPE + "39;49;00m"
 
 # These abstract COLOR_NAMES are lazily mapped on to the actual color in COLORS
 # as they are defined in the configuration files, see function: colorize
 COLOR_NAMES = ['text_success', 'text_warning', 'text_error', 'text_highlight',
-               'text_highlight_minor', 'action_default', 'action']
+               'text_highlight_minor', 'action_default', 'action',
+               # New Colors
+               'text', 'text_faint',
+               'import_path', 'import_path_items',
+               'action_description',
+               'added', 'removed', 'changed',
+               'added_highlight', 'removed_highlight', 'changed_highlight',
+               'text_diff_added', 'text_diff_removed', 'text_diff_changed']
 COLORS = None
 
 
 def _colorize(color, text):
     """Returns a string that prints the given text in the given color
-    in a terminal that is ANSI color-aware. The color must be something
-    in DARK_COLORS or LIGHT_COLORS.
+    in a terminal that is ANSI color-aware. The color must be a list of strings
+    out of ANSI_CODES.
     """
-    if color in DARK_COLORS:
-        escape = COLOR_ESCAPE + "%im" % (DARK_COLORS[color] + 30)
-    elif color in LIGHT_COLORS:
-        escape = COLOR_ESCAPE + "%i;01m" % (LIGHT_COLORS[color] + 30)
-    else:
-        raise ValueError(u'no such color %s', color)
+    # Construct escape sequence to be put before the text by iterating
+    # over all "ANSI codes" in `color`.
+    escape = ""
+    for code in color:
+        if code in ANSI_CODES.keys():
+            escape = escape + COLOR_ESCAPE + "%im" % ANSI_CODES[code]
+        else:
+            raise ValueError('no such ANSI code %s', code)
     return escape + text + RESET_COLOR
 
 
@@ -530,39 +588,87 @@ def colorize(color_name, text):
     """Colorize text if colored output is enabled. (Like _colorize but
     conditional.)
     """
-    if not config['ui']['color'] or 'NO_COLOR' in os.environ.keys():
+    if config['ui']['color']:
+        global COLORS
+        if not COLORS:
+            # Read all color configurations and set global variable COLORS.
+            COLORS = dict()
+            for name in COLOR_NAMES:
+                # Convert legacy color definitions (strings) into the new
+                # list-based color definitions. Do this by trying to read the
+                # color definition from the configuration as unicode - if this
+                # is successful, the color definition is a legacy definition
+                # and has to be converted.
+                try:
+                    color_def = config['ui']['colors'][name].get(unicode)
+                except (confuse.ConfigTypeError, NameError):
+                    # Normal color definition (type: list of unicode).
+                    color_def = config['ui']['colors'][name].get(list)
+                else:
+                    # Legacy color definition (type: unicode). Convert.
+                    if color_def in LEGACY_COLORS:
+                        color_def = LEGACY_COLORS[color_def]
+                    else:
+                        raise ValueError('no such color %s', color)
+
+                COLORS[name] = color_def
+        # In case a 3rd party plugin is still passing the actual color ('red')
+        # instead of the abstract color name ('text_error')
+        color = COLORS.get(color_name)
+        if not color:
+            log.debug(u'Invalid color_name: {0}', color_name)
+            color = color_name
+        return _colorize(color, text)
+    else:
         return text
 
-    global COLORS
-    if not COLORS:
-        COLORS = dict((name,
-                       config['ui']['colors'][name].as_str())
-                      for name in COLOR_NAMES)
-    # In case a 3rd party plugin is still passing the actual color ('red')
-    # instead of the abstract color name ('text_error')
-    color = COLORS.get(color_name)
-    if not color:
-        log.debug(u'Invalid color_name: {0}', color_name)
-        color = color_name
-    return _colorize(color, text)
+
+def uncolorize(colored_text):
+    """Remove colors from a string.
+    """
+    # Define a regular expression to match ANSI codes.
+    # See: http://stackoverflow.com/a/2187024/1382707
+    # Explanation of regular expression:
+    #     \x1b     - matches ESC character
+    #     \[       - matches opening square bracket
+    #     [;\d]*   - matches a sequence consisting of one or more digits or
+    #                semicola
+    #     [A-Za-z] - matches a letter
+    ansi_code_regex = re.compile(r"\x1b\[[;\d]*[A-Za-z]", re.VERBOSE)
+    # Strip ANSI codes from `colored_text` using the regular expression.
+    text = ansi_code_regex.sub(u'', colored_text)
+    return text
 
 
-def _colordiff(a, b, highlight='text_highlight',
-               minor_highlight='text_highlight_minor'):
+def color_len(colored_text):
+    """Measure the length of a string while excluding ANSI codes from the
+    measurement. The standard `len(my_string)` method also counts ANSI codes
+    to the string length, which is counterproductive when layouting a
+    Terminal interface.
+    """
+    # Return the length of the uncolored string.
+    return len(uncolorize(colored_text))
+
+
+def _colordiff(a, b):
     """Given two values, return the same pair of strings except with
     their differences highlighted in the specified color. Strings are
     highlighted intelligently to show differences; other values are
     stringified and highlighted in their entirety.
     """
-    if not isinstance(a, six.string_types) \
-       or not isinstance(b, six.string_types):
+    # Set highlight colors.
+    highlight_added = 'text_diff_added'
+    highlight_removed = 'text_diff_removed'
+    minor_highlight = 'text_highlight_minor'
+
+    if not isinstance(a, six.string_types) or not isinstance(b, six.string_types):
         # Non-strings: use ordinary equality.
         a = six.text_type(a)
         b = six.text_type(b)
         if a == b:
             return a, b
         else:
-            return colorize(highlight, a), colorize(highlight, b)
+            return colorize(highlight_removed, a), colorize(highlight_added, b)
 
     if isinstance(a, bytes) or isinstance(b, bytes):
         # A path field.
@@ -572,6 +678,10 @@ def _colordiff(a, b, highlight='text_highlight',
     a_out = []
     b_out = []
 
+    add_mapper    = lambda w: w if re.match('(\s)', w) else colorize(highlight_added, w)
+    remove_mapper = lambda w: w if re.match('(\s)', w) else colorize(highlight_removed, w)
+    minor_mapper  = lambda w: w if re.match('(\s)', w) else colorize(minor_highlight, w)
+
     matcher = SequenceMatcher(lambda x: False, a, b)
     for op, a_start, a_end, b_start, b_end in matcher.get_opcodes():
         if op == 'equal':
@@ -580,31 +690,39 @@ def _colordiff(a, b, highlight='text_highlight',
             b_out.append(b[b_start:b_end])
         elif op == 'insert':
             # Right only.
-            b_out.append(colorize(highlight, b[b_start:b_end]))
+            words = re.split('(\s)', b[b_start:b_end])
+            words_colorized = map(add_mapper, words)
+            b_out.append(''.join(words_colorized))
         elif op == 'delete':
             # Left only.
-            a_out.append(colorize(highlight, a[a_start:a_end]))
+            words = re.split('(\s)', a[a_start:a_end])
+            words_colorized = map(remove_mapper, words)
+            a_out.append(''.join(words_colorized))
         elif op == 'replace':
             # Right and left differ. Colorise with second highlight if
             # it's just a case change.
+            words_a = re.split('(\s)', a[a_start:a_end])
+            words_b = re.split('(\s)', b[b_start:b_end])
             if a[a_start:a_end].lower() != b[b_start:b_end].lower():
-                color = highlight
+                words_a_colorized = map(remove_mapper, words_a)
+                words_b_colorized = map(add_mapper, words_b)
             else:
-                color = minor_highlight
-            a_out.append(colorize(color, a[a_start:a_end]))
-            b_out.append(colorize(color, b[b_start:b_end]))
+                words_a_colorized = map(minor_mapper, words_a)
+                words_b_colorized = map(minor_mapper, words_b)
+            a_out.append(''.join(words_a_colorized))
+            b_out.append(''.join(words_b_colorized))
         else:
             assert(False)
 
     return u''.join(a_out), u''.join(b_out)
 
 
-def colordiff(a, b, highlight='text_highlight'):
+def colordiff(a, b):
     """Colorize differences between two values if color is enabled.
     (Like _colordiff but conditional.)
     """
     if config['ui']['color']:
-        return _colordiff(a, b, highlight)
+        return _colordiff(a, b)
     else:
         return six.text_type(a), six.text_type(b)
 
@@ -659,6 +777,65 @@ def term_width():
     except struct.error:
         return fallback
     return width
+
+
+def split_into_lines(string, raw_string, width_tuple):
+    """Splits string into a list of substrings at whitespace.
+
+    `width_tuple` is a 3-tuple of `(first_width, last_width, middle_width)`.
+    The first substring has a length not longer than `first_width`, the last
+    substring has a length not longer than `last_width`, and all other
+    substrings have a length not longer than `middle_width`.
+
+    `raw_string` and `string` are two strings that contain the same words,
+    but `string` may contain ANSI codes at word borders. Use `raw_string`
+    to find substrings, but return the words in `string`.
+    """
+    first_width, middle_width, last_width = width_tuple
+
+    words_raw = raw_string.split()
+    words     = string.split()
+    assert len(words_raw) == len(words)
+    result = { 'col': [], 'raw': [] }
+    next_substr_raw = u''
+    next_substr     = u''
+
+    # Iterate over all words.
+    for i in range(len(words_raw)):
+        if i == 0:
+            pot_substr_raw = words_raw[i]
+            pot_substr     = words[i]
+        else:
+            pot_substr_raw = ' '.join([next_substr_raw, words_raw[i]])
+            pot_substr     = ' '.join([next_substr,     words[i]])
+
+        # Find out if the pot(ential)_substr fits into the next substring.
+        fits_first = \
+            (len(result['raw']) == 0 and len(pot_substr_raw) <= first_width)
+        fits_middle = \
+            (len(result['raw']) != 0 and len(pot_substr_raw) <= middle_width)
+        if fits_first or fits_middle:
+            next_substr_raw = pot_substr_raw
+            next_substr     = pot_substr
+        else:
+            result['raw'].append(next_substr_raw)
+            result['col'].append(next_substr)
+            next_substr_raw = words_raw[i]
+            next_substr     = words[i]
+
+    # We finished constructing the substrings, but the last substring
+    # has not yet been added to the result.
+    result['raw'].append(next_substr_raw)
+    result['col'].append(next_substr)
+
+    # Also, the length of the last substring was only checked against
+    # `middle_width`. Append an empty substring as the new last substring if
+    # the last substring is too long.
+    if not len(next_substr_raw) <= last_width:
+        result['raw'].append(u'')
+        result['col'].append(u'')
+
+    return result
 
 
 FLOAT_EPSILON = 0.01
