@@ -16,6 +16,7 @@
 from __future__ import division, absolute_import, print_function
 
 import os.path
+import sys
 import tempfile
 import unittest
 
@@ -64,6 +65,7 @@ class HookTest(_common.TestCase, TestHelper):
 
         self.assertIn('hook: invalid command ""', logs)
 
+    @unittest.skipIf(sys.platform, 'win32')  # FIXME: fails on windows
     def test_hook_non_zero_exit(self):
         self._add_hook('test_event', 'sh -c "exit 1"')
 
@@ -86,6 +88,7 @@ class HookTest(_common.TestCase, TestHelper):
             message.startswith("hook: hook for test_event failed: ")
             for message in logs))
 
+    @unittest.skipIf(sys.platform, 'win32')  # FIXME: fails on windows
     def test_hook_no_arguments(self):
         temporary_paths = [
             get_temporary_path() for i in range(self.TEST_HOOK_COUNT)
@@ -104,6 +107,7 @@ class HookTest(_common.TestCase, TestHelper):
             self.assertTrue(os.path.isfile(path))
             os.remove(path)
 
+    @unittest.skipIf(sys.platform, 'win32')  # FIXME: fails on windows
     def test_hook_event_substitution(self):
         temporary_directory = tempfile._get_default_tempdir()
         event_names = ['test_event_event_{0}'.format(i) for i in
@@ -124,6 +128,7 @@ class HookTest(_common.TestCase, TestHelper):
             self.assertTrue(os.path.isfile(path))
             os.remove(path)
 
+    @unittest.skipIf(sys.platform, 'win32')  # FIXME: fails on windows
     def test_hook_argument_substitution(self):
         temporary_paths = [
             get_temporary_path() for i in range(self.TEST_HOOK_COUNT)
@@ -142,6 +147,7 @@ class HookTest(_common.TestCase, TestHelper):
             self.assertTrue(os.path.isfile(path))
             os.remove(path)
 
+    @unittest.skipIf(sys.platform, 'win32')  # FIXME: fails on windows
     def test_hook_bytes_interpolation(self):
         temporary_paths = [
             get_temporary_path().encode('utf-8')
