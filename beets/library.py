@@ -483,6 +483,7 @@ class Item(LibModel):
         'acoustid_id':          types.STRING,
         'mb_releasegroupid':    types.STRING,
         'asin':                 types.STRING,
+        'isrc':                 types.STRING,
         'catalognum':           types.STRING,
         'script':               types.STRING,
         'language':             types.STRING,
