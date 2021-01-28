@@ -12,7 +12,6 @@
 #
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
-
 """Update library's tags using MusicBrainz.
 """
 from __future__ import division, absolute_import, print_function
@@ -27,9 +26,94 @@ import re
 MBID_REGEX = r"(\d|\w){8}-(\d|\w){4}-(\d|\w){4}-(\d|\w){4}-(\d|\w){12}"
 
 
+def track_performers(info):
+    artists = {}
+    for artist_relation in info.get('artist-relation-list', ()):
+        if 'type' in artist_relation:
+            role = 'mbsync '
+            role += artist_relation['type']
+            if 'balance' in role or 'recording' in role or 'sound' in role:
+                role += ' engineer'
+            if 'performing orchestra' in role:
+                role = 'mbsync orchestra'
+            role_sort = role + ' sort'
+            if 'attribute-list' in artist_relation:
+                role += ' - '
+                role_sort += ' - '
+                role += ', '.join(artist_relation['attribute-list'])
+                role_sort += ', '.join(artist_relation['attribute-list'])
+            if 'attributes' in artist_relation:
+                for attribute in artist_relation['attributes']:
+                    if 'credited-as' in attribute:
+                        role += ' (' + attribute['credited-as'] + ')'
+                        role_sort += ' (' + attribute['credited-as'] + ')'
+            role = role.replace(" ", "_")
+            role_sort = role_sort.replace(' ', '_')
+            if role in artists:
+                artists[role].append(artist_relation['artist']['name'])
+                artists[role_sort].append(
+                        artist_relation['artist']['sort-name'])
+            else:
+                artists[role] = [artist_relation['artist']['name']]
+                artists[role_sort] = [artist_relation[
+                        'artist']['sort-name']]
+    for key in artists:
+        artists[key] = u'; '.join(artists[key])
+    return artists
+
+
+def album_performers(info):
+    """ placeholder for more album-related performers
+    """
+
+    artists = {}
+    for artist_relation in info.get('artist-relation-list', ()):
+        if 'type' in artist_relation:
+            role = 'mbsync album '
+            role += artist_relation['type']
+            if 'balance' in role or 'recording' in role or 'sound' in role:
+                role += ' engineer'
+            if 'performing orchestra' in role:
+                role = 'mbsync album orchestra'
+            role_sort = role + ' sort'
+            if 'attribute-list' in artist_relation:
+                role += ' - '
+                role_sort += ' - '
+                role += ', '.join(artist_relation['attribute-list'])
+                role_sort += ', '.join(artist_relation['attribute-list'])
+            if 'attributes' in artist_relation:
+                for attribute in artist_relation['attributes']:
+                    if 'credited-as' in attribute:
+                        role += ' (' + attribute['credited-as'] + ')'
+                        role_sort += ' (' + attribute['credited-as'] + ')'
+            role = role.replace(" ", "_")
+            role_sort = role_sort.replace(' ', '_')
+            if role in artists:
+                artists[role].append(artist_relation['artist']['name'])
+                artists[role_sort].append(
+                        artist_relation['artist']['sort-name'])
+            else:
+                artists[role] = [artist_relation['artist']['name']]
+                artists[role_sort] = [artist_relation[
+                        'artist']['sort-name']]
+    for key in artists:
+        artists[key] = u'; '.join(artists[key])
+
+    return artists
+
+
 class MBSyncPlugin(BeetsPlugin):
     def __init__(self):
         super(MBSyncPlugin, self).__init__()
+
+        self.config.add({
+            u'bin': u'mbsync',
+            u'performer_info': False,
+        })
+
+        if self.config['performer_info'].get(bool):
+            self.register_listener('extracting_trackdata', track_performers)
+            self.register_listener('extracting_albumdata', album_performers)
 
     def commands(self):
         cmd = ui.Subcommand('mbsync',
@@ -47,6 +131,11 @@ class MBSyncPlugin(BeetsPlugin):
             u'-W', u'--nowrite', action='store_false',
             default=None, dest='write',
             help=u"don't write updated metadata to files")
+        cmd.parser.add_option(
+            u'-P', u'--performer_info', action='store_true',
+            dest='performer_info',
+            default=self.config['performer_info'].get(bool),
+            help=u"Fetch performer info")
         cmd.parser.add_format_option()
         cmd.func = self.func
         return [cmd]
@@ -57,12 +146,13 @@ class MBSyncPlugin(BeetsPlugin):
         move = ui.should_move(opts.move)
         pretend = opts.pretend
         write = ui.should_write(opts.write)
+        performer_info = opts.performer_info
         query = ui.decargs(args)
 
-        self.singletons(lib, query, move, pretend, write)
-        self.albums(lib, query, move, pretend, write)
+        self.singletons(lib, query, move, pretend, write, performer_info)
+        self.albums(lib, query, move, pretend, write, performer_info)
 
-    def singletons(self, lib, query, move, pretend, write):
+    def singletons(self, lib, query, move, pretend, write, performer_info):
         """Retrieve and apply info from the autotagger for items matched by
         query.
         """
@@ -86,13 +176,18 @@ class MBSyncPlugin(BeetsPlugin):
                                item.mb_trackid,
                                item_formatted)
                 continue
-
+            # Clean up obsolete flexible fields
+            if performer_info:
+                for tag in item:
+                    if tag[:6] == 'mbsync' and tag not in track_info:
+                        del item[tag]
             # Apply.
             with lib.transaction():
                 autotag.apply_item_metadata(item, track_info)
+                ui.show_model_changes(item)
                 apply_item_changes(lib, item, move, pretend, write)
 
-    def albums(self, lib, query, move, pretend, write):
+    def albums(self, lib, query, move, pretend, write, performer_info):
         """Retrieve and apply info from the autotagger for albums matched by
         query and their items.
         """
@@ -134,6 +229,12 @@ class MBSyncPlugin(BeetsPlugin):
             # work for albums that have missing or extra tracks.
             mapping = {}
             for item in items:
+                # Clean up obsolete flexible fields
+                if performer_info:
+                    for tag in item:
+                        if tag[:6] == 'mbsync' and (tag not in track_info or
+                                                    tag not in album_info):
+                            del item[tag]
                 if item.mb_releasetrackid and \
                         item.mb_releasetrackid in releasetrack_index:
                     mapping[item] = releasetrack_index[item.mb_releasetrackid]

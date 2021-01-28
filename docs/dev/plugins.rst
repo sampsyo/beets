@@ -239,6 +239,11 @@ The events currently available are:
   :ref:`appending choices to the prompt <append_prompt_choices>` by returning a
   list of ``PromptChoices``. Parameters: ``task`` and ``session``.
 
+* `extracting_trackdata` and `extracting_albumdata`: called after the metadata
+  is obtained from MusicBrainz. The parameter is a ``dict`` containing the data
+  retrieved from MusicBrainz for a track or an album.
+  Allows to add additional tags.
+
 The included ``mpdupdate`` plugin provides an example use case for event listeners.
 
 Extend the Autotagger

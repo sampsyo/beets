@@ -23,6 +23,7 @@ import traceback
 from six.moves.urllib.parse import urljoin
 
 from beets import logging
+from beets import plugins
 import beets.autotag.hooks
 import beets
 from beets import util
@@ -65,6 +66,7 @@ class MusicBrainzAPIError(util.HumanReadableException):
             self._reasonstr(), self.verb, repr(self.query)
         )
 
+
 log = logging.getLogger('beets')
 
 RELEASE_INCLUDES = ['artists', 'media', 'recordings', 'release-groups',
@@ -77,7 +79,7 @@ if "work-level-rels" in musicbrainzngs.VALID_BROWSE_INCLUDES['recording']:
     BROWSE_INCLUDES.append("work-level-rels")
 BROWSE_CHUNKSIZE = 100
 BROWSE_MAXTRACKS = 500
-TRACK_INCLUDES = ['artists', 'aliases']
+TRACK_INCLUDES = ['artists', 'aliases', 'artist-rels']
 if 'work-level-rels' in musicbrainzngs.VALID_INCLUDES['recording']:
     TRACK_INCLUDES += ['work-level-rels', 'artist-rels']
 if 'genres' in musicbrainzngs.VALID_INCLUDES['recording']:
@@ -226,6 +228,7 @@ def track_info(recording, index=None, medium=None, medium_index=None,
     lyricist = []
     composer = []
     composer_sort = []
+
     for work_relation in recording.get('work-relation-list', ()):
         if work_relation['type'] != 'performance':
             continue
@@ -258,6 +261,12 @@ def track_info(recording, index=None, medium=None, medium_index=None,
                 arranger.append(artist_relation['artist']['name'])
     if arranger:
         info.arranger = u', '.join(arranger)
+
+    # supplementary tags provided by plugins
+    extra_trackdatas = plugins.send('extracting_trackdata', info=recording)
+    for extra_trackdata in extra_trackdatas:
+        for key in extra_trackdata:
+            info[key] = extra_trackdata[key]
 
     info.decode()
     return info
@@ -446,6 +455,12 @@ def album_info(release):
     genres = release.get('genre-list')
     if config['musicbrainz']['genres'] and genres:
         info.genre = ';'.join(g['name'] for g in genres)
+
+    # supplementary tags provided by plugins
+    extra_albumdatas = plugins.send('extracting_albumdata', info=release)
+    for extra_albumdata in extra_albumdatas:
+        for key in extra_albumdata:
+            info[key] = extra_albumdata[key]
 
     info.decode()
     return info
