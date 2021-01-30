@@ -34,7 +34,7 @@ in place of any single coroutine.
 
 from __future__ import division, absolute_import, print_function
 
-from six.moves import queue
+from beets.util.queue import CountedInvalidatingQueue
 from threading import Thread, Lock
 import sys
 import six
@@ -43,96 +43,6 @@ BUBBLE = '__PIPELINE_BUBBLE__'
 POISON = '__PIPELINE_POISON__'
 
 DEFAULT_QUEUE_SIZE = 16
-
-
-def _invalidate_queue(q, val=None, sync=True):
-    """Breaks a Queue such that it never blocks, always has size 1,
-    and has no maximum size. get()ing from the queue returns `val`,
-    which defaults to None. `sync` controls whether a lock is
-    required (because it's not reentrant!).
-    """
-    def _qsize(len=len):
-        return 1
-
-    def _put(item):
-        pass
-
-    def _get():
-        return val
-
-    if sync:
-        q.mutex.acquire()
-
-    try:
-        # Originally, we set `maxsize` to 0 here, which is supposed to mean
-        # an unlimited queue size. However, there is a race condition since
-        # Python 3.2 when this attribute is changed while another thread is
-        # waiting in put()/get() due to a full/empty queue.
-        # Setting it to 2 is still hacky because Python does not give any
-        # guarantee what happens if Queue methods/attributes are overwritten
-        # when it is already in use. However, because of our dummy _put()
-        # and _get() methods, it provides a workaround to let the queue appear
-        # to be never empty or full.
-        # See issue https://github.com/beetbox/beets/issues/2078
-        q.maxsize = 2
-        q._qsize = _qsize
-        q._put = _put
-        q._get = _get
-        q.not_empty.notifyAll()
-        q.not_full.notifyAll()
-
-    finally:
-        if sync:
-            q.mutex.release()
-
-
-class CountedQueue(queue.Queue):
-    """A queue that keeps track of the number of threads that are
-    still feeding into it. The queue is poisoned when all threads are
-    finished with the queue.
-    """
-    def __init__(self, maxsize=0):
-        queue.Queue.__init__(self, maxsize)
-        self.nthreads = 0
-        self.poisoned = False
-
-    def acquire(self):
-        """Indicate that a thread will start putting into this queue.
-        Should not be called after the queue is already poisoned.
-        """
-        with self.mutex:
-            assert not self.poisoned
-            assert self.nthreads >= 0
-            self.nthreads += 1
-
-    def release(self):
-        """Indicate that a thread that was putting into this queue has
-        exited. If this is the last thread using the queue, the queue
-        is poisoned.
-        """
-        with self.mutex:
-            self.nthreads -= 1
-            assert self.nthreads >= 0
-            if self.nthreads == 0:
-                # All threads are done adding to this queue. Poison it
-                # when it becomes empty.
-                self.poisoned = True
-
-                # Replacement _get invalidates when no items remain.
-                _old_get = self._get
-
-                def _get():
-                    out = _old_get()
-                    if not self.queue:
-                        _invalidate_queue(self, POISON, False)
-                    return out
-
-                if self.queue:
-                    # Items remain.
-                    self._get = _get
-                else:
-                    # No items. Invalidate immediately.
-                    _invalidate_queue(self, POISON, False)
 
 
 class MultiMessage(object):
@@ -225,9 +135,9 @@ class PipelineThread(Thread):
 
             # Ensure that we are not blocking on a queue read or write.
             if hasattr(self, 'in_queue'):
-                _invalidate_queue(self.in_queue, POISON)
+                self.in_queue.invalidate(POISON)
             if hasattr(self, 'out_queue'):
-                _invalidate_queue(self.out_queue, POISON)
+                self.out_queue.invalidate(POISON)
 
     def abort_all(self, exc_info):
         """Abort all other threads in the system for an exception.
@@ -391,7 +301,8 @@ class Pipeline(object):
         size.
         """
         queue_count = len(self.stages) - 1
-        queues = [CountedQueue(queue_size) for i in range(queue_count)]
+        queues = [CountedInvalidatingQueue(queue_size, POISON)
+                  for i in range(queue_count)]
         threads = []
 
         # Set up first stage.
