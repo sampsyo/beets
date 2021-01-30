@@ -22,7 +22,7 @@ import unittest
 
 from test.test_importer import ImportHelper, AutotagStub
 from beets import importer
-from beets import util
+from beets.util import displayable_path, syspath
 from beetsplug.importadded import ImportAddedPlugin
 
 _listeners = ImportAddedPlugin.listeners
@@ -39,7 +39,7 @@ def preserve_plugin_listeners():
 def modify_mtimes(paths, offset=-60000):
     for i, path in enumerate(paths, start=1):
         mstat = os.stat(path)
-        os.utime(path, (mstat.st_atime, mstat.st_mtime + offset * i))
+        os.utime(syspath(path), (mstat.st_atime, mstat.st_mtime + offset * i))
 
 
 class ImportAddedTest(unittest.TestCase, ImportHelper):
@@ -73,7 +73,7 @@ class ImportAddedTest(unittest.TestCase, ImportHelper):
             if m.title.replace('Tag', 'Applied') == item.title:
                 return m
         raise AssertionError(u"No MediaFile found for Item " +
-                             util.displayable_path(item.path))
+                             displayable_path(item.path))
 
     def assertEqualTimes(self, first, second, msg=None):  # noqa
         """For comparing file modification times at a sufficient precision"""
@@ -128,7 +128,7 @@ class ImportAddedTest(unittest.TestCase, ImportHelper):
         for item_path, added_after in items_added_after.items():
             self.assertEqualTimes(items_added_before[item_path], added_after,
                                   u"reimport modified Item.added for " +
-                                  util.displayable_path(item_path))
+                                  displayable_path(item_path))
 
     def test_import_singletons_with_added_dates(self):
         self.config['import']['singletons'] = True
@@ -166,7 +166,7 @@ class ImportAddedTest(unittest.TestCase, ImportHelper):
         for item_path, added_after in items_added_after.items():
             self.assertEqualTimes(items_added_before[item_path], added_after,
                                   u"reimport modified Item.added for " +
-                                  util.displayable_path(item_path))
+                                  displayable_path(item_path))
 
 
 def suite():

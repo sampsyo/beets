@@ -1190,7 +1190,7 @@ def update_items(lib, query, album, move, pretend, fields):
 
 def update_func(lib, opts, args):
     # Verify that the library folder exists to prevent accidental wipes.
-    if not os.path.isdir(lib.directory):
+    if not os.path.isdir(syspath(lib.directory)):
         ui.print_("Library path is unavailable or does not exist.")
         ui.print_(lib.directory)
         if not ui.input_yn("Are you sure you want to continue (y/n)?", True):
@@ -1577,7 +1577,7 @@ def move_func(lib, opts, args):
     dest = opts.dest
     if dest is not None:
         dest = normpath(dest)
-        if not os.path.isdir(dest):
+        if not os.path.isdir(syspath(dest)):
             raise ui.UserError(u'no such directory: %s' % dest)
 
     move_items(lib, dest, decargs(args), opts.copy, opts.album, opts.pretend,

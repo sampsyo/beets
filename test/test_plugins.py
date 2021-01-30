@@ -179,7 +179,7 @@ class EventsTest(unittest.TestCase, ImportHelper, TestHelper):
     def __copy_file(self, dest_path, metadata):
         # Copy files
         resource_path = os.path.join(RSRC, b'full.mp3')
-        shutil.copy(resource_path, dest_path)
+        shutil.copy(syspath(resource_path), syspath(dest_path))
         medium = MediaFile(dest_path)
         # Set metadata
         for attr in metadata:
@@ -188,8 +188,8 @@ class EventsTest(unittest.TestCase, ImportHelper, TestHelper):
 
     def __create_import_dir(self, count):
         self.import_dir = os.path.join(self.temp_dir, b'testsrcdir')
-        if os.path.isdir(self.import_dir):
-            shutil.rmtree(self.import_dir)
+        if os.path.isdir(syspath(self.import_dir)):
+            shutil.rmtree(syspath(self.import_dir))
 
         self.album_path = os.path.join(self.import_dir, b'album')
         os.makedirs(self.album_path)

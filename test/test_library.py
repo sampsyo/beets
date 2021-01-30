@@ -1018,7 +1018,10 @@ class MtimeTest(_common.TestCase):
     def setUp(self):
         super(MtimeTest, self).setUp()
         self.ipath = os.path.join(self.temp_dir, b'testfile.mp3')
-        shutil.copy(os.path.join(_common.RSRC, b'full.mp3'), self.ipath)
+        shutil.copy(
+            syspath(os.path.join(_common.RSRC, b'full.mp3')),
+            syspath(self.ipath),
+        )
         self.i = beets.library.Item.from_path(self.ipath)
         self.lib = beets.library.Library(':memory:')
         self.lib.add(self.i)

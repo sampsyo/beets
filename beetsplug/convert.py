@@ -547,6 +547,6 @@ class ConvertPlugin(BeetsPlugin):
     def _cleanup(self, task, session):
         for path in task.old_paths:
             if path in _temp_files:
-                if os.path.isfile(path):
+                if os.path.isfile(util.syspath(path)):
                     util.remove(path)
                 _temp_files.remove(path)

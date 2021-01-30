@@ -33,6 +33,7 @@ from beets.dbcore.query import (NoneQuery, ParsingError,
                                 InvalidQueryArgumentValueError)
 from beets.library import Library, Item
 from beets import util
+from beets.util import syspath
 import platform
 import six
 
@@ -627,7 +628,7 @@ class PathQueryTest(_common.LibTestCase, TestHelper, AssertsMixin):
             # Temporarily change directory so relative paths work.
             cur_dir = os.getcwd()
             try:
-                os.chdir(self.temp_dir)
+                os.chdir(syspath(self.temp_dir))
                 self.assertTrue(is_path(u'foo/'))
                 self.assertTrue(is_path(u'foo/bar'))
                 self.assertTrue(is_path(u'foo/bar:tagada'))

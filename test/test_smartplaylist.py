@@ -30,10 +30,11 @@ from beets.util import syspath, bytestring_path, py3_path, CHAR_REPLACE
 from beets.ui import UserError
 from beets import config
 
+from test import _common
 from test.helper import TestHelper
 
 
-class SmartPlaylistTest(unittest.TestCase):
+class SmartPlaylistTest(_common.TestCase):
     def test_build_queries(self):
         spl = SmartPlaylistPlugin()
         self.assertEqual(spl._matched_playlists, None)
@@ -169,22 +170,22 @@ class SmartPlaylistTest(unittest.TestCase):
         try:
             spl.update_playlists(lib)
         except Exception:
-            rmtree(dir)
+            rmtree(syspath(dir))
             raise
 
         lib.items.assert_called_once_with(q, None)
         lib.albums.assert_called_once_with(a_q, None)
 
         m3u_filepath = path.join(dir, b'ta_ga_da-my_playlist_.m3u')
-        self.assertTrue(path.exists(m3u_filepath))
+        self.assertExists(m3u_filepath)
         with open(syspath(m3u_filepath), 'rb') as f:
             content = f.read()
-        rmtree(dir)
+        rmtree(syspath(dir))
 
         self.assertEqual(content, b'/tagada.mp3\n')
 
 
-class SmartPlaylistCLITest(unittest.TestCase, TestHelper):
+class SmartPlaylistCLITest(_common.TestCase, TestHelper):
     def setUp(self):
         self.setup_beets()
 
@@ -208,15 +209,15 @@ class SmartPlaylistCLITest(unittest.TestCase, TestHelper):
 
         self.run_with_output(u'splupdate', u'my_playlist')
         m3u_path = path.join(self.temp_dir, b'my_playlist.m3u')
-        self.assertTrue(path.exists(m3u_path))
-        with open(m3u_path, 'rb') as f:
+        self.assertExists(m3u_path)
+        with open(syspath(m3u_path), 'rb') as f:
             self.assertEqual(f.read(), self.item.path + b"\n")
-        remove(m3u_path)
+        remove(syspath(m3u_path))
 
         self.run_with_output(u'splupdate', u'my_playlist.m3u')
-        with open(m3u_path, 'rb') as f:
+        with open(syspath(m3u_path), 'rb') as f:
             self.assertEqual(f.read(), self.item.path + b"\n")
-        remove(m3u_path)
+        remove(syspath(m3u_path))
 
         self.run_with_output(u'splupdate')
         for name in (b'my_playlist.m3u', b'all.m3u'):

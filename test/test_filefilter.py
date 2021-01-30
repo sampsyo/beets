@@ -27,7 +27,7 @@ from test.helper import capture_log
 from test.test_importer import ImportHelper
 from beets import config
 from mediafile import MediaFile
-from beets.util import displayable_path, bytestring_path
+from beets.util import displayable_path, bytestring_path, syspath
 from beetsplug.filefilter import FileFilterPlugin
 
 
@@ -44,7 +44,7 @@ class FileFilterPluginTest(unittest.TestCase, ImportHelper):
     def __copy_file(self, dest_path, metadata):
         # Copy files
         resource_path = os.path.join(_common.RSRC, b'full.mp3')
-        shutil.copy(resource_path, dest_path)
+        shutil.copy(syspath(resource_path), syspath(dest_path))
         medium = MediaFile(dest_path)
         # Set metadata
         for attr in metadata:
@@ -53,14 +53,14 @@ class FileFilterPluginTest(unittest.TestCase, ImportHelper):
 
     def __create_import_dir(self, count):
         self.import_dir = os.path.join(self.temp_dir, b'testsrcdir')
-        if os.path.isdir(self.import_dir):
-            shutil.rmtree(self.import_dir)
+        if os.path.isdir(syspath(self.import_dir)):
+            shutil.rmtree(syspath(self.import_dir))
 
         self.artist_path = os.path.join(self.import_dir, b'artist')
         self.album_path = os.path.join(self.artist_path, b'album')
         self.misc_path = os.path.join(self.import_dir, b'misc')
-        os.makedirs(self.album_path)
-        os.makedirs(self.misc_path)
+        os.makedirs(syspath(self.album_path))
+        os.makedirs(syspath(self.misc_path))
 
         metadata = {
             'artist': 'Tag Artist',

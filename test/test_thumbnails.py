@@ -23,7 +23,7 @@ import unittest
 
 from test.helper import TestHelper
 
-from beets.util import bytestring_path
+from beets.util import bytestring_path, syspath
 from beetsplug.thumbnails import (ThumbnailsPlugin, NORMAL_DIR, LARGE_DIR,
                                   write_metadata_im, write_metadata_pil,
                                   PathlibURI, GioURI)
@@ -63,7 +63,7 @@ class ThumbnailsTest(unittest.TestCase, TestHelper):
                     "Thumb::MTime": u"12345"}
         plugin.write_metadata.assert_called_once_with(b"/path/to/thumbnail",
                                                       metadata)
-        mock_stat.assert_called_once_with(album.artpath)
+        mock_stat.assert_called_once_with(syspath(album.artpath))
 
     @patch('beetsplug.thumbnails.os')
     @patch('beetsplug.thumbnails.ArtResizer')
@@ -81,14 +81,14 @@ class ThumbnailsTest(unittest.TestCase, TestHelper):
         mock_artresizer.shared.local = True
 
         def exists(path):
-            if path == NORMAL_DIR:
+            if path == syspath(NORMAL_DIR):
                 return False
-            if path == LARGE_DIR:
+            if path == syspath(LARGE_DIR):
                 return True
             raise ValueError(u"unexpected path {0!r}".format(path))
         mock_os.path.exists = exists
         plugin = ThumbnailsPlugin()
-        mock_os.makedirs.assert_called_once_with(NORMAL_DIR)
+        mock_os.makedirs.assert_called_once_with(syspath(NORMAL_DIR))
         self.assertTrue(plugin._check_local_ok())
 
         # test metadata writer function
@@ -137,11 +137,12 @@ class ThumbnailsTest(unittest.TestCase, TestHelper):
         mock_util.syspath.side_effect = lambda x: x
         plugin.thumbnail_file_name = Mock(return_value=b'md5')
         mock_os.path.exists.return_value = False
+        md5_file = syspath(md5_file)
 
         def os_stat(target):
-            if target == md5_file:
+            if target == syspath(md5_file):
                 return Mock(st_mtime=1)
-            elif target == path_to_art:
+            elif target == syspath(path_to_art):
                 return Mock(st_mtime=2)
             else:
                 raise ValueError(u"invalid target {0}".format(target))
@@ -149,15 +150,16 @@ class ThumbnailsTest(unittest.TestCase, TestHelper):
 
         plugin.make_cover_thumbnail(album, 12345, thumbnail_dir)
 
-        mock_os.path.exists.assert_called_once_with(md5_file)
-        mock_os.stat.has_calls([call(md5_file), call(path_to_art)],
+        mock_os.path.exists.assert_called_once_with(syspath(md5_file))
+        mock_os.stat.has_calls([call(syspath(md5_file)),
+                                call(syspath(path_to_art))],
                                any_order=True)
 
         resize = mock_artresizer.shared.resize
         resize.assert_called_once_with(12345, path_to_art, md5_file)
         plugin.add_tags.assert_called_once_with(album, resize.return_value)
         mock_shutils.move.assert_called_once_with(resize.return_value,
-                                                  md5_file)
+                                                  syspath(md5_file))
 
         # now test with recent thumbnail & with force
         mock_os.path.exists.return_value = True
@@ -165,9 +167,9 @@ class ThumbnailsTest(unittest.TestCase, TestHelper):
         resize.reset_mock()
 
         def os_stat(target):
-            if target == md5_file:
+            if target == syspath(md5_file):
                 return Mock(st_mtime=3)
-            elif target == path_to_art:
+            elif target == syspath(path_to_art):
                 return Mock(st_mtime=2)
             else:
                 raise ValueError(u"invalid target {0}".format(target))
@@ -203,7 +205,7 @@ class ThumbnailsTest(unittest.TestCase, TestHelper):
                 [b"[Desktop Entry]", b"Icon=./cover.jpg"]
             )
 
-        rmtree(tmp)
+        rmtree(syspath(tmp))
 
     @patch('beetsplug.thumbnails.ThumbnailsPlugin._check_local_ok')
     @patch('beetsplug.thumbnails.ArtResizer')

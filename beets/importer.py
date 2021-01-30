@@ -380,7 +380,8 @@ class ImportSession(object):
         """Mark paths and directories as merged for future reimport tasks.
         """
         self._merged_items.update(paths)
-        dirs = set([os.path.dirname(path) if os.path.isfile(path) else path
+        dirs = set([os.path.dirname(path)
+                    if os.path.isfile(syspath(path)) else path
                     for path in paths])
         self._merged_dirs.update(dirs)
 
@@ -869,7 +870,7 @@ class ImportTask(BaseImportTask):
         the file still exists, no pruning is performed, so it's safe to
         call when the file in question may not have been removed.
         """
-        if self.toppath and not os.path.exists(filename):
+        if self.toppath and not os.path.exists(syspath(filename)):
             util.prune_dirs(os.path.dirname(filename),
                             self.toppath,
                             clutter=config['clutter'].as_str_seq())
@@ -1063,7 +1064,7 @@ class ArchiveImportTask(SentinelImportTask):
         if self.extracted:
             log.debug(u'Removing extracted directory: {0}',
                       displayable_path(self.toppath))
-            shutil.rmtree(self.toppath)
+            shutil.rmtree(syspath(self.toppath))
 
     def extract(self):
         """Extracts the archive to a temporary directory and sets

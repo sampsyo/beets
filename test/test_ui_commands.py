@@ -27,6 +27,7 @@ from test import _common
 from beets import library
 from beets import ui
 from beets.ui import commands
+from beets.util import syspath
 
 
 class QueryTest(_common.TestCase):
@@ -34,7 +35,7 @@ class QueryTest(_common.TestCase):
         super(QueryTest, self).setUp()
 
         self.libdir = os.path.join(self.temp_dir, b'testlibdir')
-        os.mkdir(self.libdir)
+        os.mkdir(syspath(self.libdir))
 
         # Add a file to the library but don't copy it in yet.
         self.lib = library.Library(':memory:', self.libdir)
@@ -44,7 +45,10 @@ class QueryTest(_common.TestCase):
 
     def add_item(self, filename=b'srcfile', templatefile=b'full.mp3'):
         itempath = os.path.join(self.libdir, filename)
-        shutil.copy(os.path.join(_common.RSRC, templatefile), itempath)
+        shutil.copy(
+            syspath(os.path.join(_common.RSRC, templatefile)),
+            syspath(itempath),
+        )
         item = library.Item.from_path(itempath)
         self.lib.add(item)
         return item, itempath

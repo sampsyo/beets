@@ -31,7 +31,6 @@ from mock import patch, Mock
 import unittest
 
 from test import _common
-from beets.util import displayable_path, bytestring_path, py3_path
 from test.helper import TestHelper, has_program, capture_log
 from test.helper import ImportSessionFixture
 from beets import importer
@@ -42,6 +41,7 @@ from beets.autotag import AlbumInfo, TrackInfo, AlbumMatch
 from beets import config
 from beets import logging
 from beets import util
+from beets.util import displayable_path, bytestring_path, py3_path, syspath
 
 
 class AutotagStub(object):
@@ -174,11 +174,11 @@ class ImportHelper(TestHelper):
         :param count:  Number of files to create
         """
         self.import_dir = os.path.join(self.temp_dir, b'testsrcdir')
-        if os.path.isdir(self.import_dir):
-            shutil.rmtree(self.import_dir)
+        if os.path.isdir(syspath(self.import_dir)):
+            shutil.rmtree(syspath(self.import_dir))
 
         album_path = os.path.join(self.import_dir, b'the_album')
-        os.makedirs(album_path)
+        os.makedirs(syspath(album_path))
 
         resource_path = os.path.join(_common.RSRC, b'full.mp3')
 
@@ -197,7 +197,7 @@ class ImportHelper(TestHelper):
                 album_path,
                 bytestring_path('track_%d.mp3' % (i + 1))
             )
-            shutil.copy(resource_path, medium_path)
+            shutil.copy(syspath(resource_path), syspath(medium_path))
             medium = MediaFile(medium_path)
 
             # Set metadata
@@ -242,7 +242,7 @@ class ImportHelper(TestHelper):
         self.assertNotExists(os.path.join(self.libdir, *segments))
 
     def assert_lib_dir_empty(self):
-        self.assertEqual(len(os.listdir(self.libdir)), 0)
+        self.assertEqual(len(os.listdir(syspath(self.libdir))), 0)
 
 
 @_common.slow_test()
@@ -294,8 +294,7 @@ class NonAutotaggedImportTest(_common.TestCase, ImportHelper):
         self.assertNotExists(os.path.join(self.import_dir, b'the_album'))
 
     def test_import_with_move_prunes_with_extra_clutter(self):
-        f = open(os.path.join(self.import_dir, b'the_album', b'alog.log'), 'w')
-        f.close()
+        self.touch(os.path.join(self.import_dir, b'the_album', b'alog.log'))
         config['clutter'] = ['*.log']
         config['import']['move'] = True
 
@@ -351,9 +350,9 @@ class NonAutotaggedImportTest(_common.TestCase, ImportHelper):
                 util.bytestring_path('{0}.mp3'.format(mediafile.title))
             )
             self.assertExists(filename)
-            self.assertTrue(os.path.islink(filename))
+            self.assertTrue(os.path.islink(syspath(filename)))
             self.assert_equal_path(
-                util.bytestring_path(os.readlink(filename)),
+                util.bytestring_path(os.readlink(syspath(filename))),
                 mediafile.path
             )
 
@@ -368,8 +367,8 @@ class NonAutotaggedImportTest(_common.TestCase, ImportHelper):
                 util.bytestring_path('{0}.mp3'.format(mediafile.title))
             )
             self.assertExists(filename)
-            s1 = os.stat(mediafile.path)
-            s2 = os.stat(filename)
+            s1 = os.stat(syspath(mediafile.path))
+            s2 = os.stat(syspath(filename))
             self.assertTrue(
                 (s1[stat.ST_INO], s1[stat.ST_DEV]) ==
                 (s2[stat.ST_INO], s2[stat.ST_DEV])
@@ -378,9 +377,10 @@ class NonAutotaggedImportTest(_common.TestCase, ImportHelper):
 
 def create_archive(session):
     (handle, path) = mkstemp(dir=py3_path(session.temp_dir))
+    path = bytestring_path(path)
     os.close(handle)
     archive = ZipFile(py3_path(path), mode='w')
-    archive.write(os.path.join(_common.RSRC, b'full.mp3'),
+    archive.write(syspath(os.path.join(_common.RSRC, b'full.mp3')),
                   'full.mp3')
     archive.close()
     path = bytestring_path(path)
@@ -434,10 +434,11 @@ class ImportZipTest(unittest.TestCase, ImportHelper):
 class ImportTarTest(ImportZipTest):
 
     def create_archive(self):
-        (handle, path) = mkstemp(dir=self.temp_dir)
+        (handle, path) = mkstemp(dir=syspath(self.temp_dir))
+        path = bytestring_path(path)
         os.close(handle)
         archive = TarFile(py3_path(path), mode='w')
-        archive.add(os.path.join(_common.RSRC, b'full.mp3'),
+        archive.add(syspath(os.path.join(_common.RSRC, b'full.mp3')),
                     'full.mp3')
         archive.close()
         return path
@@ -529,7 +530,7 @@ class ImportSingletonTest(_common.TestCase, ImportHelper):
         resource_path = os.path.join(_common.RSRC, b'empty.mp3')
         single_path = os.path.join(self.import_dir, b'track_2.mp3')
 
-        shutil.copy(resource_path, single_path)
+        util.copy(resource_path, single_path)
         import_files = [
             os.path.join(self.import_dir, b'the_album'),
             single_path
@@ -688,8 +689,7 @@ class ImportTest(_common.TestCase, ImportHelper):
         self.assertEqual(self.lib.items().get(), None)
 
     def test_skip_non_album_dirs(self):
-        self.assertTrue(os.path.isdir(
-            os.path.join(self.import_dir, b'the_album')))
+        self.assertIsDir(os.path.join(self.import_dir, b'the_album'))
         self.touch(b'cruft', dir=self.import_dir)
         self.importer.add_choice(importer.action.APPLY)
         self.importer.run()
@@ -1473,7 +1473,10 @@ class IncrementalImportTest(unittest.TestCase, TestHelper):
 
 
 def _mkmp3(path):
-    shutil.copyfile(os.path.join(_common.RSRC, b'min.mp3'), path)
+    shutil.copyfile(
+        syspath(os.path.join(_common.RSRC, b'min.mp3')),
+        syspath(path),
+    )
 
 
 class AlbumsInDirTest(_common.TestCase):
@@ -1482,13 +1485,13 @@ class AlbumsInDirTest(_common.TestCase):
 
         # create a directory structure for testing
         self.base = os.path.abspath(os.path.join(self.temp_dir, b'tempdir'))
-        os.mkdir(self.base)
+        os.mkdir(syspath(self.base))
 
-        os.mkdir(os.path.join(self.base, b'album1'))
-        os.mkdir(os.path.join(self.base, b'album2'))
-        os.mkdir(os.path.join(self.base, b'more'))
-        os.mkdir(os.path.join(self.base, b'more', b'album3'))
-        os.mkdir(os.path.join(self.base, b'more', b'album4'))
+        os.mkdir(syspath(os.path.join(self.base, b'album1')))
+        os.mkdir(syspath(os.path.join(self.base, b'album2')))
+        os.mkdir(syspath(os.path.join(self.base, b'more')))
+        os.mkdir(syspath(os.path.join(self.base, b'more', b'album3')))
+        os.mkdir(syspath(os.path.join(self.base, b'more', b'album4')))
 
         _mkmp3(os.path.join(self.base, b'album1', b'album1song1.mp3'))
         _mkmp3(os.path.join(self.base, b'album1', b'album1song2.mp3'))
@@ -1527,7 +1530,7 @@ class MultiDiscAlbumsInDirTest(_common.TestCase):
         otherwise, we use Unicode names.
         """
         self.base = os.path.abspath(os.path.join(self.temp_dir, b'tempdir'))
-        os.mkdir(self.base)
+        os.mkdir(syspath(self.base))
 
         name = b'CAT' if ascii else util.bytestring_path(u'C\xc1T')
         name_alt_case = b'CAt' if ascii else util.bytestring_path(u'C\xc1t')
@@ -1574,7 +1577,7 @@ class MultiDiscAlbumsInDirTest(_common.TestCase):
             self.files = [self._normalize_path(p) for p in self.files]
 
         for path in self.dirs:
-            os.mkdir(util.syspath(path))
+            os.mkdir(syspath(path))
         if files:
             for path in self.files:
                 _mkmp3(util.syspath(path))
@@ -1762,7 +1765,7 @@ class ImportPretendTest(_common.TestCase, ImportHelper):
         self._create_import_dir(1)
         resource_path = os.path.join(_common.RSRC, b'empty.mp3')
         single_path = os.path.join(self.import_dir, b'track_2.mp3')
-        shutil.copy(resource_path, single_path)
+        shutil.copy(syspath(resource_path), syspath(single_path))
         self.import_paths = [
             os.path.join(self.import_dir, b'the_album'),
             single_path
@@ -1775,7 +1778,7 @@ class ImportPretendTest(_common.TestCase, ImportHelper):
 
     def __create_empty_import_dir(self):
         path = os.path.join(self.temp_dir, b'empty')
-        os.makedirs(path)
+        os.makedirs(syspath(path))
         self.empty_path = path
 
     def __run(self, import_paths, singletons=True):

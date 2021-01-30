@@ -196,8 +196,8 @@ class EmbedCoverArtPlugin(BeetsPlugin):
         appropriate configuration option is enabled).
         """
         if self.config['remove_art_file'] and album.artpath:
-            if os.path.isfile(album.artpath):
+            if os.path.isfile(syspath(album.artpath)):
                 self._log.debug(u'Removing album art file for {0}', album)
-                os.remove(album.artpath)
+                os.remove(syspath(album.artpath))
                 album.artpath = None
                 album.store()

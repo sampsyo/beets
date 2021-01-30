@@ -1074,7 +1074,7 @@ class Album(LibModel):
         if not old_art:
             return
 
-        if not os.path.exists(old_art):
+        if not os.path.exists(syspath(old_art)):
             log.error(u'removing reference to missing album art file {}',
                       util.displayable_path(old_art))
             self.artpath = None

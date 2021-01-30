@@ -26,7 +26,7 @@ from test import _common
 from beets.library import Item
 import mediafile
 from beets.plugins import BeetsPlugin
-from beets.util import bytestring_path
+from beets.util import bytestring_path, syspath
 
 
 field_extension = mediafile.MediaField(
@@ -43,7 +43,7 @@ class ExtendedFieldTestMixin(_common.TestCase):
         name = bytestring_path(name + '.' + extension)
         src = os.path.join(_common.RSRC, name)
         target = os.path.join(self.temp_dir, name)
-        shutil.copy(src, target)
+        shutil.copy(syspath(src), syspath(target))
         return mediafile.MediaFile(target)
 
     def test_extended_field_write(self):

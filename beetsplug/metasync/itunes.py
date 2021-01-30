@@ -31,19 +31,20 @@ from time import mktime
 from beets import util
 from beets.dbcore import types
 from beets.library import DateType
+from beets.util import bytestring_path, syspath
 from confuse import ConfigValueError
 from beetsplug.metasync import MetaSource
 
 
 @contextmanager
 def create_temporary_copy(path):
-    temp_dir = tempfile.mkdtemp()
-    temp_path = os.path.join(temp_dir, 'temp_itunes_lib')
-    shutil.copyfile(path, temp_path)
+    temp_dir = bytestring_path(tempfile.mkdtemp())
+    temp_path = os.path.join(temp_dir, b'temp_itunes_lib')
+    shutil.copyfile(syspath(path), syspath(temp_path))
     try:
         yield temp_path
     finally:
-        shutil.rmtree(temp_dir)
+        shutil.rmtree(syspath(temp_dir))
 
 
 def _norm_itunes_path(path):

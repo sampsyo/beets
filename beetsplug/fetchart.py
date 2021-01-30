@@ -978,7 +978,8 @@ class FetchArtPlugin(plugins.BeetsPlugin, RequestMixin):
     def fetch_art(self, session, task):
         """Find art for the album being imported."""
         if task.is_album:  # Only fetch art for full albums.
-            if task.album.artpath and os.path.isfile(task.album.artpath):
+            if (task.album.artpath
+                    and os.path.isfile(syspath(task.album.artpath))):
                 # Album already has art (probably a re-import); skip it.
                 return
             if task.choice_flag == importer.action.ASIS:
@@ -1082,7 +1083,8 @@ class FetchArtPlugin(plugins.BeetsPlugin, RequestMixin):
         fetchart CLI command.
         """
         for album in albums:
-            if album.artpath and not force and os.path.isfile(album.artpath):
+            if (album.artpath and not force
+                    and os.path.isfile(syspath(album.artpath))):
                 if not quiet:
                     message = ui.colorize('text_highlight_minor',
                                           u'has album art')

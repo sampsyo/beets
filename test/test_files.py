@@ -27,7 +27,7 @@ from test import _common
 from test._common import item, touch
 import beets.library
 from beets import util
-from beets.util import MoveOperation
+from beets.util import MoveOperation, bytestring_path, syspath
 
 
 class MoveTest(_common.TestCase):
@@ -36,7 +36,10 @@ class MoveTest(_common.TestCase):
 
         # make a temporary file
         self.path = join(self.temp_dir, b'temp.mp3')
-        shutil.copy(join(_common.RSRC, b'full.mp3'), self.path)
+        shutil.copy(
+            syspath(join(_common.RSRC, b'full.mp3')),
+            syspath(self.path),
+        )
 
         # add it to a temporary library
         self.lib = beets.library.Library(':memory:')
@@ -45,7 +48,7 @@ class MoveTest(_common.TestCase):
 
         # set up the destination
         self.libdir = join(self.temp_dir, b'testlibdir')
-        os.mkdir(self.libdir)
+        os.mkdir(syspath(self.libdir))
         self.lib.directory = self.libdir
         self.lib.path_formats = [('default',
                                   join('$artist', '$album', '$title'))]
@@ -141,20 +144,20 @@ class MoveTest(_common.TestCase):
 
     def test_read_only_file_copied_writable(self):
         # Make the source file read-only.
-        os.chmod(self.path, 0o444)
+        os.chmod(syspath(self.path), 0o444)
 
         try:
             self.i.move(operation=MoveOperation.COPY)
-            self.assertTrue(os.access(self.i.path, os.W_OK))
+            self.assertTrue(os.access(syspath(self.i.path), os.W_OK))
         finally:
             # Make everything writable so it can be cleaned up.
-            os.chmod(self.path, 0o777)
-            os.chmod(self.i.path, 0o777)
+            os.chmod(syspath(self.path), 0o777)
+            os.chmod(syspath(self.i.path), 0o777)
 
     def test_move_avoids_collision_with_existing_file(self):
         # Make a conflicting file at the destination.
         dest = self.i.destination()
-        os.makedirs(os.path.dirname(dest))
+        os.makedirs(syspath(os.path.dirname(dest)))
         touch(dest)
 
         self.i.move()
@@ -166,8 +169,11 @@ class MoveTest(_common.TestCase):
     def test_link_arrives(self):
         self.i.move(operation=MoveOperation.LINK)
         self.assertExists(self.dest)
-        self.assertTrue(os.path.islink(self.dest))
-        self.assertEqual(os.readlink(self.dest), self.path)
+        self.assertTrue(os.path.islink(syspath(self.dest)))
+        self.assertEqual(
+            bytestring_path(os.readlink(syspath(self.dest))),
+            self.path,
+        )
 
     @unittest.skipUnless(_common.HAVE_SYMLINK, "need symlinks")
     def test_link_does_not_depart(self):
@@ -183,8 +189,8 @@ class MoveTest(_common.TestCase):
     def test_hardlink_arrives(self):
         self.i.move(operation=MoveOperation.HARDLINK)
         self.assertExists(self.dest)
-        s1 = os.stat(self.path)
-        s2 = os.stat(self.dest)
+        s1 = os.stat(syspath(self.path))
+        s2 = os.stat(syspath(self.dest))
         self.assertTrue(
             (s1[stat.ST_INO], s1[stat.ST_DEV]) ==
             (s2[stat.ST_INO], s2[stat.ST_DEV])
@@ -273,8 +279,8 @@ class AlbumFileTest(_common.TestCase):
         self.ai.store()
         self.i.load()
 
-        self.assertFalse(os.path.exists(oldpath))
-        self.assertTrue(os.path.exists(self.i.path))
+        self.assertNotExists(oldpath)
+        self.assertExists(self.i.path)
 
     def test_albuminfo_move_copies_file(self):
         oldpath = self.i.path
@@ -283,8 +289,8 @@ class AlbumFileTest(_common.TestCase):
         self.ai.store()
         self.i.load()
 
-        self.assertTrue(os.path.exists(oldpath))
-        self.assertTrue(os.path.exists(self.i.path))
+        self.assertExists(oldpath)
+        self.assertExists(self.i.path)
 
     @unittest.skipUnless(_common.HAVE_REFLINK, "need reflink")
     def test_albuminfo_move_reflinks_file(self):
@@ -328,21 +334,21 @@ class ArtFileTest(_common.TestCase):
         self.otherdir = os.path.join(self.temp_dir, b'testotherdir')
 
     def test_art_deleted_when_items_deleted(self):
-        self.assertTrue(os.path.exists(self.art))
+        self.assertExists(self.art)
         self.ai.remove(True)
-        self.assertFalse(os.path.exists(self.art))
+        self.assertNotExists(self.art)
 
     def test_art_moves_with_album(self):
-        self.assertTrue(os.path.exists(self.art))
+        self.assertExists(self.art)
         oldpath = self.i.path
         self.ai.album = u'newAlbum'
         self.ai.move()
         self.i.load()
 
         self.assertNotEqual(self.i.path, oldpath)
-        self.assertFalse(os.path.exists(self.art))
+        self.assertNotExists(self.art)
         newart = self.lib.get_album(self.i).art_destination(self.art)
-        self.assertTrue(os.path.exists(newart))
+        self.assertExists(newart)
 
     def test_art_moves_with_album_to_custom_dir(self):
         # Move the album to another directory.
@@ -357,7 +363,7 @@ class ArtFileTest(_common.TestCase):
         self.assertTrue(b'testotherdir' in newart)
 
     def test_setart_copies_image(self):
-        os.remove(self.art)
+        util.remove(self.art)
 
         newart = os.path.join(self.libdir, b'newart.jpg')
         touch(newart)
@@ -369,10 +375,10 @@ class ArtFileTest(_common.TestCase):
 
         self.assertEqual(ai.artpath, None)
         ai.set_art(newart)
-        self.assertTrue(os.path.exists(ai.artpath))
+        self.assertExists(ai.artpath)
 
     def test_setart_to_existing_art_works(self):
-        os.remove(self.art)
+        util.remove(self.art)
 
         # Original art.
         newart = os.path.join(self.libdir, b'newart.jpg')
@@ -386,7 +392,7 @@ class ArtFileTest(_common.TestCase):
 
         # Set the art again.
         ai.set_art(ai.artpath)
-        self.assertTrue(os.path.exists(ai.artpath))
+        self.assertExists(ai.artpath)
 
     def test_setart_to_existing_but_unset_art_works(self):
         newart = os.path.join(self.libdir, b'newart.jpg')
@@ -399,11 +405,11 @@ class ArtFileTest(_common.TestCase):
 
         # Copy the art to the destination.
         artdest = ai.art_destination(newart)
-        shutil.copy(newart, artdest)
+        shutil.copy(syspath(newart), syspath(artdest))
 
         # Set the art again.
         ai.set_art(artdest)
-        self.assertTrue(os.path.exists(ai.artpath))
+        self.assertExists(ai.artpath)
 
     def test_setart_to_conflicting_file_gets_new_path(self):
         newart = os.path.join(self.libdir, b'newart.jpg')
@@ -425,11 +431,11 @@ class ArtFileTest(_common.TestCase):
                          os.path.dirname(ai.artpath))
 
     def test_setart_sets_permissions(self):
-        os.remove(self.art)
+        util.remove(self.art)
 
         newart = os.path.join(self.libdir, b'newart.jpg')
         touch(newart)
-        os.chmod(newart, 0o400)  # read-only
+        os.chmod(syspath(newart), 0o400)  # read-only
 
         try:
             i2 = item()
@@ -439,14 +445,14 @@ class ArtFileTest(_common.TestCase):
             i2.move(operation=MoveOperation.COPY)
             ai.set_art(newart)
 
-            mode = stat.S_IMODE(os.stat(ai.artpath).st_mode)
+            mode = stat.S_IMODE(os.stat(syspath(ai.artpath)).st_mode)
             self.assertTrue(mode & stat.S_IRGRP)
-            self.assertTrue(os.access(ai.artpath, os.W_OK))
+            self.assertTrue(os.access(syspath(ai.artpath), os.W_OK))
 
         finally:
             # Make everything writable so it can be cleaned up.
-            os.chmod(newart, 0o777)
-            os.chmod(ai.artpath, 0o777)
+            os.chmod(syspath(newart), 0o777)
+            os.chmod(syspath(ai.artpath), 0o777)
 
     def test_move_last_file_moves_albumart(self):
         oldartpath = self.lib.albums()[0].artpath
@@ -611,9 +617,9 @@ class PruneTest(_common.TestCase):
         super(PruneTest, self).setUp()
 
         self.base = os.path.join(self.temp_dir, b'testdir')
-        os.mkdir(self.base)
+        os.mkdir(syspath(self.base))
         self.sub = os.path.join(self.base, b'subdir')
-        os.mkdir(self.sub)
+        os.mkdir(syspath(self.sub))
 
     def test_prune_existent_directory(self):
         util.prune_dirs(self.sub, self.base)
@@ -631,10 +637,10 @@ class WalkTest(_common.TestCase):
         super(WalkTest, self).setUp()
 
         self.base = os.path.join(self.temp_dir, b'testdir')
-        os.mkdir(self.base)
+        os.mkdir(syspath(self.base))
         touch(os.path.join(self.base, b'y'))
         touch(os.path.join(self.base, b'x'))
-        os.mkdir(os.path.join(self.base, b'd'))
+        os.mkdir(syspath(os.path.join(self.base, b'd')))
         touch(os.path.join(self.base, b'd', b'z'))
 
     def test_sorted_files(self):
@@ -671,7 +677,7 @@ class UniquePathTest(_common.TestCase):
         super(UniquePathTest, self).setUp()
 
         self.base = os.path.join(self.temp_dir, b'testdir')
-        os.mkdir(self.base)
+        os.mkdir(syspath(self.base))
         touch(os.path.join(self.base, b'x.mp3'))
         touch(os.path.join(self.base, b'x.1.mp3'))
         touch(os.path.join(self.base, b'x.2.mp3'))
@@ -698,16 +704,12 @@ class MkDirAllTest(_common.TestCase):
     def test_parent_exists(self):
         path = os.path.join(self.temp_dir, b'foo', b'bar', b'baz', b'qux.mp3')
         util.mkdirall(path)
-        self.assertTrue(os.path.isdir(
-            os.path.join(self.temp_dir, b'foo', b'bar', b'baz')
-        ))
+        self.assertIsDir(os.path.join(self.temp_dir, b'foo', b'bar', b'baz'))
 
     def test_child_does_not_exist(self):
         path = os.path.join(self.temp_dir, b'foo', b'bar', b'baz', b'qux.mp3')
         util.mkdirall(path)
-        self.assertTrue(not os.path.exists(
-            os.path.join(self.temp_dir, b'foo', b'bar', b'baz', b'qux.mp3')
-        ))
+        self.assertNotExists(path)
 
 
 def suite():
