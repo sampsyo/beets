@@ -70,14 +70,14 @@ log = logging.getLogger('beets')
 RELEASE_INCLUDES = ['artists', 'media', 'recordings', 'release-groups',
                     'labels', 'artist-credits', 'aliases',
                     'recording-level-rels', 'work-rels',
-                    'work-level-rels', 'artist-rels']
+                    'work-level-rels', 'artist-rels', 'isrcs']
 BROWSE_INCLUDES = ['artist-credits', 'work-rels',
                    'artist-rels', 'recording-rels', 'release-rels']
 if "work-level-rels" in musicbrainzngs.VALID_BROWSE_INCLUDES['recording']:
     BROWSE_INCLUDES.append("work-level-rels")
 BROWSE_CHUNKSIZE = 100
 BROWSE_MAXTRACKS = 500
-TRACK_INCLUDES = ['artists', 'aliases']
+TRACK_INCLUDES = ['artists', 'aliases', 'isrcs']
 if 'work-level-rels' in musicbrainzngs.VALID_INCLUDES['recording']:
     TRACK_INCLUDES += ['work-level-rels', 'artist-rels']
 if 'genres' in musicbrainzngs.VALID_INCLUDES['recording']:
@@ -222,6 +222,9 @@ def track_info(recording, index=None, medium=None, medium_index=None,
 
     if recording.get('length'):
         info.length = int(recording['length']) / (1000.0)
+
+    if recording.get('isrc-list'):
+        info.isrc = ';'.join(recording['isrc-list'])
 
     lyricist = []
     composer = []
