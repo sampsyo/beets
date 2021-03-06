@@ -238,6 +238,15 @@ The events currently available are:
   during a ``beet import`` interactive session. Plugins can use this event for
   :ref:`appending choices to the prompt <append_prompt_choices>` by returning a
   list of ``PromptChoices``. Parameters: ``task`` and ``session``.
+  
+* `mb_track_extract`: called after the metadata is obtained from
+  MusicBrainz. The parameter is a ``dict`` containing the data
+  retrieved from MusicBrainz for a track.
+  Allows to add additional tags.
+  Parameter: ``data``
+
+* `mb_album_extract`: Like `mb_track_extract`, but for album tags.
+  Parameter: ``data``
 
 The included ``mpdupdate`` plugin provides an example use case for event listeners.
 

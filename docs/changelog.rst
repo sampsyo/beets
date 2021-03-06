@@ -99,7 +99,7 @@ New features:
   Windows.
   Thanks to :user:`MartyLake`.
   :bug:`3331` :bug:`3334`
-* The 'data_source' field is now also applied as an album-level flexible
+* The ``data_source`` field is now also applied as an album-level flexible
   attribute during imports, allowing for more refined album level searches.
   :bug:`3350` :bug:`1693`
 * :doc:`/plugins/deezer`: Added Deezer plugin as an import metadata provider:
@@ -178,6 +178,8 @@ New features:
 * :doc:`/plugins/replaygain` now does its analysis in parallel when using
   the ``command`` or ``ffmpeg`` backends.
   :bug:`3478`
+* Add ``mb_album_extract`` and ``mb_track_extract`` hooks to allow
+  plugins to add new fields based on MusicBrainz data. Thanks to :user:`dosoe`.
 * Removes usage of the bs1770gain replaygain backend.
   Thanks to :user:`SamuelCook`.
 * Added ``trackdisambig`` which stores the recording disambiguation from
@@ -1940,7 +1942,7 @@ Major new features and bigger changes:
   search results you wish to see when looking up releases at MusicBrainz
   during import. :bug:`1245`
 * The importer now records the data source for a match in a new
-  flexible attribute `data_source` on items and albums. :bug:`1311`
+  flexible attribute ``data_source`` on items and albums. :bug:`1311`
 * The colors used in the terminal interface are now configurable via the new
   config option ``colors``, nested under the option ``ui``. (Also, the `color`
   config option has been moved from top-level to under ``ui``. Beets will

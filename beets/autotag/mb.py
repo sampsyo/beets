@@ -23,6 +23,7 @@ import traceback
 from six.moves.urllib.parse import urljoin
 
 from beets import logging
+from beets import plugins
 import beets.autotag.hooks
 import beets
 from beets import util
@@ -261,6 +262,11 @@ def track_info(recording, index=None, medium=None, medium_index=None,
     if arranger:
         info.arranger = u', '.join(arranger)
 
+    # Supplementary fields provided by plugins
+    extra_trackdatas = plugins.send('mb_track_extract', data=recording)
+    for extra_trackdata in extra_trackdatas:
+        info.update(extra_trackdata)
+
     info.decode()
     return info
 
@@ -448,6 +454,10 @@ def album_info(release):
     genres = release.get('genre-list')
     if config['musicbrainz']['genres'] and genres:
         info.genre = ';'.join(g['name'] for g in genres)
+
+    extra_albumdatas = plugins.send('mb_album_extract', data=release)
+    for extra_albumdata in extra_albumdatas:
+        info.update(extra_albumdata)
 
     info.decode()
     return info
