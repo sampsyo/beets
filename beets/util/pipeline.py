@@ -34,7 +34,8 @@ in place of any single coroutine.
 
 from __future__ import division, absolute_import, print_function
 
-from six.moves import queue
+from beets.util.queue import CountedInvalidatingQueue
+from concurrent import futures
 from threading import Thread, Lock
 import sys
 import six
@@ -43,96 +44,6 @@ BUBBLE = '__PIPELINE_BUBBLE__'
 POISON = '__PIPELINE_POISON__'
 
 DEFAULT_QUEUE_SIZE = 16
-
-
-def _invalidate_queue(q, val=None, sync=True):
-    """Breaks a Queue such that it never blocks, always has size 1,
-    and has no maximum size. get()ing from the queue returns `val`,
-    which defaults to None. `sync` controls whether a lock is
-    required (because it's not reentrant!).
-    """
-    def _qsize(len=len):
-        return 1
-
-    def _put(item):
-        pass
-
-    def _get():
-        return val
-
-    if sync:
-        q.mutex.acquire()
-
-    try:
-        # Originally, we set `maxsize` to 0 here, which is supposed to mean
-        # an unlimited queue size. However, there is a race condition since
-        # Python 3.2 when this attribute is changed while another thread is
-        # waiting in put()/get() due to a full/empty queue.
-        # Setting it to 2 is still hacky because Python does not give any
-        # guarantee what happens if Queue methods/attributes are overwritten
-        # when it is already in use. However, because of our dummy _put()
-        # and _get() methods, it provides a workaround to let the queue appear
-        # to be never empty or full.
-        # See issue https://github.com/beetbox/beets/issues/2078
-        q.maxsize = 2
-        q._qsize = _qsize
-        q._put = _put
-        q._get = _get
-        q.not_empty.notifyAll()
-        q.not_full.notifyAll()
-
-    finally:
-        if sync:
-            q.mutex.release()
-
-
-class CountedQueue(queue.Queue):
-    """A queue that keeps track of the number of threads that are
-    still feeding into it. The queue is poisoned when all threads are
-    finished with the queue.
-    """
-    def __init__(self, maxsize=0):
-        queue.Queue.__init__(self, maxsize)
-        self.nthreads = 0
-        self.poisoned = False
-
-    def acquire(self):
-        """Indicate that a thread will start putting into this queue.
-        Should not be called after the queue is already poisoned.
-        """
-        with self.mutex:
-            assert not self.poisoned
-            assert self.nthreads >= 0
-            self.nthreads += 1
-
-    def release(self):
-        """Indicate that a thread that was putting into this queue has
-        exited. If this is the last thread using the queue, the queue
-        is poisoned.
-        """
-        with self.mutex:
-            self.nthreads -= 1
-            assert self.nthreads >= 0
-            if self.nthreads == 0:
-                # All threads are done adding to this queue. Poison it
-                # when it becomes empty.
-                self.poisoned = True
-
-                # Replacement _get invalidates when no items remain.
-                _old_get = self._get
-
-                def _get():
-                    out = _old_get()
-                    if not self.queue:
-                        _invalidate_queue(self, POISON, False)
-                    return out
-
-                if self.queue:
-                    # Items remain.
-                    self._get = _get
-                else:
-                    # No items. Invalidate immediately.
-                    _invalidate_queue(self, POISON, False)
 
 
 class MultiMessage(object):
@@ -191,7 +102,32 @@ def mutator_stage(func):
         task = None
         while True:
             task = yield task
-            func(*(args + (task,)))
+            fut = func(*(args + (task,)))
+            if isinstance(fut, futures.Future):
+                # Wrap the future to return the task
+                outer_fut = futures.Future()
+
+                # Using the default argument here is a trick to correctly
+                # capture `task` in the closure, see
+                # https://stackoverflow.com/questions/2295290/what-do-lambda-function-closures-capture
+                # If omitting this, the `task = outer_fut` assignment below
+                # would override `task`, creating a cycle where
+                # `outer_fut.result() -> outer_fut`...
+                def check_fut(fut, task=task):
+                    # Access (and discard) the result to re-raise errors
+                    try:
+                        fut.result()
+                        outer_fut.set_result(task)
+                    except BaseException as e:
+                        outer_fut.set_exception(e)
+
+                fut.add_done_callback(check_fut)
+
+                # Yield this wrapped future in the next iteration
+                task = outer_fut
+            else:
+                # After all, this is a mutator stage.
+                assert(fut is None)
     return coro
 
 
@@ -208,14 +144,22 @@ def _allmsgs(obj):
         return [obj]
 
 
+class PipelineAborted(Exception):
+    pass
+
+
 class PipelineThread(Thread):
     """Abstract base class for pipeline-stage threads."""
-    def __init__(self, all_threads):
+    def __init__(self, coro, pipeline, in_queue=None, out_queue=None):
         super(PipelineThread, self).__init__()
+        self.coro = coro
         self.abort_lock = Lock()
         self.abort_flag = False
-        self.all_threads = all_threads
+        self.pipeline = pipeline
         self.exc_info = None
+        self.in_queue = in_queue
+        self.out_queue = out_queue
+        self._startup()
 
     def abort(self):
         """Shut down the thread at the next chance possible.
@@ -224,54 +168,85 @@ class PipelineThread(Thread):
             self.abort_flag = True
 
             # Ensure that we are not blocking on a queue read or write.
-            if hasattr(self, 'in_queue'):
-                _invalidate_queue(self.in_queue, POISON)
-            if hasattr(self, 'out_queue'):
-                _invalidate_queue(self.out_queue, POISON)
+            if self.in_queue is not None:
+                self.in_queue.invalidate(POISON)
+            if self.out_queue is not None:
+                self.out_queue.invalidate(POISON)
 
-    def abort_all(self, exc_info):
-        """Abort all other threads in the system for an exception.
+    def check_abort(self):
+        with self.abort_lock:
+            if self.abort_flag:
+                raise PipelineAborted()
+
+    def check_and_put_future(self, res, fut):
+        try:
+            msg = fut.result()
+            self.check_abort()
+            res.put(msg)
+        except PipelineAborted:
+            # Might be raised from check_abort(): The error occured elsewhere,
+            # so the pipeline is shutting down already. So, we need to
+            # release resources that might block that.
+            res.discard()
+        except BaseException:
+            # Any errors raised in f.result(). This will be executed as a
+            # callback by the ThreadpoolExecutor, which will ignore any
+            # exception. Thus, the excpection can't propagate up to the check
+            # in self.run(), but we need to abort the pipeline explicitly here.
+            res.discard()
+            self.exc_info = sys.exc_info()
+            self.pipeline.abort()
+
+    def fanout(self, messages):
+        """Send messages to the next stage.
         """
-        self.exc_info = exc_info
-        for thread in self.all_threads:
-            thread.abort()
+        for msg in _allmsgs(messages):
+            self.check_abort()
+            if isinstance(msg, futures.Future):
+                res = self.out_queue.reserve()
+                msg.add_done_callback(
+                        lambda fut: self.check_and_put_future(res, fut))
+            else:
+                self.out_queue.put(msg)
+
+    def run(self):
+        try:
+            while True:
+                self.check_abort()
+                self._run_once()
+        except StopIteration:
+            # Pipeline is shutting down normally.
+            self._shutdown()
+        except PipelineAborted:
+            pass
+        except BaseException:
+            self.exc_info = sys.exc_info()
+            self.pipeline.abort()
+
+    def _startup(self):
+        pass
+
+    def _run_once(self):
+        raise NotImplementedError()
+
+    def _shutdown(self):
+        pass
 
 
 class FirstPipelineThread(PipelineThread):
     """The thread running the first stage in a parallel pipeline setup.
     The coroutine should just be a generator.
     """
-    def __init__(self, coro, out_queue, all_threads):
-        super(FirstPipelineThread, self).__init__(all_threads)
-        self.coro = coro
-        self.out_queue = out_queue
+    def _startup(self):
         self.out_queue.acquire()
 
-    def run(self):
-        try:
-            while True:
-                with self.abort_lock:
-                    if self.abort_flag:
-                        return
+    def _run_once(self):
+        # Get the value from the generator, StopIteration is intentionally
+        # propagated to the caller.
+        msg = next(self.coro)
+        self.fanout(msg)
 
-                # Get the value from the generator.
-                try:
-                    msg = next(self.coro)
-                except StopIteration:
-                    break
-
-                # Send messages to the next stage.
-                for msg in _allmsgs(msg):
-                    with self.abort_lock:
-                        if self.abort_flag:
-                            return
-                    self.out_queue.put(msg)
-
-        except BaseException:
-            self.abort_all(sys.exc_info())
-            return
-
-        # Generator finished; shut down the pipeline.
+    def _shutdown(self):
         self.out_queue.release()
 
 
@@ -279,47 +254,25 @@ class MiddlePipelineThread(PipelineThread):
     """A thread running any stage in the pipeline except the first or
     last.
     """
-    def __init__(self, coro, in_queue, out_queue, all_threads):
-        super(MiddlePipelineThread, self).__init__(all_threads)
-        self.coro = coro
-        self.in_queue = in_queue
-        self.out_queue = out_queue
+    def _startup(self):
         self.out_queue.acquire()
 
-    def run(self):
-        try:
-            # Prime the coroutine.
-            next(self.coro)
+        # Prime the coroutine.
+        next(self.coro)
 
-            while True:
-                with self.abort_lock:
-                    if self.abort_flag:
-                        return
+    def _run_once(self):
+        # Get the message from the previous stage.
+        msg = self.in_queue.get()
+        if msg is POISON:
+            raise StopIteration()
 
-                # Get the message from the previous stage.
-                msg = self.in_queue.get()
-                if msg is POISON:
-                    break
+        self.check_abort()
 
-                with self.abort_lock:
-                    if self.abort_flag:
-                        return
+        # Invoke the current stage.
+        out = self.coro.send(msg)
+        self.fanout(out)
 
-                # Invoke the current stage.
-                out = self.coro.send(msg)
-
-                # Send messages to next stage.
-                for msg in _allmsgs(out):
-                    with self.abort_lock:
-                        if self.abort_flag:
-                            return
-                    self.out_queue.put(msg)
-
-        except BaseException:
-            self.abort_all(sys.exc_info())
-            return
-
-        # Pipeline is shutting down normally.
+    def _shutdown(self):
         self.out_queue.release()
 
 
@@ -327,36 +280,20 @@ class LastPipelineThread(PipelineThread):
     """A thread running the last stage in a pipeline. The coroutine
     should yield nothing.
     """
-    def __init__(self, coro, in_queue, all_threads):
-        super(LastPipelineThread, self).__init__(all_threads)
-        self.coro = coro
-        self.in_queue = in_queue
-
-    def run(self):
+    def _startup(self):
         # Prime the coroutine.
         next(self.coro)
 
-        try:
-            while True:
-                with self.abort_lock:
-                    if self.abort_flag:
-                        return
+    def _run_once(self):
+        # Get the message from the previous stage.
+        msg = self.in_queue.get()
+        if msg is POISON:
+            raise StopIteration()
 
-                # Get the message from the previous stage.
-                msg = self.in_queue.get()
-                if msg is POISON:
-                    break
+        self.check_abort()
 
-                with self.abort_lock:
-                    if self.abort_flag:
-                        return
-
-                # Send to consumer.
-                self.coro.send(msg)
-
-        except BaseException:
-            self.abort_all(sys.exc_info())
-            return
+        # Send to consumer.
+        self.coro.send(msg)
 
 
 class Pipeline(object):
@@ -385,46 +322,55 @@ class Pipeline(object):
         """
         list(self.pull())
 
+    def abort(self):
+        """Abort all threads in the system for an exception.
+        """
+        for thread in self.threads:
+            thread.abort()
+
     def run_parallel(self, queue_size=DEFAULT_QUEUE_SIZE):
         """Run the pipeline in parallel using one thread per stage. The
         messages between the stages are stored in queues of the given
         size.
         """
         queue_count = len(self.stages) - 1
-        queues = [CountedQueue(queue_size) for i in range(queue_count)]
-        threads = []
+        queues = [CountedInvalidatingQueue(queue_size, POISON)
+                  for i in range(queue_count)]
+        self.threads = []
 
         # Set up first stage.
         for coro in self.stages[0]:
-            threads.append(FirstPipelineThread(coro, queues[0], threads))
+            self.threads.append(FirstPipelineThread(
+                coro, self, out_queue=queues[0],
+            ))
 
         # Middle stages.
         for i in range(1, queue_count):
             for coro in self.stages[i]:
-                threads.append(MiddlePipelineThread(
-                    coro, queues[i - 1], queues[i], threads
+                self.threads.append(MiddlePipelineThread(
+                    coro, self, in_queue=queues[i - 1], out_queue=queues[i]
                 ))
 
         # Last stage.
         for coro in self.stages[-1]:
-            threads.append(
-                LastPipelineThread(coro, queues[-1], threads)
+            self.threads.append(
+                LastPipelineThread(coro, self, in_queue=queues[-1])
             )
 
         # Start threads.
-        for thread in threads:
+        for thread in self.threads:
             thread.start()
 
         # Wait for termination. The final thread lasts the longest.
         try:
             # Using a timeout allows us to receive KeyboardInterrupt
             # exceptions during the join().
-            while threads[-1].is_alive():
-                threads[-1].join(1)
+            while self.threads[-1].is_alive():
+                self.threads[-1].join(1)
 
         except BaseException:
             # Stop all the threads immediately.
-            for thread in threads:
+            for thread in self.threads:
                 thread.abort()
             raise
 
@@ -432,10 +378,10 @@ class Pipeline(object):
             # Make completely sure that all the threads have finished
             # before we return. They should already be either finished,
             # in normal operation, or aborted, in case of an exception.
-            for thread in threads[:-1]:
+            for thread in self.threads[:-1]:
                 thread.join()
 
-        for thread in threads:
+        for thread in self.threads:
             exc_info = thread.exc_info
             if exc_info:
                 # Make the exception appear as it was raised originally.
@@ -454,17 +400,24 @@ class Pipeline(object):
         for coro in coros[1:]:
             next(coro)
 
+        def await_if_future(msg):
+            if isinstance(msg, futures.Future):
+                res = msg.result()
+            else:
+                res = msg
+            return res
+
         # Begin the pipeline.
         for out in coros[0]:
             msgs = _allmsgs(out)
             for coro in coros[1:]:
                 next_msgs = []
                 for msg in msgs:
-                    out = coro.send(msg)
+                    out = coro.send(await_if_future(msg))
                     next_msgs.extend(_allmsgs(out))
                 msgs = next_msgs
             for msg in msgs:
-                yield msg
+                yield await_if_future(msg)
 
 # Smoke test.
 if __name__ == '__main__':

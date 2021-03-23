@@ -112,7 +112,8 @@ configuration file. The available options are:
 - **backend**: The analysis backend; either ``gstreamer``, ``command``, ``audiotools``
   or ``ffmpeg``.
   Default: ``command``.
-- **overwrite**: Re-analyze files that already have ReplayGain tags.
+- **overwrite**: Re-analyze files that already have ReplayGain tags during
+  import.
   Default: ``no``.
 - **targetlevel**: A number of decibels for the target loudness level for files
   using ``REPLAYGAIN_`` tags.

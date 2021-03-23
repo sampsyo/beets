@@ -16,7 +16,6 @@
 """Converts tracks or albums to external directory
 """
 from __future__ import division, absolute_import, print_function
-from beets.util import par_map
 
 import os
 import threading
@@ -32,6 +31,7 @@ from beets.plugins import BeetsPlugin
 from confuse import ConfigTypeError
 from beets import art
 from beets.util.artresizer import ArtResizer
+from beets.util.concurrency import combine_futures, pool
 from beets.library import parse_query_string
 from beets.library import Item
 
@@ -182,10 +182,18 @@ class ConvertPlugin(BeetsPlugin):
         cmd.func = self.convert_func
         return [cmd]
 
+    @staticmethod
+    def check_futures(futures):
+        for f in futures:
+            # If there was an error with any of the futures, propagate that.
+            f.result()
+
     def auto_convert(self, config, task):
         if self.config['auto']:
-            par_map(lambda item: self.convert_on_import(config.lib, item),
+            fut = pool.map_iter_nowait(
+                    lambda item: self.convert_on_import(config.lib, item),
                     task.imported_items())
+            return combine_futures(self.check_futures, fut)
 
     # Utilities converted from functions to methods on logging overhaul
 

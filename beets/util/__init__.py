@@ -25,7 +25,6 @@ import shutil
 import fnmatch
 import functools
 from collections import Counter, namedtuple
-from multiprocessing.pool import ThreadPool
 import traceback
 import subprocess
 import platform
@@ -1064,27 +1063,6 @@ def asciify_path(path, sep_replace):
                 sep_replace
             )
     return os.sep.join(path_components)
-
-
-def par_map(transform, items):
-    """Apply the function `transform` to all the elements in the
-    iterable `items`, like `map(transform, items)` but with no return
-    value. The map *might* happen in parallel: it's parallel on Python 3
-    and sequential on Python 2.
-
-    The parallelism uses threads (not processes), so this is only useful
-    for IO-bound `transform`s.
-    """
-    if sys.version_info[0] < 3:
-        # multiprocessing.pool.ThreadPool does not seem to work on
-        # Python 2. We could consider switching to futures instead.
-        for item in items:
-            transform(item)
-    else:
-        pool = ThreadPool()
-        pool.map(transform, items)
-        pool.close()
-        pool.join()
 
 
 def lazy_property(func):

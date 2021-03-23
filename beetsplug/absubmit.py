@@ -30,6 +30,7 @@ import requests
 
 from beets import plugins
 from beets import util
+from beets.util.concurrency import pool
 from beets import ui
 
 # We use this field to check whether AcousticBrainz info is present.
@@ -123,7 +124,9 @@ only files which would be processed'
         # Get items from arguments
         items = lib.items(ui.decargs(args))
         self.opts = opts
-        util.par_map(self.analyze_submit, items)
+        # FIXME: analysis should be on the limited threadpool, but what about
+        # submission parallelism?
+        pool.map(self.analyze_submit, items)
 
     def analyze_submit(self, item):
         analysis = self._get_analysis(item)

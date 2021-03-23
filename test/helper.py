@@ -385,21 +385,23 @@ class TestHelper(object):
             items.append(item)
         return items
 
-    def add_album_fixture(self, track_count=1, ext='mp3'):
+    def add_album_fixture(self, track_count=1, ext='mp3', disc_count=1):
         """Add an album with files to the database.
         """
         items = []
         path = os.path.join(_common.RSRC, util.bytestring_path('full.' + ext))
-        for i in range(track_count):
-            item = Item.from_path(path)
-            item.album = u'\u00e4lbum'  # Check unicode paths
-            item.title = u't\u00eftle {0}'.format(i)
-            # mtime needs to be set last since other assignments reset it.
-            item.mtime = 12345
-            item.add(self.lib)
-            item.move(operation=MoveOperation.COPY)
-            item.store()
-            items.append(item)
+        for discnumber in range(1, disc_count + 1):
+            for i in range(track_count):
+                item = Item.from_path(path)
+                item.album = u'\u00e4lbum'  # Check unicode paths
+                item.title = u't\u00eftle {0}'.format(i)
+                item.disc = discnumber
+                # mtime needs to be set last since other assignments reset it.
+                item.mtime = 12345
+                item.add(self.lib)
+                item.move(operation=MoveOperation.COPY)
+                item.store()
+                items.append(item)
         return self.lib.add_album(items)
 
     def create_mediafile_fixture(self, ext='mp3', images=[]):

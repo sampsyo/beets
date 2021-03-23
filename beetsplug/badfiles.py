@@ -28,7 +28,8 @@ import six
 import confuse
 from beets.plugins import BeetsPlugin
 from beets.ui import Subcommand
-from beets.util import displayable_path, par_map
+from beets.util import displayable_path
+from beets.util.concurrency import pool
 from beets import ui
 
 
@@ -148,7 +149,7 @@ class BadFiles(BeetsPlugin):
         # Get items from arguments
         items = lib.items(ui.decargs(args))
         self.verbose = opts.verbose
-        par_map(self.check_item, items)
+        pool.map(self.check_item, items)
 
     def commands(self):
         bad_command = Subcommand('bad',

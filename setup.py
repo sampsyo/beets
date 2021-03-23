@@ -107,6 +107,8 @@ setup(
     ) + (
         # Support for ANSI console colors on Windows.
         ['colorama'] if (sys.platform == 'win32') else []
+    ) + (
+            ['futures'] if sys.version_info[:2] == (2, 7) else []
     ),
 
     extras_require={
@@ -117,6 +119,7 @@ setup(
             'mock',
             'pylast',
             'pytest',
+            'pytest-timeout',
             'python-mpd2',
             'pyxdg',
             'responses>=0.3.0',

@@ -1522,12 +1522,16 @@ def plugin_stage(session, func, task):
     if task.skip:
         return
 
-    func(session, task)
+    # While this is expected to be a mutator stage, it may return a future,
+    # which we need to pass on.
+    result = func(session, task)
 
     # Stage may modify DB, so re-load cached item data.
     # FIXME Importer plugins should not modify the database but instead
     # the albums and items attached to tasks.
     task.reload()
+
+    return result
 
 
 @pipeline.stage

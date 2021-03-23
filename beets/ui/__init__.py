@@ -27,6 +27,7 @@ from difflib import SequenceMatcher
 import sqlite3
 import errno
 import re
+import signal
 import struct
 import traceback
 import os.path
@@ -1283,31 +1284,72 @@ def _raw_main(args, lib=None):
         lib._close()
 
 
+_exit_handlers = {}
+_exit_handler_id = 0
+
+
+def register_exit_handler(handler):
+    global _exit_handler_id
+
+    num = _exit_handler_id
+    _exit_handler_id += 1
+
+    _exit_handlers[num] = handler
+
+    return num
+
+
+def unregister_exit_handler(num):
+    try:
+        _exit_handlers.remove(num)
+    except KeyError:
+        pass
+
+
+def _run_exit_handlers(abort):
+    try:
+        while True:
+            _, handler = _exit_handlers.popitem()
+            handler(True)
+    except KeyError:
+        # Raised by popitem when the dict is empty
+        pass
+
+
+def _sigint_handler(signal, frame):
+    _run_exit_handlers(abort=True)
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, _sigint_handler)
+
+
 def main(args=None):
     """Run the main command-line interface for beets. Includes top-level
     exception handlers that print friendly error messages.
     """
+    code = 0
+
     try:
         _raw_main(args)
     except UserError as exc:
         message = exc.args[0] if exc.args else None
         log.error(u'error: {0}', message)
-        sys.exit(1)
+        code = 1
     except util.HumanReadableException as exc:
         exc.log(log)
-        sys.exit(1)
+        code = 1
     except library.FileOperationError as exc:
         # These errors have reasonable human-readable descriptions, but
         # we still want to log their tracebacks for debugging.
         log.debug('{}', traceback.format_exc())
         log.error('{}', exc)
-        sys.exit(1)
+        code = 1
     except confuse.ConfigError as exc:
         log.error(u'configuration error: {0}', exc)
-        sys.exit(1)
+        code = 1
     except db_query.InvalidQueryError as exc:
         log.error(u'invalid query: {0}', exc)
-        sys.exit(1)
+        code = 1
     except IOError as exc:
         if exc.errno == errno.EPIPE:
             # "Broken pipe". End silently.
@@ -1323,4 +1365,8 @@ def main(args=None):
             u'the library file might have a permissions problem',
             exc
         )
-        sys.exit(1)
+        code = 1
+
+    _run_exit_handlers(abort=(code != 0))
+
+    sys.exit(code)
