@@ -184,4 +184,4 @@ class PlaylistPlugin(beets.plugins.BeetsPlugin):
                 'Updated playlist {0} ({1} changes, {2} deletions)'.format(
                     filename, changes, deletions))
             beets.util.copy(new_playlist, filename, replace=True)
-        beets.util.remove(new_playlist)
+        beets.util.remove(new_playlist, use_trash=False)

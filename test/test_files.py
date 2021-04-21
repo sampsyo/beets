@@ -548,12 +548,12 @@ class SoftRemoveTest(_common.TestCase):
         touch(self.path)
 
     def test_soft_remove_deletes_file(self):
-        util.remove(self.path, True)
+        util.remove(self.path, True, use_trash=False)
         self.assertNotExists(self.path)
 
     def test_soft_remove_silent_on_no_file(self):
         try:
-            util.remove(self.path + b'XXX', True)
+            util.remove(self.path + b'XXX', True, use_trash=False)
         except OSError:
             self.fail(u'OSError when removing path')
 

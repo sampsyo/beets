@@ -735,7 +735,7 @@ class ArtImporterTest(UseThePlugin):
         # `fetchart` should import album art again instead of printing the
         # message "<album> has album art".
         self._fetch_art(True)
-        util.remove(self.album.artpath)
+        util.remove(self.album.artpath, use_trash=False)
         self.plugin.batch_fetch_art(self.lib, self.lib.albums(), force=False,
                                     quiet=False)
         self.assertExists(self.album.artpath)

@@ -247,7 +247,7 @@ class ConvertPlugin(BeetsPlugin):
                             args,
                             exc.returncode,
                             exc.output)
-            util.remove(dest)
+            util.remove(dest, use_trash=False)
             util.prune_dirs(os.path.dirname(dest))
             raise
         except OSError as exc:
@@ -548,5 +548,5 @@ class ConvertPlugin(BeetsPlugin):
         for path in task.old_paths:
             if path in _temp_files:
                 if os.path.isfile(path):
-                    util.remove(path)
+                    util.remove(path, use_trash=False)
                 _temp_files.remove(path)

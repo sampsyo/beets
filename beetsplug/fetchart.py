@@ -325,7 +325,7 @@ class RemoteArtSource(ArtSource):
     def cleanup(self, candidate):
         if candidate.path:
             try:
-                util.remove(path=candidate.path)
+                util.remove(path=candidate.path, use_trash=False)
             except util.FilesystemError as exc:
                 self._log.debug(u'error cleaning up tmp art: {}', exc)
 

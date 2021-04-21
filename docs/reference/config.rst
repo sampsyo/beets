@@ -347,6 +347,16 @@ By default, beets writes MP3 tags using the ID3v2.4 standard, the latest
 version of ID3. Enable this option to instead use the older ID3v2.3 standard,
 which is preferred by certain older software such as Windows Media Player.
 
+.. _remove_command:
+
+remove_command
+~~~~~~~~~~~~~~
+
+If Beets finds the specified executable on ``$PATH`` (default: ``"trash"``),
+file removal operations will be performed via that command. If this setting
+is set to ``""`` or to a value that does not appear to be an executable file,
+to-be-removed files will be deleted immediately via ``os.remove()``.
+
 .. _va_name:
 
 va_name

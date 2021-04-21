@@ -30,10 +30,18 @@ import traceback
 import subprocess
 import platform
 import shlex
-from beets.util import hidden
 import six
 from unidecode import unidecode
 from enum import Enum
+
+# This whole block can be removed once Python <3.3 support is dropped
+try:
+    from shutil import which
+except ImportError:
+    from distutils.spawn import find_executable as which
+
+from beets import config
+from beets.util import hidden
 
 
 MAX_FILENAME_LENGTH = 200
@@ -442,17 +450,34 @@ def samefile(p1, p2):
     return shutil._samefile(syspath(p1), syspath(p2))
 
 
-def remove(path, soft=True):
-    """Remove the file. If `soft`, then no error will be raised if the
-    file does not exist.
+def remove(path, soft=True, use_trash=True):
+    """Remove the file specified at `path`, using `trash` executable by default
+    (if found) or via the command specified in the `remove_command` setting if
+    found on $PATH. Otherwise, delete the file immediately. If `soft`, then no
+    error will be raised if the file does not exist.
     """
     path = syspath(path)
     if soft and not os.path.exists(path):
         return
-    try:
-        os.remove(path)
-    except (OSError, IOError) as exc:
-        raise FilesystemError(exc, 'delete', (path,), traceback.format_exc())
+    # If `use_trash` is invoked and the `remove_command` configuration setting
+    # (which defaults to `trash`) is found on $PATH, use that command to remove
+    # the specified file. Otherwise, delete it immediately.
+    # Change which() to shutil.which() once Python <3.3 support is dropped
+    remove_command = config["remove_command"].as_str()
+    if use_trash and which(remove_command) is not None:
+        try:
+            command_output([remove_command, path])
+        except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+            raise FilesystemError(
+                exc, 'delete', (path,), traceback.format_exc()
+            )
+    else:
+        try:
+            os.remove(path)
+        except (OSError, IOError) as exc:
+            raise FilesystemError(
+                exc, 'delete', (path,), traceback.format_exc()
+            )
 
 
 def copy(path, dest, replace=False):
