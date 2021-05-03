@@ -46,6 +46,11 @@ Major new features:
 
 Other new things:
 
+* File removal operations are performed by the command specified in the new
+  :ref:`remove_command` configuration option (default: ``trash``), allowing
+  users to optionally install and use safer file removal tools.
+  Thanks to :user:`justinmayer`.
+  :bug:`3796`
 * :doc:`/plugins/mpdstats`: Add a new `strip_path` option to help build the
   right local path from MPD information.
 * :doc:`/plugins/convert`: Conversion can now parallelize conversion jobs on

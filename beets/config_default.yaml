@@ -69,6 +69,7 @@ terminal_encoding:
 original_date: no
 artist_credit: no
 id3v23: no
+remove_command: "trash"
 va_name: "Various Artists"
 
 ui:
