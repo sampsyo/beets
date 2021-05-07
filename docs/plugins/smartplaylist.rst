@@ -101,3 +101,7 @@ other configuration options are:
   If you intend to use this plugin to generate playlists for MPD on
   Windows, set this to yes.
   Default: Use system separator.
+- **prefix**: Prepend this string to every path in the playlist file. For
+  example, you could use the URL for a server where the music is stored.
+  Default: empty string.
+- **urlencoded**: URL-encode all paths. Default: ``no``.

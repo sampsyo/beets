@@ -28,6 +28,11 @@ from beets.dbcore.query import MultipleSort, ParsingError
 import os
 import six
 
+try:
+    from urllib.request import pathname2url
+except ImportError:
+    from urllib import pathname2url
+
 
 class SmartPlaylistPlugin(BeetsPlugin):
 
@@ -39,8 +44,11 @@ class SmartPlaylistPlugin(BeetsPlugin):
             'auto': True,
             'playlists': [],
             'forward_slash': False,
+            'prefix': u'',
+            'urlencode': False,
         })
 
+        self.config['prefix'].redact = True  # May contain username/password.
         self._matched_playlists = None
         self._unmatched_playlists = None
 
@@ -201,6 +209,7 @@ class SmartPlaylistPlugin(BeetsPlugin):
                 if item_path not in m3us[m3u_name]:
                     m3us[m3u_name].append(item_path)
 
+        started_with = bytestring_path(self.config['prefix'].get())
         # Write all of the accumulated track lists to files.
         for m3u in m3us:
             m3u_path = normpath(os.path.join(playlist_dir,
@@ -210,6 +219,8 @@ class SmartPlaylistPlugin(BeetsPlugin):
                 for path in m3us[m3u]:
                     if self.config['forward_slash'].get():
                         path = path_as_posix(path)
-                    f.write(path + b'\n')
+                    if self.config['urlencode']:
+                        path = bytestring_path(pathname2url(path))
+                    f.write(started_with + path + b'\n')
 
         self._log.info(u"{0} playlists updated", len(self._matched_playlists))

@@ -2135,6 +2135,9 @@ And many little fixes and improvements:
 * When there's a parse error in a query (for example, when you type a
   malformed date in a :ref:`date query <datequery>`), beets now stops with an
   error instead of silently ignoring the query component.
+* :doc:`/plugins/smartplaylist`: Stream-friendly smart playlists.
+  The ``splupdate`` command can now also add some prefix to every path
+  in the playlist file which can be URL-encode.
 
 For developers:
 
