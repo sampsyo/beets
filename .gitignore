@@ -89,3 +89,6 @@ ENV/
 /.pydevproject
 /.settings
 .vscode
+
+# GIT stuff, needs for docker
+/.git

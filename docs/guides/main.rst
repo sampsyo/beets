@@ -128,6 +128,31 @@ trouble or you have more detail to contribute here, please direct it to
 .. _get-pip.py: https://bootstrap.pypa.io/get-pip.py
 
 
+Installing on Docker
+^^^^^^^^^^^^^^^^^^^^
+
+You can install beets as docker containers with almost all plugins and all its
+dependencies by simple `docker build -t beets .`.
+
+This container keeps everything inside `/beet` and you can mount your music as
+second volume.
+
+For example if you user's home directory is `/Users/catap` and you keep your
+music at `~/Music` and beet's config and DB as `~/.beet` you can add a simple
+function to your shell rc file like `.zshrc` or `.bashrc`::
+
+    function beet() {
+      docker run --rm -ti -v /Users/catap/.beet:/beet -v /Users/catap/Music:/Music 'beet' $@
+    }
+
+and put config `~/.beet/config.yaml`::
+
+    directory: /Music
+    library: /beet/beets.db
+
+
+After that you can use beets as `docker run --rm -v $(pwd)/beets:/beets beets [CMD]`
+
 Configuring
 -----------
 
