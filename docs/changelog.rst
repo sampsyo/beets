@@ -219,6 +219,7 @@ Other new things:
 
 Fixes:
 
+* :bug:`query.py`: Fixed timestamp bug in Python 2.7
 * :bug:`/plugins/lyrics`: Fixed Musixmatch fetch lyrics divided into multiple elements on the web-page
 * :bug:`/plugins/lyrics`: Fixed Musixmatch fetch for non-existing lyrics
 * :bug:`/plugins/web`: Allow use of backslash in regex web queries.

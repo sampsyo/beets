@@ -166,7 +166,24 @@ class DateQueryTest(_common.LibTestCase):
         query = DateQuery('added', '2013-03-31')
         matched = self.lib.items(query)
         self.assertEqual(len(matched), 0)
+    
+    def test_single_hour_match_fast(self):
+        query = DateQuery('added', '2013-03-30 22')
+        matched = self.lib.items(query)
+        self.assertEqual(len(matched), 1)
+    
+    def test_single_hour_match_slow(self):
+        query = DateQuery('added', '2013-03-30 22')
+        self.assertTrue(query.match(self.i))
 
+    def test_single_hour_nonmatch_fast(self):
+        query = DateQuery('added', '2013-03-30 21')
+        matched = self.lib.items(query)
+        self.assertEqual(len(matched), 0)
+
+    def test_single_hour_nonmatch_slow(self):
+        query = DateQuery('added', '2013-03-30 21')
+        self.assertFalse(query.match(self.i))
 
 class DateQueryTestRelative(_common.LibTestCase):
     def setUp(self):
@@ -252,6 +269,37 @@ class DateQueryTestRelativeMore(_common.LibTestCase):
             query = DateQuery('added', '..-4' + timespan)
             matched = self.lib.items(query)
             self.assertEqual(len(matched), 0)
+
+class DateQueryTestRelativeMoreMore(_common.LibTestCase):
+    def setUp(self):
+        super(DateQueryTestRelativeMoreMore, self).setUp()
+
+        # We pick a time an hour off, which can reveal some
+        # Daylight Savings Time bugs.
+        self._now = datetime(2017, 1, 31, 22, 55, 4, 101332)
+
+        self.i.added = _parsetime(self._now.strftime('%Y-%m-%d %H:%M'))
+        self.i.store()
+
+    def test_single_hour_match_fast(self):
+        query = DateQuery('added', self._now.strftime('%Y-%m-%d %H:%M'))
+        matched = self.lib.items(query)
+        self.assertEqual(len(matched), 1)
+
+    def test_single_hour_nonmatch_fast(self):
+        query = DateQuery('added', (self._now + timedelta(hours=1))
+                          .strftime('%Y-%m-%d %H:%M'))
+        matched = self.lib.items(query)
+        self.assertEqual(len(matched), 0)
+
+    def test_single_hour_match_slow(self):
+        query = DateQuery('added', self._now.strftime('%Y-%m-%d %H:%M'))
+        self.assertTrue(query.match(self.i))
+
+    def test_single_hour_nonmatch_slow(self):
+        query = DateQuery('added', (self._now + timedelta(hours=1))
+                          .strftime('%Y-%m-%d %H:%M'))
+        self.assertFalse(query.match(self.i))
 
 
 class DateQueryConstructTest(unittest.TestCase):

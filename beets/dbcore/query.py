@@ -519,13 +519,7 @@ def _to_epoch_time(date):
     """Convert a `datetime` object to an integer number of seconds since
     the (local) Unix epoch.
     """
-    if hasattr(date, 'timestamp'):
-        # The `timestamp` method exists on Python 3.3+.
-        return int(date.timestamp())
-    else:
-        epoch = datetime.fromtimestamp(0)
-        delta = date - epoch
-        return int(delta.total_seconds())
+    return int("{:%s}".format(date))
 
 
 def _parse_periods(pattern):
