@@ -84,6 +84,54 @@ def _item(track_info, album_info, album_id):
     })
 
 
+def _album_item(album_info):
+    """Build and return `item` from `album info`
+    objects. `item` is missing what fields cannot be obtained from
+    MusicBrainz alone (encoder, rg_track_gain, rg_track_peak,
+    rg_album_gain, rg_album_peak, original_year, original_month,
+    original_day, length, bitrate, format, samplerate, bitdepth,
+    channels, mtime.)
+    """
+    a = album_info
+
+    return Item(**{
+        'album_id':           a.get("id"),
+        'album':              a.get("release-group", {}).get("title"),
+        'albumartist':        a.get("release-group", {}).get("artist-credit", [])[0].get("artist", {}).get("name") if len(a.get("release-group", {}).get("artist-credit", [])) > 0 else None,
+        'albumartist_credit': a.get("release-group", {}).get("artist-credit-phrase"),
+        'albumartist_sort':   a.get("release-group", {}).get("artist-credit", [])[0].get("artist", {}).get("sort-name") if len(a.get("release-group", {}).get("artist-credit", [])) > 0 else None,
+        'albumdisambig':      a.get("release-group", {}).get("artist-credit", [])[0].get("artist", {}).get("disambiguation") if len(a.get("release-group", {}).get("artist-credit", [])) > 0 else None,
+        'albumstatus':        a.get("status"),
+        'albumtype':          a.get("release-group", {}).get("primary-type"),
+        'albumsubtype':       a.get("release-group", {}).get("secondary-type-list", [])[0] if len(a.get("release-group", {}).get("secondary-type-list", [])) > 0 else None,
+        'artist':             a.get("artist-credit", [])[0].get("artist", {}).get("name") if len(a.get("artist-credit", [])) > 0 else None,
+        'artist_credit':      a.get("artist-credit-phrase"),
+        'artist_sort':        a.get("artist-credit", [])[0].get("artist", {}).get("sort-name") if len(a.get("artist-credit", [])) > 0 else None,
+        'asin':               a.get("asin"),
+        'catalognum':         a.get("label-info-list", [])[0].get("catalog-number") if len(a.get("label-info-list", [])) > 0 else None,
+        'comp':               a.get("artist-credit", [])[0].get("artist", {}).get("name") if len(a.get("artist-credit", [])) > 0 else None,
+        'country':            a.get("country"),
+        'day':                a.get("date", "")[8:10] if len(a.get("date", "")) == 10 else None,
+        'disc':               None,
+        'disctitle':          None,
+        'disctotal':          None,
+        'label':              a.get("label-info-list", [])[0].get("label", {}).get("name") if len(a.get("label-info-list", [])) > 0 else None,
+        'language':           a.get("text-representation", {}).get("language"),
+        'length':             None,
+        'mb_albumid':         a.get("id"),
+        'mb_artistid':        a.get("artist-credit", [])[0].get("artist", {}).get("id") if len(a.get("artist-credit", [])) > 0 else None,
+        'mb_releasegroupid':  a.get("release-group", {}).get("id"),
+        'mb_trackid':         None,
+        'media':              a.get("packaging"),
+        'month':              a.get("date", "")[5:7] if len(a.get("date", "")) >= 7 else None,
+        'script':             a.get("text-representation", {}).get("script"),
+        'title':              None,
+        'track':              None,
+        'tracktotal':         None,
+        'year':               a.get("date", "")[0:4] if len(a.get("date", "")) >= 4 else None
+    })
+
+
 class MissingPlugin(BeetsPlugin):
     """List missing tracks
     """
@@ -96,6 +144,8 @@ class MissingPlugin(BeetsPlugin):
         super(MissingPlugin, self).__init__()
 
         self.config.add({
+            'release_status': [],
+            'release_type': [],
             'count': False,
             'total': False,
             'album': False,
@@ -160,6 +210,10 @@ class MissingPlugin(BeetsPlugin):
         matching query.
         """
         total = self.config['total'].get()
+        fmt = config['format_album'].get()
+
+        release_status = self.config['release_status'].get()
+        release_type = self.config['release_type'].get()
 
         albums = lib.albums(query)
         # build dict mapping artist to list of their albums in library
@@ -181,8 +235,33 @@ class MissingPlugin(BeetsPlugin):
                 continue
 
             try:
-                resp = musicbrainzngs.browse_release_groups(artist=artist[1])
-                release_groups = resp['release-group-list']
+                resp = musicbrainzngs.browse_releases(
+                        artist=artist[1],
+                        release_status=release_status,
+                        release_type=release_type,
+                        includes=[
+                            "artist-credits",
+                            "labels",
+                            "recordings",
+                            "isrcs",
+                            "release-groups",
+                            "media",
+                            "discids",
+                            "area-rels",
+                            "artist-rels",
+                            "label-rels",
+                            "place-rels",
+                            "event-rels",
+                            "recording-rels",
+                            "release-rels",
+                            "release-group-rels",
+                            "series-rels",
+                            "url-rels",
+                            "work-rels",
+                            "instrument-rels"
+                        ]
+                    )
+                release_groups = resp['release-list']
             except MusicBrainzError as err:
                 self._log.info(
                     u"Couldn't fetch info for artist '{}' ({}) - '{}'",
@@ -195,7 +274,7 @@ class MissingPlugin(BeetsPlugin):
             for rg in release_groups:
                 missing.append(rg)
                 for alb in albums:
-                    if alb['mb_releasegroupid'] == rg['id']:
+                    if alb['mb_releasegroupid'] == rg.get("release-group", {}).get("id"):
                         missing.remove(rg)
                         present.append(rg)
                         break
@@ -204,10 +283,10 @@ class MissingPlugin(BeetsPlugin):
             if total:
                 continue
 
-            missing_titles = {rg['title'] for rg in missing}
-
-            for release_title in missing_titles:
-                print_(u"{} - {}".format(artist[0], release_title))
+            for r in missing:
+                #self._log.info(u"{}\n\n", r)
+                item = _album_item(r)
+                print_(format(item, fmt))
 
         if total:
             print(total_missing)

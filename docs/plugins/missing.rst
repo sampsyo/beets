@@ -33,6 +33,12 @@ Configuration
 To configure the plugin, make a ``missing:`` section in your
 configuration file. The available options are:
 
+- **release_status**: Array of album statuses to send to musicbrainz as filter,
+  valid values are ['official', 'promotion', 'bootleg', 'pseudo-release']
+  Default: ``[]``
+- **release_type**: Array of album types to send to musicbrainz as filter,
+  valid values are ['nat', 'album', 'single', 'ep', 'broadcast', 'other', 'compilation', 'soundtrack', 'spokenword', 'interview', 'audiobook', 'live', 'remix', 'dj-mix', 'mixtape/street']
+  Default: ``[]``
 - **count**: Print a count of missing tracks per album, with ``format``
   defaulting to ``$albumartist - $album: $missing``.
   Default: ``no``.
