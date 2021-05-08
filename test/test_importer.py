@@ -734,10 +734,12 @@ class ImportTest(_common.TestCase, ImportHelper):
     def test_set_fields(self):
         genre = u"\U0001F3B7 Jazz"
         collection = u"To Listen"
+        comments = u"managed by beets"
 
         config['import']['set_fields'] = {
             u'collection': collection,
-            u'genre': genre
+            u'genre': genre,
+            u'comments': comments
         }
 
         # As-is album import.
@@ -749,6 +751,10 @@ class ImportTest(_common.TestCase, ImportHelper):
             album.load()  # TODO: Not sure this is necessary.
             self.assertEqual(album.genre, genre)
             self.assertEqual(album.collection, collection)
+            for item in album.items():
+                self.assertEqual(item.genre, genre)
+                self.assertEqual(item.collection, collection)
+                self.assertEqual(item.comments, comments)
             # Remove album from library to test again with APPLY choice.
             album.remove()
 
@@ -762,6 +768,10 @@ class ImportTest(_common.TestCase, ImportHelper):
             album.load()
             self.assertEqual(album.genre, genre)
             self.assertEqual(album.collection, collection)
+            for item in album.items():
+                self.assertEqual(item.genre, genre)
+                self.assertEqual(item.collection, collection)
+                self.assertEqual(item.comments, comments)
 
 
 class ImportTracksTest(_common.TestCase, ImportHelper):

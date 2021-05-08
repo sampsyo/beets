@@ -683,6 +683,9 @@ Here's an example::
 Other field/value pairs supplied via the ``--set`` option on the command-line
 override any settings here for fields with the same name.
 
+Fields are set on both the album and each individual track of the album.
+Fields are persisted to the media files of each track.
+
 Default: ``{}`` (empty).
 
 .. _musicbrainz-config:

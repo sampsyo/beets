@@ -216,6 +216,8 @@ Other new things:
   ``check_on_import`` config option.
 * :doc:`/plugins/export`: big speedups when `--include-keys` option is used
   Thanks to :user:`ssssam`.
+* The `importer` persists all fields set using :ref:`set_fields` to the
+  mediafiles of all imported tracks.
 
 Fixes:
 

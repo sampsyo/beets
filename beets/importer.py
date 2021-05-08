@@ -572,18 +572,24 @@ class ImportTask(BaseImportTask):
                 util.prune_dirs(os.path.dirname(item.path),
                                 lib.directory)
 
-    def set_fields(self):
+    def set_fields(self, lib):
         """Sets the fields given at CLI or configuration to the specified
-        values.
+        values, for both the album and all its items.
         """
-        for field, view in config['import']['set_fields'].items():
-            value = view.get()
-            log.debug(u'Set field {1}={2} for {0}',
-                      displayable_path(self.paths),
-                      field,
-                      value)
-            self.album[field] = value
-        self.album.store()
+        with lib.transaction():
+            items = self.imported_items()
+            for field, view in config['import']['set_fields'].items():
+                value = view.get()
+                log.debug(u'Set field {1}={2} for {0}',
+                          displayable_path(self.paths),
+                          field,
+                          value)
+                self.album[field] = value
+                for item in items:
+                    item[field] = value
+            for item in items:
+                item.store()
+            self.album.store()
 
     def finalize(self, session):
         """Save progress, clean up files, and emit plugin event.
@@ -946,18 +952,19 @@ class SingletonImportTask(ImportTask):
     def reload(self):
         self.item.load()
 
-    def set_fields(self):
+    def set_fields(self, lib):
         """Sets the fields given at CLI or configuration to the specified
-        values.
+        values, for the singleton item.
         """
-        for field, view in config['import']['set_fields'].items():
-            value = view.get()
-            log.debug(u'Set field {1}={2} for {0}',
-                      displayable_path(self.paths),
-                      field,
-                      value)
-            self.item[field] = value
-        self.item.store()
+        with lib.transaction():
+            for field, view in config['import']['set_fields'].items():
+                value = view.get()
+                log.debug(u'Set field {1}={2} for {0}',
+                          displayable_path(self.paths),
+                          field,
+                          value)
+                self.item[field] = value
+            self.item.store()
 
 
 # FIXME The inheritance relationships are inverted. This is why there
@@ -1510,7 +1517,7 @@ def apply_choice(session, task):
     # because then the ``ImportTask`` won't have an `album` for which
     # it can set the fields.
     if config['import']['set_fields']:
-        task.set_fields()
+        task.set_fields(session.lib)
 
 
 @pipeline.mutator_stage
