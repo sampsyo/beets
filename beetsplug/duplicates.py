@@ -17,14 +17,17 @@
 """
 from __future__ import division, absolute_import, print_function
 
+import platform
 import shlex
+import six
 
+from beets import util
 from beets.plugins import BeetsPlugin
 from beets.ui import decargs, print_, Subcommand, UserError
 from beets.util import command_output, displayable_path, subprocess, \
     bytestring_path, MoveOperation
 from beets.library import Item, Album
-import six
+
 
 PLUGIN = 'duplicates'
 
@@ -197,7 +200,20 @@ class DuplicatesPlugin(BeetsPlugin):
         output as flexattr on a key that is the name of the program, and
         return the key, checksum tuple.
         """
-        args = [p.format(file=item.path) for p in shlex.split(prog)]
+        # On Python 3, we need to construct the command to invoke as a
+        # Unicode string. On Unix, this is a little unfortunate---the OS is
+        # expecting bytes---so we use surrogate escaping and decode with the
+        # argument encoding, which is the same encoding that will then be
+        # *reversed* to recover the same bytes before invoking the OS. On
+        # Windows, we want to preserve the Unicode filename "as is."
+        if not six.PY2:
+            if platform.system() == 'Windows':
+                args = [p.format(file=item.path.decode(util._fsencoding()))
+                        for p in shlex.split(prog)]
+            else:
+                args = [p.format(file=item.path.decode(util.arg_encoding(),
+                        'surrogateescape')) for p in shlex.split(prog)]
+
         key = args[0]
         checksum = getattr(item, key, False)
         if not checksum:
