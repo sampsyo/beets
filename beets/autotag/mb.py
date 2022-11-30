@@ -546,6 +546,7 @@ def match_album(artist, album, tracks=None, extra_tags=None):
         # so we just use the ID and fetch the rest of the information.
         albuminfo = album_for_id(release['id'])
         if albuminfo is not None:
+            plugins.send('mb_album_by_search_received', info=release)
             yield albuminfo
 
 
@@ -568,6 +569,7 @@ def match_track(artist, title):
         raise MusicBrainzAPIError(exc, 'recording search', criteria,
                                   traceback.format_exc())
     for recording in res['recording-list']:
+        plugins.send('mb_track_by_search_received', info=recording)
         yield track_info(recording)
 
 
@@ -600,6 +602,7 @@ def album_for_id(releaseid):
     except musicbrainzngs.MusicBrainzError as exc:
         raise MusicBrainzAPIError(exc, 'get release by ID', albumid,
                                   traceback.format_exc())
+    plugins.send('mb_album_by_id_received', info=res['release'])
     return album_info(res['release'])
 
 
@@ -619,4 +622,5 @@ def track_for_id(releaseid):
     except musicbrainzngs.MusicBrainzError as exc:
         raise MusicBrainzAPIError(exc, 'get recording by ID', trackid,
                                   traceback.format_exc())
+    plugins.send('mb_track_by_id_received', info=res['recording'])
     return track_info(res['recording'])

@@ -657,6 +657,7 @@ def choose_candidate(candidates, singleton, rec, cur_artist=None,
 
         # Exact match => tag automatically if we're not in timid mode.
         if rec == Recommendation.strong and not config['import']['timid']:
+            plugins.send('matchinfo_received', match=match)
             return match
 
         # Ask for confirmation.
@@ -674,6 +675,7 @@ def choose_candidate(candidates, singleton, rec, cur_artist=None,
         sel = ui.input_options(('Apply', 'More candidates') + choice_opts,
                                require=require, default=default)
         if sel == 'a':
+            plugins.send('matchinfo_received', match=match)
             return match
         elif sel in choice_actions:
             return choice_actions[sel]
