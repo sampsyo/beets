@@ -93,6 +93,7 @@ following to your configuration::
    ihate
    importadded
    importfeeds
+   importhistory
    info
    inline
    ipfs
