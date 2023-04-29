@@ -18,22 +18,17 @@
 import os
 import shutil
 import unittest
-
-import responses
-from unittest.mock import patch
-
 from test import _common
 from test.helper import capture_log
-from beetsplug import fetchart
-from beets.autotag import AlbumInfo, AlbumMatch
-from beets import config
-from beets import library
-from beets import importer
-from beets import logging
-from beets import util
-from beets.util.artresizer import ArtResizer
-import confuse
+from unittest.mock import patch
 
+import confuse
+import responses
+
+from beets import config, importer, library, logging, util
+from beets.autotag import AlbumInfo, AlbumMatch
+from beets.util.artresizer import ArtResizer
+from beetsplug import fetchart
 
 logger = logging.getLogger('beets.test_art')
 
@@ -42,6 +37,7 @@ class Settings():
     """Used to pass settings to the ArtSources when the plugin isn't fully
     instantiated.
     """
+
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
@@ -206,13 +202,19 @@ class FSArtTest(UseThePlugin):
     def test_finds_jpg_in_directory(self):
         _common.touch(os.path.join(self.dpath, b'a.jpg'))
         candidate = next(self.source.get(None, self.settings, [self.dpath]))
-        self.assertEqual(candidate.path, os.path.join(self.dpath, b'a.jpg'))
+        self.assertEqual(
+            candidate.original_path,
+            os.path.join(self.dpath, b'a.jpg'),
+        )
 
     def test_appropriately_named_file_takes_precedence(self):
         _common.touch(os.path.join(self.dpath, b'a.jpg'))
         _common.touch(os.path.join(self.dpath, b'art.jpg'))
         candidate = next(self.source.get(None, self.settings, [self.dpath]))
-        self.assertEqual(candidate.path, os.path.join(self.dpath, b'art.jpg'))
+        self.assertEqual(
+            candidate.original_path,
+            os.path.join(self.dpath, b'art.jpg'),
+        )
 
     def test_non_image_file_not_identified(self):
         _common.touch(os.path.join(self.dpath, b'a.txt'))
@@ -235,7 +237,7 @@ class FSArtTest(UseThePlugin):
         for p in paths:
             _common.touch(p)
         self.settings.cover_names = ['cover', 'front', 'back']
-        candidates = [candidate.path for candidate in
+        candidates = [candidate.original_path for candidate in
                       self.source.get(None, self.settings, [self.dpath])]
         self.assertEqual(candidates, paths)
 
@@ -270,7 +272,10 @@ class CombinedTest(FetchImageHelper, UseThePlugin, CAAHelper):
         album = _common.Bag(asin=self.ASIN)
         candidate = self.plugin.art_for_album(album, [self.dpath])
         self.assertIsNotNone(candidate)
-        self.assertEqual(candidate.path, os.path.join(self.dpath, b'art.jpg'))
+        self.assertEqual(
+            candidate.original_path,
+            os.path.join(self.dpath, b'art.jpg'),
+        )
 
     def test_main_interface_falls_back_to_amazon(self):
         self.mock_response(self.AMAZON_URL)
@@ -318,7 +323,10 @@ class CombinedTest(FetchImageHelper, UseThePlugin, CAAHelper):
         candidate = self.plugin.art_for_album(album, [self.dpath],
                                               local_only=True)
         self.assertIsNotNone(candidate)
-        self.assertEqual(candidate.path, os.path.join(self.dpath, b'art.jpg'))
+        self.assertEqual(
+            candidate.original_path,
+            os.path.join(self.dpath, b'art.jpg'),
+        )
         self.assertEqual(len(responses.calls), 0)
 
 
@@ -675,7 +683,7 @@ class ArtImporterTest(UseThePlugin):
     def _fetch_art(self, should_exist):
         """Execute the fetch_art coroutine for the task and return the
         album's resulting artpath. ``should_exist`` specifies whether to
-        assert that art path was set (to the correct value) or or that
+        assert that art path was set (to the correct value) or that
         the path was not set.
         """
         # Execute the two relevant parts of the importer.

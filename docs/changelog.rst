@@ -100,6 +100,7 @@ Bug fixes:
   should reduce the chance for errors and "file not found" failures when
   invoking other command-line tools, especially on Windows.
   :bug:`4507`
+* Fix bug where fetchart removes or changes cover art files when in copy mode
 * We now respect the Spotify API's rate limiting, which avoids crashing when the API reports code 429 (too many requests).
   :bug:`4370`
 * Fix implicit paths OR queries (e.g. ``beet list /path/ , /other-path/``)
