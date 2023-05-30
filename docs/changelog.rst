@@ -49,13 +49,14 @@ New features:
 * :doc:`/plugins/kodiupdate`: Now supports multiple kodi instances
   :bug:`4101`
 * Add the item fields ``bitrate_mode``, ``encoder_info`` and ``encoder_settings``.
-* Add query prefixes ``=`` and ``~``.
 * A new configuration option, :ref:`duplicate_keys`, lets you change which
   fields the beets importer uses to identify duplicates.
   :bug:`1133` :bug:`4199`
 * Add :ref:`exact match <exact-match>` queries, using the prefixes ``=`` and
   ``=~``.
   :bug:`4251`
+* Allow the Query type for a prefix to depend on its key's non-prefixed Query
+  type via a lookup table.
 * :doc:`/plugins/discogs`: Permit appending style to genre.
 * :doc:`plugins/discogs`: Implement item_candidates for matching singletons.
 * :doc:`plugins/discogs`: Check for compliant discogs_client module.

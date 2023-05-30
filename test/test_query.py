@@ -481,6 +481,12 @@ class PathQueryTest(_common.LibTestCase, TestHelper, AssertsMixin):
         results = self.lib.albums(q)
         self.assert_albums_matched(results, [])
 
+    def test_item_exact_match_trailing_slash(self):
+        # NOTE: This test documents the current, unexpected behavior.
+        q = 'path:/a/b/c.mp3/'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, ['path item'])
+
     # FIXME: fails on windows
     @unittest.skipIf(sys.platform == 'win32', 'win32')
     def test_parent_directory_no_slash(self):
@@ -566,6 +572,92 @@ class PathQueryTest(_common.LibTestCase, TestHelper, AssertsMixin):
         q = 'path::b'
         results = self.lib.albums(q)
         self.assert_albums_matched(results, ['path album'])
+
+    def test_item_exact_prefix_match(self):
+        q = 'path:=/a/b/c.mp3'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, ['path item'])
+
+    def test_album_exact_prefix_match(self):
+        q = 'path:=/a/b'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, ['path album'])
+
+    def test_item_exact_nocase_prefix_match(self):
+        q = 'path:=~/a/b/c.mp3'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, ['path item'])
+
+        q = 'path:=~/A/b/c.MP3'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, ['path item'])
+
+    def test_album_exact_nocase_prefix_match(self):
+        q = 'path:=~/a/b'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, ['path album'])
+
+        q = 'path:=~/A/B'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, ['path album'])
+
+    def test_item_exact_prefix_no_match(self):
+        q = 'path:=/'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/a'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/a/'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/a/b'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/a/b/'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/a/b/c'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/a/b/c/'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/a/b/c.mp3/'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+        q = 'path:=/A/B/C.MP3'
+        results = self.lib.items(q)
+        self.assert_items_matched(results, [])
+
+    def test_album_exact_prefix_no_match(self):
+        q = 'path:=/'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, [])
+
+        q = 'path:=/a'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, [])
+
+        q = 'path:=/a/'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, [])
+
+        q = 'path:=/a/b/c'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, [])
+
+        q = 'path:=/A/B'
+        results = self.lib.albums(q)
+        self.assert_albums_matched(results, [])
 
     def test_escape_underscore(self):
         self.add_album(path=b'/a/_/title.mp3', title='with underscore',

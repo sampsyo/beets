@@ -90,8 +90,16 @@ def parse_query_part(part, query_classes={}, prefixes={},
 
     # Check whether there's a prefix in the query and use the
     # corresponding query type.
-    for pre, query_class in prefixes.items():
+    for pre, config in prefixes.items():
         if term.startswith(pre):
+            if (isinstance(config, type) and issubclass(config, query.Query)):
+                # The query class for prefix is specified as a single class.
+                query_class = config
+            else:
+                # The query class for prefix depends on the key's non-prefixed
+                # query class. A default class may be provided via defaultdict.
+                non_prefixed_class = query_classes.get(key, default_class)
+                query_class = config[non_prefixed_class]
             return key, term[len(pre):], query_class, negate
 
     # No matching prefix, so use either the query class determined by

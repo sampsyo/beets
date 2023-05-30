@@ -324,6 +324,13 @@ ones you've already added to your beets library.
 Path queries are case sensitive if the queried path is on a case-sensitive
 filesystem.
 
+Regardless of the underlying filesystem, :ref:`exact match <exact-match>`
+queries always perform either case-sensitive (``=``) or case-insensitive
+(``=~``) matches on whole file paths for both albums and items::
+
+    $ beet list path:='/my/music/directory/AIR/Clouds Up.mp3'
+    $ beet list path:=~'/my/music/directory/air/CLOUDS UP.mp3'
+
 .. _query-sort:
 
 Sort Order

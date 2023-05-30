@@ -507,6 +507,27 @@ plugin will be used if we issue a command like ``beet ls @something`` or
                 '@': ExactMatchQuery
             }
 
+If the behavior of your query prefix depends on the type of the field being
+searched, you may assign a prefix string to a dictionary instead of a single
+Query class. That dictionary should map the un-prefixed query class for each
+supported field to the query classes your prefix should use; a default Query
+class can be specified with a defaultdict::
+
+    from collections import defaultdict
+    from beets.dbcore import query
+    from beets import library
+
+    class PathSafeExactMatchPlugin(BeetsPlugin):
+        def queries(self):
+            return {
+                '@': defaultdict(lambda: ExactMatchQuery, {
+                    library.PathQuery: query.BytesQuery,
+                })
+            }
+
+The ``PathSafeExactMatchPlugin`` above will use your new ``ExactMatchQuery``
+class for ``@``-prefixed searches on all fields except for those which would
+use the ``PathQuery`` type in non-prefixed searches.
 
 Flexible Field Types
 ^^^^^^^^^^^^^^^^^^^^

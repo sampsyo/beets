@@ -265,8 +265,8 @@ class BytesQuery(MatchQuery):
     `MatchQuery` when matching on BLOB values.
     """
 
-    def __init__(self, field, pattern):
-        super().__init__(field, pattern)
+    def __init__(self, field, pattern, fast=True):
+        super().__init__(field, pattern, fast)
 
         # Use a buffer/memoryview representation of the pattern for SQLite
         # matching. This instructs SQLite to treat the blob as binary

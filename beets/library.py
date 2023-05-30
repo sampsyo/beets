@@ -22,6 +22,7 @@ import time
 import re
 import string
 import shlex
+from collections import defaultdict
 
 from beets import logging
 from mediafile import MediaFile, UnreadableFileError
@@ -1424,7 +1425,9 @@ def parse_query_parts(parts, model_cls):
     prefixes = {
         ':': dbcore.query.RegexpQuery,
         '=~': dbcore.query.StringQuery,
-        '=': dbcore.query.MatchQuery,
+        '=': defaultdict(lambda: dbcore.query.MatchQuery, {
+            PathQuery: dbcore.query.BytesQuery,
+        }),
     }
     prefixes.update(plugins.queries())
 
