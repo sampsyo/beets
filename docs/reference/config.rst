@@ -321,7 +321,7 @@ The defaults look like this::
 
     aunique:
         keys: albumartist album
-        disambiguators: albumtype year label catalognum albumdisambig releasegroupdisambig
+        disambiguators: albumtype year label barcode catalognum albumdisambig releasegroupdisambig
         bracket: '[]'
 
 See :ref:`aunique` for more details.
@@ -857,7 +857,7 @@ MusicBrainz. Additional tags to be queried can be supplied with the
 ``extra_tags`` setting. For example::
 
     musicbrainz:
-        extra_tags: [year, catalognum, country, media, label]
+        extra_tags: [year, barcode, catalognum, country, media, label]
 
 This setting should improve the autotagger results if the metadata with the
 given tags match the metadata returned by MusicBrainz.
@@ -968,6 +968,7 @@ penalty names here are:
 * country
 * label
 * catalognum
+* barcode  
 * albumdisambig
 * album_id
 * tracks
@@ -1031,7 +1032,7 @@ You can avoid matches that lack certain required information. Add the tags you
 want to enforce to the ``required`` setting::
 
     match:
-        required: year label catalognum country
+        required: year label barcode catalognum country
 
 No tags are required by default.
 

@@ -209,6 +209,8 @@ def disambig_string(info):
             disambig.append(info.label)
         if info.catalognum:
             disambig.append(info.catalognum)
+        if info.barcode:
+            disambig.append(info.barcode)
         if info.albumdisambig:
             disambig.append(info.albumdisambig)
         # Let the user differentiate between pseudo and actual releases.

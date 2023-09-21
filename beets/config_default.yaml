@@ -68,7 +68,7 @@ max_filename_length: 0
 
 aunique:
     keys: albumartist album
-    disambiguators: albumtype year label catalognum albumdisambig releasegroupdisambig
+    disambiguators: albumtype year label catalognum barcode albumdisambig releasegroupdisambig
     bracket: '[]'
 
 sunique:
@@ -155,6 +155,7 @@ match:
         country: 0.5
         label: 0.5
         catalognum: 0.5
+        barcode: 0.5
         albumdisambig: 0.5
         album_id: 5.0
         tracks: 2.0

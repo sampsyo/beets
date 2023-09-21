@@ -88,7 +88,7 @@ def current_metadata(
     likelies = {}
     consensus = {}
     fields = ['artist', 'album', 'albumartist', 'year', 'disctotal',
-              'mb_albumid', 'label', 'catalognum', 'country', 'media',
+              'mb_albumid', 'label', 'barcode', 'catalognum', 'country', 'media',
               'albumdisambig']
     for field in fields:
         values = [item[field] for item in items if item]
@@ -270,6 +270,11 @@ def distance(
     if likelies['catalognum'] and album_info.catalognum:
         dist.add_string('catalognum', likelies['catalognum'],
                         album_info.catalognum)
+
+    # Barcode number.
+    if likelies['barcode'] and album_info.barcode:
+        dist.add_string('barcode', likelies['barcode'],
+                        album_info.barcode)
 
     # Disambiguation.
     if likelies['albumdisambig'] and album_info.albumdisambig:

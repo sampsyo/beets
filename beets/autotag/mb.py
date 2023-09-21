@@ -43,6 +43,7 @@ SKIPPED_TRACKS = ['[data track]']
 FIELDS_TO_MB_KEYS = {
     'catalognum': 'catno',
     'country': 'country',
+    'barcode': 'barcode',
     'label': 'label',
     'media': 'format',
     'year': 'date',
@@ -500,6 +501,7 @@ def album_info(release: Dict) -> beets.autotag.hooks.AlbumInfo:
     info.asin = release.get('asin')
     info.releasegroup_id = release['release-group']['id']
     info.albumstatus = release.get('status')
+    info.barcode = release.get('barcode')
 
     if release['release-group'].get('title'):
         info.release_group_title = release['release-group'].get('title')
@@ -771,6 +773,7 @@ def _merge_pseudo_and_actual_album(
         "media",
         "mediums",
         "country",
+        "barcode",
         "catalognum",
         "year",
         "month",

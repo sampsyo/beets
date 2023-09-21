@@ -90,6 +90,7 @@ class AlbumInfo(AttrDict):
             releasegroup_id: Optional[str] = None,
             release_group_title: Optional[str] = None,
             catalognum: Optional[str] = None,
+            barcode: Optional[str] = None,
             script: Optional[str] = None,
             language: Optional[str] = None,
             country: Optional[str] = None,
@@ -132,6 +133,7 @@ class AlbumInfo(AttrDict):
         self.releasegroup_id = releasegroup_id
         self.release_group_title = release_group_title
         self.catalognum = catalognum
+        self.barcode = barcode
         self.script = script
         self.language = language
         self.country = country
@@ -161,7 +163,7 @@ class AlbumInfo(AttrDict):
         constituent `TrackInfo` objects, are decoded to Unicode.
         """
         for fld in ['album', 'artist', 'albumtype', 'label', 'artist_sort',
-                    'catalognum', 'script', 'language', 'country', 'style',
+                    'barcode', 'catalognum', 'script', 'language', 'country', 'style',
                     'genre', 'albumstatus', 'albumdisambig',
                     'releasegroupdisambig', 'artist_credit',
                     'media', 'discogs_albumid', 'discogs_labelid',

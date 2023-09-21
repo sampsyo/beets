@@ -128,7 +128,7 @@ other. The first such field is used as the result for ``%aunique``. If no field
 suffices, an arbitrary number is used to distinguish the two albums.
 
 The default identifiers are ``albumartist album`` and the default
-disambiguators are ``albumtype year label catalognum albumdisambig
+disambiguators are ``albumtype year label catalognum barcode albumdisambig
 releasegroupdisambig``. So you can get reasonable disambiguation
 behavior if you just use ``%aunique{}`` with no parameters in your
 path forms (as in the default path formats), but you can customize the
@@ -233,6 +233,7 @@ Ordinary metadata:
 * label
 * asin
 * catalognum
+* barcode
 * script
 * language
 * country

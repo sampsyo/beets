@@ -233,6 +233,9 @@ Bug fixes:
   already. A new option ``--noinherit/-I`` to :ref:`modify <modify-cmd>`
   allows changing this behaviour.
   :bug:`4822`
+* Address issue where multiple beet import candidates may appear identical when
+  they only differ by barcode. Barcode is now used as a disambiguator during import.  
+  :bug:`4882`
 
 For packagers:
 
