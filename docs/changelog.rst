@@ -122,6 +122,8 @@ New features:
   :bug:`2786`
 * Add support for ``artists`` and ``albumartists`` multi-valued tags.
   :bug:`505`
+* Add log message on verbose, when beets renames destination file during move.
+  :bug:`2895`
 
 Bug fixes:
 
