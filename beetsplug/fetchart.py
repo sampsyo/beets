@@ -23,6 +23,7 @@ from tempfile import NamedTemporaryFile
 
 import confuse
 import requests
+from requests.adapters import HTTPAdapter, Retry
 from beets import config, importer, plugins, ui, util
 from beets.util import bytestring_path, py3_path, sorted_walk, syspath
 from beets.util.artresizer import ArtResizer
@@ -217,9 +218,16 @@ def _logged_get(log, *args, **kwargs):
     else:
         message = 'getting URL'
 
+    retry_strategy = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504, 403],
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
     req = requests.Request('GET', *args, **req_kwargs)
 
     with requests.Session() as s:
+        s.mount("https://", adapter)
         s.headers = {'User-Agent': 'beets'}
         prepped = s.prepare_request(req)
         settings = s.merge_environment_settings(

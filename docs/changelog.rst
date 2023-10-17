@@ -141,7 +141,9 @@ New features:
   plugin which allows to replace fields based on a given library query.
 
 Bug fixes:
-
+* :doc:`/plugins/fetchart`: Add retry with exponential backoff to all requests to
+  work around iTunes rate limiting.
+  :bug:`3827`
 * :doc:`/plugins/scrub`: Fixed the import behavior where scrubbed database tags
   were restored to newly imported tracks with config settings ``scrub.auto: yes``
   and ``import.write: no``.
