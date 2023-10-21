@@ -1852,7 +1852,7 @@ class DefaultTemplateFunctions:
 
         # If there's only one item to matching these details, then do
         # nothing.
-        if len(ambigous_items) == 1:
+        if len(ambigous_items) <= 1:
             self.lib._memotable[memokey] = ''
             return ''
 
