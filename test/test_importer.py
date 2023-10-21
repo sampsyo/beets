@@ -392,6 +392,12 @@ class NonAutotaggedImportTest(_common.TestCase, ImportHelper):
         self.importer.run()
         self.assertNotExists(os.path.join(self.import_dir, b'the_album'))
 
+    def test_album_mb_albumartistids(self):
+        self.importer.run()
+        album = self.lib.albums()[0]
+        self.assertEqual(album.mb_albumartistids,
+                         album.items()[0].mb_albumartistids)
+
     @unittest.skipUnless(_common.HAVE_SYMLINK, "need symlinks")
     def test_import_link_arrives(self):
         config['import']['link'] = True
