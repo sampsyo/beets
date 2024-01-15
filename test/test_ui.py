@@ -937,7 +937,8 @@ class ConfigTest(unittest.TestCase, TestHelper, _common.Assertions):
             config.write("library: /xxx/yyy/not/a/real/path")
 
         with self.assertRaises(ui.UserError):
-            self.run_command("test", lib=None)
+            with control_stdin("n"):
+                self.run_command("test", lib=None)
 
     def test_user_config_file(self):
         with self.write_config_file() as file:

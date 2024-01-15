@@ -332,6 +332,7 @@ class DummyIO:
     def __init__(self):
         self.stdout = DummyOut()
         self.stdin = DummyIn(self.stdout)
+        self.installed = False
 
     def addinput(self, s):
         self.stdin.add(s)
@@ -345,12 +346,19 @@ class DummyIO:
         return self.stdin.reads
 
     def install(self):
+        assert not self.installed, "DummyIO already installed"
+        self.installed = True
+
+        self.orig_stdin = sys.stdin
+        self.orig_stdout = sys.stdout
+
         sys.stdin = self.stdin
         sys.stdout = self.stdout
 
     def restore(self):
-        sys.stdin = sys.__stdin__
-        sys.stdout = sys.__stdout__
+        if self.installed:
+            sys.stdin = self.orig_stdin
+            sys.stdout = self.orig_stdout
 
 
 # Utility.
