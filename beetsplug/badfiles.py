@@ -84,6 +84,9 @@ class BadFiles(BeetsPlugin):
     def check_flac(self, path):
         return self.run_command(["flac", "-wst", path])
 
+    def check_wv(self, path):
+        return self.run_command(["wvunpack", "-vq", path])
+
     def check_custom(self, command):
         def checker(path):
             cmd = shlex.split(command)
@@ -104,6 +107,8 @@ class BadFiles(BeetsPlugin):
             return self.check_mp3val
         if ext == "flac":
             return self.check_flac
+        if ext == "wv":
+            return self.check_wv
 
     def check_item(self, item):
         # First, check whether the path exists. If not, the user

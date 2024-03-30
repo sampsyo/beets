@@ -13,6 +13,7 @@ install yourself:
 
 * `mp3val`_ for MP3 files
 * `FLAC`_ command-line tools for FLAC files
+* `wvunpack`_ for wavpack files
 
 You can also add custom commands for a specific extension, like this::
 
@@ -32,6 +33,7 @@ and errors will be presented when selecting a tagging option.
 
 .. _mp3val: http://mp3val.sourceforge.net/
 .. _flac: https://xiph.org/flac/
+.. _wvunpack: https://www.wavpack.com/index.html
 
 Using
 -----

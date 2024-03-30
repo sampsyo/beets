@@ -158,6 +158,7 @@ New features:
 * :doc:`/plugins/convert`: Don't treat WAVE (`.wav`) files as lossy anymore
   when using the `never_convert_lossy_files` option. They will get transcoded
   like the other lossless formats.
+* :doc:`/plugins/badfiles`: Add default configuration for wavpack files.
 
 Bug fixes:
 
