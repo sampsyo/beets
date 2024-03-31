@@ -83,7 +83,7 @@ def acoustid_match(log, path):
     _matches, _fingerprints, and _acoustids dictionaries accordingly.
     """
     try:
-        duration, fp = acoustid.fingerprint_file(util.syspath(path))
+        duration, fp = acoustid.fingerprint_file(util.syspath(path), force_fpcalc=self.config["forceFpcalc"])
     except acoustid.FingerprintGenerationError as exc:
         log.error(
             "fingerprinting of {0} failed: {1}",
@@ -174,6 +174,7 @@ class AcoustidPlugin(plugins.BeetsPlugin):
         self.config.add(
             {
                 "auto": True,
+                "forceFpcalc": False,
             }
         )
         config["acoustid"]["apikey"].redact = True
@@ -342,7 +343,7 @@ def fingerprint_item(log, item, write=False):
     else:
         log.info("{0}: fingerprinting", util.displayable_path(item.path))
         try:
-            _, fp = acoustid.fingerprint_file(util.syspath(item.path))
+            _, fp = acoustid.fingerprint_file(util.syspath(item.path), force_fpcalc=self.config["forceFpcalc"])
             item.acoustid_fingerprint = fp.decode()
             if write:
                 log.info(

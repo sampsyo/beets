@@ -156,8 +156,7 @@ New features:
 * Sorted the default configuration file into categories.
   :bug:`4987`
 * :doc:`/plugins/convert`: Don't treat WAVE (`.wav`) files as lossy anymore
-  when using the `never_convert_lossy_files` option. They will get transcoded
-  like the other lossless formats.
+* :doc:`plugins/chroma`: Add the ability to force the use of the fpcalc cli tool instead of the library.
 
 Bug fixes:
 

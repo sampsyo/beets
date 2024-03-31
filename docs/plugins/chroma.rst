@@ -111,12 +111,18 @@ written to files' metadata.
 Configuration
 -------------
 
-There is one configuration option in the ``chroma:`` section, ``auto``, which
-controls whether to fingerprint files during the import process. To disable
-fingerprint-based autotagging, set it to ``no``, like so::
+To control whether to fingerprint files during the import process use
+the ``auto`` option. To disable fingerprint-based autotagging, set it to
+``no``.
+
+When both the library and the ``fpcalc`` binary tool are available chroma defaults
+to the library. To force the use of ``fpcalc`` use the ``forceFpcalc`` option.
 
     chroma:
+        # Don't run during the import
         auto: no
+        # Use fpcalc even if the library is available
+        forceFpcalc: yes
 
 Submitting Fingerprints
 -----------------------
