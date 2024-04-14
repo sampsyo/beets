@@ -48,6 +48,8 @@ def replace_ext(path, ext):
 
     The new extension must not contain a leading dot.
     """
+    assert isinstance(path, bytes)
+    assert isinstance(ext, bytes)
     ext_dot = b"." + ext
     return os.path.splitext(path)[0] + ext_dot
 
