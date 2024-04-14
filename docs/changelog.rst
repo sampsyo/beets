@@ -352,6 +352,8 @@ Bug fixes:
   `requests` timeout.
 * Fix cover art resizing logic to support multiple steps of resizing
   :bug:`5151`
+* :doc:`/plugins/convert`: Fix extension substitution inside path of the
+  exported playlist.
 
 For plugin developers:
 
