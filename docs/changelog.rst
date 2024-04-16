@@ -341,6 +341,8 @@ Other changes:
   :bug:`4585`
 * :doc:`/faq`: :ref:`multidisc`: Elaborated the multi-disc FAQ :bug:`4806`
 * :doc:`/faq`: :ref:`src`: Removed some long lines.
+* :doc:`/guides`: :ref:`main.rst`: Added documentation for updating pip,
+  adding to PATH on Windows, and running the beets package.
 
 1.6.0 (November 27, 2021)
 -------------------------

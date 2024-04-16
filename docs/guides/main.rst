@@ -64,6 +64,10 @@ Beets works on Python 3.7 or later.
 If you have `pip`_, just say ``pip install beets`` (or ``pip install --user
 beets`` if you run into permissions problems).
 
+If you have pip but wish to update (uninstall and install the current version),
+run ``python -m pip install –upgrade pip``. Ensure the directory with pip’s scripts
+are added to ``PATH``.
+
 To install without pip, download beets from `its PyPI page`_ and run ``python
 setup.py install`` in the directory therein.
 
@@ -103,19 +107,18 @@ get it right:
    box. If you do that, you can skip the next step.
 
 2. If you haven't done so already, set your ``PATH`` environment variable to
-   include Python and its scripts. To do so, open the "Settings" application, 
-   then access the "System" screen, then access the "About" tab, and then hit 
-   "Advanced system settings" located on the right side of the screen. This 
-   should open the "System Properties" screen, then select the "Advanced" tab, 
-   then hit the "Environmental Variables..." button, and then look for the PATH 
-   variable in the table. Add the following to the end of the variable's value: 
-   ``;C:\Python37;C:\Python37\Scripts``. You may need to adjust these paths to 
-   point to your Python installation.
+   include Python and its scripts. To do so, press Win + R to open the Run dialog
+   box. Next, type ``sysdm.cpl`` to open "System Properties". After, under the 
+   “Advanced” tab, click the “Environment Variables” button, and look for the
+   ``PATH`` variable in the table. Add the following to the end of the variable's
+   value: ``;C:\Python37;C:\Python37\Scripts``. You may need to adjust these paths
+   to point to your Python installation.
 
 3. Now install beets by running: ``pip install beets``
 
 4. You're all set! Type ``beet`` at the command prompt to make sure everything's
-   in order.
+   in order. (If pip’s scripts are not in ``PATH``, alternatively run the beets
+   package from the command line by typing ``python3 -m beets``.)
 
 Windows users may also want to install a context menu item for importing files
 into beets. Download the `beets.reg`_ file and open it in a text file to make
