@@ -6,6 +6,10 @@ Changelog
 
 Changelog goes here! Please add your entry to the bottom of one of the lists below!
 
+New features:
+
+* :doc:`/plugins/missing`: Add config options to show release years for missing albums and to show only releases not older than the latest in the library.
+
 
 2.0.0 (May 30, 2024)
 --------------------

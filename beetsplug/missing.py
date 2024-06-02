@@ -171,6 +171,8 @@ class MissingPlugin(BeetsPlugin):
         matching query.
         """
         total = self.config["total"].get()
+        show_years = self.config["albums"]["years"].get(bool)
+        recent_albums_only = self.config["albums"]["recent"].get(bool)
 
         albums = lib.albums(query)
         # build dict mapping artist to list of their albums in library
@@ -207,9 +209,16 @@ class MissingPlugin(BeetsPlugin):
 
             missing = []
             present = []
+
+            most_recent_album_year = None
+            if recent_albums_only:
+                most_recent_album_year = 0
+
             for rg in release_groups:
                 missing.append(rg)
                 for alb in albums:
+                    if recent_albums_only and "year" in alb and alb["year"] > most_recent_album_year:
+                        most_recent_album_year = alb["year"]
                     if alb["mb_releasegroupid"] == rg["id"]:
                         missing.remove(rg)
                         present.append(rg)
@@ -219,10 +228,14 @@ class MissingPlugin(BeetsPlugin):
             if total:
                 continue
 
-            missing_titles = {rg["title"] for rg in missing}
-
-            for release_title in missing_titles:
-                print_("{} - {}".format(artist[0], release_title))
+            if show_years:
+                missing_releases = self._missing_releases(missing, most_recent_album_year)
+                # print out missing albums for artist sorted by release year
+                for entry in list(sorted(missing_releases, key=lambda item: item[1])):
+                    print_("{} - [{}] {} ({})".format(artist[0], entry[1], entry[2], entry[3]))
+            else:
+                for release_group in missing:
+                    print_("{} - {} ({})".format(artist[0], release_group["title"], release_group["type"]))
 
         if total:
             print(total_missing)
@@ -243,3 +256,56 @@ class MissingPlugin(BeetsPlugin):
                         album_info.album_id,
                     )
                     yield item
+
+    def _missing_releases(self, release_groups, _most_recent_album_year=None):
+        """Get the releases for the passed release groups.
+        Returns releases not before _most_recent_album_year if passed.
+        Returns releases as list of (release_group_id, release_year, title, release_type)
+        """
+        missing_releases = []
+
+        for missing_release_group in release_groups:
+            # Get releases (e.g. album editions) for release-group
+            try:
+                resp = musicbrainzngs.browse_releases(release_group=missing_release_group["id"])
+                releases = resp["release-list"]
+            except MusicBrainzError as err:
+                self._log.info(
+                    "Couldn't fetch info for release-group '{}' ({}) - '{}'",
+                    missing_release_group["title"],
+                    missing_release_group["id"],
+                    err,
+                )
+                continue
+
+            release_year = self._year_of_oldest_release(releases)
+
+            # skip if only recent albums are searched for and it is not one
+            if _most_recent_album_year is not None and release_year < _most_recent_album_year:
+                continue
+
+            missing_release = (missing_release_group["id"],
+                               release_year, missing_release_group["title"], missing_release_group["type"])
+
+            missing_releases.append(missing_release)
+
+        return missing_releases
+
+    def _year_of_oldest_release(self, releases):
+        """Returns the year of the oldest release out of the releases passed"""
+        oldest_year = 3000
+        for release in releases:
+            if "date" in release:
+                # Get year from date, convert it and add it to list of years
+                year = int(release["date"][:4])
+                if year < oldest_year:
+                    oldest_year = year
+                self._log.debug(
+                    "year {0} in release {1}",
+                    year,
+                    release["title"]
+                )
+
+        # return oldest year as first release year of the group
+        # return default-value for the rare case there are no years found
+        return oldest_year

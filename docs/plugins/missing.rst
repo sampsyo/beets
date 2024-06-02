@@ -43,6 +43,12 @@ configuration file. The available options are:
   Default: :ref:`format_item`.
 - **total**: Print a single count of missing tracks in all albums.
   Default: ``no``.
+- albums: Configuration options for displaying missing albums.
+    - **years**: Show release years of missing albums (see note below).
+    - **recent**: Show only releases of an artist not older than those already in the library.
+
+**Note:** Fetching the release year of missing releases results in additional data fetched from MusicBrainz, which
+makes this process rather slow. So make sure to grab a coffee while waiting for the results ;-).
 
 Here's an example ::
 
@@ -50,6 +56,9 @@ Here's an example ::
         format: $albumartist - $album - $title
         count: no
         total: no
+        albums:
+            years: no
+            recent: no
 
 Template Fields
 ---------------
