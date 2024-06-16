@@ -18,6 +18,7 @@
 import os
 import shutil
 import unittest
+from typing import Iterator, Optional, Sequence
 from unittest.mock import patch
 
 import confuse
@@ -25,6 +26,7 @@ import responses
 
 from beets import config, importer, library, logging, util
 from beets.autotag import AlbumInfo, AlbumMatch
+from beets.library import Album
 from beets.test import _common
 from beets.test.helper import capture_log
 from beets.util import syspath
@@ -48,6 +50,26 @@ class UseThePlugin(_common.TestCase):
     def setUp(self):
         super().setUp()
         self.plugin = fetchart.FetchArtPlugin()
+
+
+class DummyLocalArtSource(fetchart.LocalArtSource):
+    def get(
+        self,
+        album: Album,
+        plugin: fetchart.FetchArtPlugin,
+        paths: Optional[Sequence[bytes]],
+    ) -> Iterator[fetchart.Candidate]:
+        pass
+
+
+class DummyRemoteArtSource(fetchart.RemoteArtSource):
+    def get(
+        self,
+        album: Album,
+        plugin: fetchart.FetchArtPlugin,
+        paths: Optional[Sequence[bytes]],
+    ) -> Iterator[fetchart.Candidate]:
+        pass
 
 
 class FetchImageHelper(_common.TestCase):
@@ -218,9 +240,13 @@ class FetchImageTest(FetchImageHelper, UseThePlugin):
     def setUp(self):
         super().setUp()
         self.dpath = os.path.join(self.temp_dir, b"arttest")
-        self.source = fetchart.RemoteArtSource(logger, self.plugin.config)
+        self.source = DummyRemoteArtSource(logger, self.plugin.config)
         self.settings = Settings(maxwidth=0)
-        self.candidate = fetchart.Candidate(logger, url=self.URL)
+        self.candidate = fetchart.Candidate(
+            logger,
+            source=self.source,
+            url=self.URL,
+        )
 
     def test_invalid_type_returns_none(self):
         self.mock_response(self.URL, "image/watercolour")
@@ -448,7 +474,7 @@ class ITunesStoreTest(UseThePlugin):
         self.mock_response(fetchart.ITunesStore.API_URL, json)
         candidate = next(self.source.get(self.album, self.settings, []))
         self.assertEqual(candidate.url, "url_to_the_image")
-        self.assertEqual(candidate.match, fetchart.Candidate.MATCH_EXACT)
+        self.assertEqual(candidate.match, fetchart.MetadataMatch.EXACT)
 
     def test_itunesstore_no_result(self):
         json = '{"results": []}'
@@ -487,7 +513,7 @@ class ITunesStoreTest(UseThePlugin):
         self.mock_response(fetchart.ITunesStore.API_URL, json)
         candidate = next(self.source.get(self.album, self.settings, []))
         self.assertEqual(candidate.url, "url_to_the_image")
-        self.assertEqual(candidate.match, fetchart.Candidate.MATCH_FALLBACK)
+        self.assertEqual(candidate.match, fetchart.MetadataMatch.FALLBACK)
 
     def test_itunesstore_returns_result_without_artwork(self):
         json = """{
@@ -743,7 +769,11 @@ class ArtImporterTest(UseThePlugin):
         self.art_file = os.path.join(self.temp_dir, b"tmpcover.jpg")
         _common.touch(self.art_file)
         self.old_afa = self.plugin.art_for_album
-        self.afa_response = fetchart.Candidate(logger, path=self.art_file)
+        self.afa_response = fetchart.Candidate(
+            logger,
+            source=DummyLocalArtSource(logger, self.plugin.config),
+            path=self.art_file,
+        )
 
         def art_for_album(i, p, local_only=False):
             return self.afa_response
@@ -832,7 +862,11 @@ class ArtImporterTest(UseThePlugin):
     def test_do_not_delete_original_if_already_in_place(self):
         artdest = os.path.join(os.path.dirname(self.i.path), b"cover.jpg")
         shutil.copyfile(syspath(self.art_file), syspath(artdest))
-        self.afa_response = fetchart.Candidate(logger, path=artdest)
+        self.afa_response = fetchart.Candidate(
+            logger,
+            source=DummyLocalArtSource(logger, self.plugin.config),
+            path=artdest,
+        )
         self._fetch_art(True)
 
     def test_fetch_art_if_imported_file_deleted(self):
@@ -869,7 +903,11 @@ class ArtForAlbumTest(UseThePlugin):
 
         def fs_source_get(_self, album, settings, paths):
             if paths:
-                yield fetchart.Candidate(logger, path=self.image_file)
+                yield fetchart.Candidate(
+                    logger,
+                    source=DummyLocalArtSource(logger, self.plugin.config),
+                    path=self.image_file,
+                )
 
         fetchart.FileSystem.get = fs_source_get
 
