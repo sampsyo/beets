@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="UTF-8">
+<html>
+<body>
+    <form action="https://musicbrainz.org/release/add" method="post" style="display: none">
+        {% for k,v in task.formdata.items() %}
+            <input type="hidden" name="{{ k }}" value="{{ v }}">
+        {% endfor %}
+        <input type="submit">
+    </form>
+    <script>document.forms[0].submit()</script>
+</body>

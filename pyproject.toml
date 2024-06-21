@@ -62,6 +62,8 @@ reflink = { version = "*", optional = true }
 requests = { version = "*", optional = true }
 requests-oauthlib = { version = ">=0.6.1", optional = true }
 soco = { version = "*", optional = true }
+pyjwt = { version = "*", optional = true }
+waitress = { version = "*", optional = true }
 
 [tool.poetry.group.test.dependencies]
 beautifulsoup4 = "*"
@@ -80,6 +82,8 @@ rarfile = "*"
 reflink = "*"
 requests_oauthlib = "*"
 responses = ">=0.3.0"
+pyjwt = "*"
+waitress = "*"
 
 [tool.poetry.group.format.dependencies]
 isort = { version = "<5.14", extras = ["colors"] }
@@ -127,6 +131,7 @@ kodiupdate = ["requests"]
 lastgenre = ["pylast"]
 lastimport = ["pylast"]
 lyrics = ["beautifulsoup4", "langdetect", "requests"]
+mbsubmit = ["pyjwt", "flask", "waitress"]
 metasync = ["dbus-python"]
 mpdstats = ["python-mpd2"]
 plexupdate = ["requests"]

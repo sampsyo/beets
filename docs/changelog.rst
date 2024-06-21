@@ -6,6 +6,11 @@ Unreleased
 
 Changelog goes here! Please add your entry to the bottom of one of the lists below!
 
+New features:
+
+* :doc:`plugins/mbsubmit`: Add new prompt choice "Create release on musicbrainz", automating
+  the process as much as possible.
+
 Bug fixes:
 
 * Improved naming of temporary files by separating the random part with the file extension.
