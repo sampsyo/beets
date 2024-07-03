@@ -20,9 +20,9 @@ import shlex
 import subprocess
 import tempfile
 import threading
-import mediafile
 from string import Template
 
+import mediafile
 from confuse import ConfigTypeError, Optional
 
 from beets import art, config, plugins, ui, util
