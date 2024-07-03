@@ -320,6 +320,7 @@ class ConvertCliTest(_common.TestCase, TestHelper, ConvertCommand):
                 self.assertTrue(m3u_file.readline() == "#EXTM3U\n")
                 self.assertTrue(m3u_file.readline() == "converted.mp3\n")
 
+
 @_common.slow_test()
 class NeverConvertLossyFilesTest(_common.TestCase, TestHelper, ConvertCommand):
     """Test the effect of the `never_convert_lossy_files` option."""
