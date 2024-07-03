@@ -309,7 +309,8 @@ class ConvertCliTest(_common.TestCase, TestHelper, ConvertCommand):
         self.assertFalse(os.path.exists(m3u_created))
 
     def test_playlist_ext(self):
-        """Test correct extension of file inside the playlist when format conversion occurs."""
+        """Test correct extension of file inside the playlist when format
+        conversion occurs."""
         # We expect a converted file with the MP3 extension.
         self.config["convert"]["format"] = "mp3"
         with control_stdin("y"):
