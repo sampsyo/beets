@@ -73,6 +73,16 @@ class DBAccessError(Exception):
     """
 
 
+class DBCustomFunctionError(Exception):
+    """A sqlite function registered by beets failed."""
+
+    def __init__(self):
+        super().__init__(
+            "beets defined SQLite function failed; "
+            "see the other errors above for details"
+        )
+
+
 class FormattedMapping(Mapping[str, str]):
     """A `dict`-like formatted view of a model.
 
@@ -970,6 +980,12 @@ class Transaction:
             self._mutated = False
             self.db._db_lock.release()
 
+        if (
+            isinstance(exc_value, sqlite3.OperationalError)
+            and exc_value.args[0] == "user-defined function raised exception"
+        ):
+            raise DBCustomFunctionError()
+
     def query(self, statement: str, subvals: Sequence = ()) -> List:
         """Execute an SQL statement with substitution values and return
         a list of rows from the database.
@@ -1027,6 +1043,10 @@ class Database:
             raise RuntimeError(
                 "sqlite3 must be compiled with multi-threading support"
             )
+
+        # Print tracebacks for exceptions in user defined functions
+        # See also `self.add_functions` and `DBCustomFunctionError`.
+        sqlite3.enable_callback_tracebacks(True)
 
         self.path = path
         self.timeout = timeout
