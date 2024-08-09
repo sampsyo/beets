@@ -20,11 +20,12 @@ import contextlib
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 from abc import ABC
 from collections import defaultdict
-from sqlite3 import Connection
+from sqlite3 import Connection, sqlite_version_info
 from types import TracebackType
 from typing import (
     Any,
@@ -1143,9 +1144,14 @@ class Database:
 
             return bytestring
 
-        conn.create_function("regexp", 2, regexp)
-        conn.create_function("unidecode", 1, unidecode)
-        conn.create_function("bytelower", 1, bytelower)
+        deterministic = {}
+        if sys.version_info >= (3, 8) and sqlite_version_info >= (3, 8, 3):
+            # Let sqlite make extra optimizations
+            deterministic["deterministic"] = True
+
+        conn.create_function("regexp", 2, regexp, **deterministic)
+        conn.create_function("unidecode", 1, unidecode, **deterministic)
+        conn.create_function("bytelower", 1, bytelower, **deterministic)
 
     def _close(self):
         """Close the all connections to the underlying SQLite database
