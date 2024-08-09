@@ -2,8 +2,7 @@ name: Test
 on:
   pull_request:
   push:
-    branches:
-      - master
+
 env:
   PY_COLORS: 1
 
