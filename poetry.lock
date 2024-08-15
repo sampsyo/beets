@@ -1240,6 +1240,28 @@ files = [
 ]
 
 [[package]]
+name = "mbzero"
+version = "0.4"
+description = "Python bindings for the MusicBrainz and the Cover Art Archive webservices"
+optional = false
+python-versions = "<4,>=3.8"
+files = [
+    {file = "mbzero-0.4-py3-none-any.whl", hash = "sha256:92b0f7e235fc2f1e25e79b22717282f71d555d2743d755f6f249a54aef073002"},
+    {file = "mbzero-0.4.tar.gz", hash = "sha256:e19957d9d4d35c5dd9739bd4ca6792fb7bd777bf88067038b4db2f54a363f992"},
+]
+
+[package.dependencies]
+pytest = "*"
+requests = "*"
+requests-oauthlib = "*"
+
+[package.extras]
+cov = ["pytest-cov"]
+docs = ["sphinx (>=7.1.2)", "sphinx-rtd-theme (>=2.0.0)"]
+lint = ["flake8 (>=3.5.0)", "flake8-simplify"]
+test = ["pytest (>=4.6)"]
+
+[[package]]
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
@@ -2720,4 +2742,4 @@ web = ["flask", "flask-cors"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<4"
-content-hash = "48fba7c7149c8cb7824f96329bd469a9e9c84b13d233f957889b8b1d7076392f"
+content-hash = "4466182a29f75943dbb09c76c531cc426eabe84f36fe19113a418676f9578aa5"

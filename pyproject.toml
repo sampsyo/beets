@@ -40,6 +40,7 @@ jellyfish = "*"
 mediafile = ">=0.12.0"
 munkres = ">=1.0.0"
 musicbrainzngs = ">=0.4"
+mbzero = ">=0.3"
 pyyaml = "*"
 typing_extensions = { version = "*", python = "<=3.10" }
 unidecode = ">=1.3.6"

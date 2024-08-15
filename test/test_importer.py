@@ -1756,39 +1756,37 @@ def mocked_get_release_by_id(
     }
 
     return {
-        "release": {
-            "title": releases[id_][0],
-            "id": id_,
-            "medium-list": [
-                {
-                    "track-list": [
-                        {
-                            "id": "baz",
-                            "recording": {
-                                "title": "foo",
-                                "id": "bar",
-                                "length": 59,
-                            },
-                            "position": 9,
-                            "number": "A2",
-                        }
-                    ],
-                    "position": 5,
-                }
-            ],
-            "artist-credit": [
-                {
-                    "artist": {
-                        "name": releases[id_][1],
-                        "id": "some-id",
-                    },
-                }
-            ],
-            "release-group": {
-                "id": "another-id",
-            },
-            "status": "Official",
-        }
+        "title": releases[id_][0],
+        "id": id_,
+        "media": [
+            {
+                "tracks": [
+                    {
+                        "id": "baz",
+                        "recording": {
+                            "title": "foo",
+                            "id": "bar",
+                            "length": 59,
+                        },
+                        "position": 9,
+                        "number": "A2",
+                    }
+                ],
+                "position": 5,
+            }
+        ],
+        "artist-credit": [
+            {
+                "artist": {
+                    "name": releases[id_][1],
+                    "id": "some-id",
+                },
+            }
+        ],
+        "release-group": {
+            "id": "another-id",
+        },
+        "status": "Official",
     }
 
 
@@ -1813,28 +1811,26 @@ def mocked_get_recording_by_id(
     }
 
     return {
-        "recording": {
-            "title": releases[id_][0],
-            "id": id_,
-            "length": 59,
-            "artist-credit": [
-                {
-                    "artist": {
-                        "name": releases[id_][1],
-                        "id": "some-id",
-                    },
-                }
-            ],
-        }
+        "title": releases[id_][0],
+        "id": id_,
+        "length": 59,
+        "artist-credit": [
+            {
+                "artist": {
+                    "name": releases[id_][1],
+                    "id": "some-id",
+                },
+            }
+        ],
     }
 
 
 @patch(
-    "musicbrainzngs.get_recording_by_id",
+    "beets.autotag.mb.MbInterface.get_recording_by_id",
     Mock(side_effect=mocked_get_recording_by_id),
 )
 @patch(
-    "musicbrainzngs.get_release_by_id",
+    "beets.autotag.mb.MbInterface.get_release_by_id",
     Mock(side_effect=mocked_get_release_by_id),
 )
 class ImportMusicBrainzIdTest(ImportTestCase):
