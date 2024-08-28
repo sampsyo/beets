@@ -15,6 +15,7 @@
 """Miscellaneous utility functions."""
 from __future__ import annotations
 
+import binascii
 import errno
 import fnmatch
 import os
@@ -482,11 +483,11 @@ def remove(path: Optional[bytes], soft: bool = True):
         raise FilesystemError(exc, "delete", (path,), traceback.format_exc())
 
 
-def copy(path: bytes, dest: bytes, replace: bool = False):
+def copy(path: bytes, dest: bytes, replace: bool = False, verify: bool = False):
     """Copy a plain file. Permissions are not copied. If `dest` already
     exists, raises a FilesystemError unless `replace` is True. Has no
     effect if `path` is the same as `dest`. Paths are translated to
-    system paths before the syscall.
+    system paths before the syscall. Abort of verification failure.
     """
     if samefile(path, dest):
         return
@@ -499,14 +500,22 @@ def copy(path: bytes, dest: bytes, replace: bool = False):
     except OSError as exc:
         raise FilesystemError(exc, "copy", (path, dest), traceback.format_exc())
 
+    if verify:
+        pathcrc = binascii.crc32(open(path, "rb").read())
+        destcrc = binascii.crc32(open(dest, "rb").read())
+        if pathcrc != destcrc:
+            raise FilesystemError(
+                f"CRC failure ({pathcrc} != {dstcrc})", "copy", (path, dest)
+            )
 
-def move(path: bytes, dest: bytes, replace: bool = False):
+
+def move(path: bytes, dest: bytes, replace: bool = False, verify: bool = False):
     """Rename a file. `dest` may not be a directory. If `dest` already
     exists, raises an OSError unless `replace` is True. Has no effect if
     `path` is the same as `dest`. If the paths are on different
     filesystems (or the rename otherwise fails), a copy is attempted
     instead, in which case metadata will *not* be preserved. Paths are
-    translated to system paths.
+    translated to system paths. Verify (checksum) copy before remove.
     """
     if os.path.isdir(syspath(path)):
         raise FilesystemError("source is directory", "move", (path, dest))
@@ -532,9 +541,18 @@ def move(path: bytes, dest: bytes, replace: bool = False):
         )
         try:
             with open(syspath(path), "rb") as f:
+                if verify:
+                    pathcrc = binascii.crc32(f.read())
                 shutil.copyfileobj(f, tmp)
         finally:
             tmp.close()
+
+        if verify:
+            destcrc = binascii.crc32(tmp.read())
+            if pathcrc != destcrc:
+                raise FilesystemError(
+                    f"CRC failure ({pathcrc} != {dstcrc})", "move", (path, dest)
+                )
 
         # Move the copied file into place.
         try:

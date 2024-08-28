@@ -230,6 +230,7 @@ New features:
 * Add support for `barcode` field.
   :bug:`3172`
 * :doc:`/plugins/smartplaylist`: Add new config option `smartplaylist.fields`.
+* :ref:`import-options`: Ability to verify copy/move operations.
 
 Bug fixes:
 

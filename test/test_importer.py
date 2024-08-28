@@ -569,6 +569,12 @@ class ImportTest(ImportTestCase):
         import_dir = displayable_path(import_dir)
         assert f"No files imported from {import_dir}" in logs
 
+    def test_crc_missmatch_on_move(self):
+        config["import"]["verify"] = True
+        self.setup_importer.run()
+        # Corrupt file? library=/dev/null?
+        self.assertIn(f"CRC failure", logs)
+
     def test_asis_no_data_source(self):
         assert self.lib.items().get() is None
 

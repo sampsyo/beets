@@ -53,6 +53,7 @@ import:
     set_fields: {}
     ignored_alias_types: []
     singleton_album_disambig: yes
+    verify: no
 
 # --------------- Paths ---------------
 

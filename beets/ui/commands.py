@@ -1581,6 +1581,12 @@ import_cmd.parser.add_option(
     metavar="FIELD=VALUE",
     help="set the given fields to the supplied values",
 )
+import_cmd.parser.add_option(
+    "--verify",
+    dest="verify",
+    action="store_true",
+    help="Verify copy/move operations before removing any files",
+)
 import_cmd.func = import_func
 default_commands.append(import_cmd)
 

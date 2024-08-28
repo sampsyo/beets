@@ -559,6 +559,22 @@ This option *overrides* ``copy``, so enabling it will always move
 (and not copy) files. The ``-c`` switch to the ``beet import`` command,
 however, still takes precedence.
 
+.. _config-import-verify:
+
+verify
+~~~~~~
+
+Either ``yes`` or ``no``, indicating whether **copy** and **move** should
+verify copy and move operations when using ``beet import``.
+Defaults to ``no``.
+
+Files are being compared when doing either a copy or move operation and will
+fail because of it. Usually this indicates problems with physical storage, but
+we wouldn't want to be responsible for corrupting files.
+
+The ``--verify`` switch to the ``beet import`` command overrides the config
+file.
+
 .. _link:
 
 link

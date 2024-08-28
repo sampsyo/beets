@@ -776,6 +776,11 @@ class ImportTask(BaseImportTask):
         If `write` is `True` metadata is written to the files.
         """
 
+        if session is not None and "verify" in session.config:
+            verify = session.config["verify"]
+        else:
+            verify = False
+
         items = self.imported_items()
         # Save the original paths of all items for deletion and pruning
         # in the next step (finalization).
@@ -791,14 +796,14 @@ class ImportTask(BaseImportTask):
                     and self.replaced_items[item]
                     and session.lib.directory in util.ancestry(old_path)
                 ):
-                    item.move()
+                    item.move(verify=verify)
                     # We moved the item, so remove the
                     # now-nonexistent file from old_paths.
                     self.old_paths.remove(old_path)
                 else:
                     # A normal import. Just copy files and keep track of
                     # old paths.
-                    item.move(operation)
+                    item.move(operation, verify=verify)
 
             if write and (self.apply or self.choice_flag == action.RETAG):
                 item.try_write()

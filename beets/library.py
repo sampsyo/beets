@@ -913,7 +913,7 @@ class Item(LibModel):
 
     # Files themselves.
 
-    def move_file(self, dest, operation=MoveOperation.MOVE):
+    def move_file(self, dest, operation=MoveOperation.MOVE, verify=False):
         """Move, copy, link or hardlink the item depending on `operation`,
         updating the path value if the move succeeds.
 
@@ -930,12 +930,12 @@ class Item(LibModel):
                 source=self.path,
                 destination=dest,
             )
-            util.move(self.path, dest)
+            util.move(self.path, dest, verify=verify)
             plugins.send(
                 "item_moved", item=self, source=self.path, destination=dest
             )
         elif operation == MoveOperation.COPY:
-            util.copy(self.path, dest)
+            util.copy(self.path, dest, verify=verify)
             plugins.send(
                 "item_copied", item=self, source=self.path, destination=dest
             )
@@ -1016,6 +1016,7 @@ class Item(LibModel):
         basedir=None,
         with_album=True,
         store=True,
+        verify=False,
     ):
         """Move the item to its designated location within the library
         directory (provided by destination()).
@@ -1046,7 +1047,7 @@ class Item(LibModel):
 
         # Perform the move and store the change.
         old_path = self.path
-        self.move_file(dest, operation)
+        self.move_file(dest, operation, verify)
         if store:
             self.store()
 
