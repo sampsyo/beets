@@ -267,8 +267,6 @@ class TrackInfo(AttrDict):
 # Candidate distance scoring.
 
 # Parameters for string distance function.
-# Words that can be moved to the end of a string using a comma.
-SD_END_WORDS = ["the", "a", "an"]
 # Reduced weights for certain portions of the string.
 SD_PATTERNS = [
     (r"^the ", 0.1),
@@ -311,17 +309,24 @@ def string_dist(str1: Optional[str], str2: Optional[str]) -> float:
     if str1 is None or str2 is None:
         return 1.0
 
+    # Make all following comparison case-insensitive.
     str1 = str1.lower()
     str2 = str2.lower()
 
     # Don't penalize strings that move certain words to the end. For
     # example, "the something" should be considered equal to
     # "something, the".
-    for word in SD_END_WORDS:
-        if str1.endswith(", %s" % word):
-            str1 = "{} {}".format(word, str1[: -len(word) - 2])
-        if str2.endswith(", %s" % word):
-            str2 = "{} {}".format(word, str2[: -len(word) - 2])
+    def switch_article(string: str) -> str:
+        if ", " not in string:
+            return string
+        [title, article] = string.rsplit(", ", maxsplit=1)
+        if article in ["the", "a", "an"]:
+            return f"{article} {title}"
+        else:
+            return string
+
+    str1 = switch_article(str1)
+    str2 = switch_article(str2)
 
     # Perform a couple of basic normalizing substitutions.
     for pat, repl in SD_REPLACE:
@@ -469,9 +474,7 @@ class Distance:
     def update(self, dist: "Distance"):
         """Adds all the distance penalties from `dist`."""
         if not isinstance(dist, Distance):
-            raise ValueError(
-                "`dist` must be a Distance object, not {}".format(type(dist))
-            )
+            raise ValueError(f"`dist` must be a Distance object, not {dist}")
         for key, penalties in dist._penalties.items():
             self._penalties.setdefault(key, []).extend(penalties)
 

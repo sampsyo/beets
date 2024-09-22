@@ -122,23 +122,13 @@ class FishPlugin(BeetsPlugin):
             for name in names:
                 cmd_names_help.append((name, cmd.help))
         # Concatenate the string
-        totstring = HEAD + "\n"
+        totstring = f"{HEAD}\n"
         totstring += get_cmds_list([name[0] for name in cmd_names_help])
         totstring += "" if nobasicfields else get_standard_fields(fields)
         totstring += get_extravalues(lib, extravalues) if extravalues else ""
-        totstring += (
-            "\n"
-            + "# ====== {} =====".format("setup basic beet completion")
-            + "\n" * 2
-        )
+        totstring += "\n# ====== setup basic beet completion =====\n\n"
         totstring += get_basic_beet_options()
-        totstring += (
-            "\n"
-            + "# ====== {} =====".format(
-                "setup field completion for subcommands"
-            )
-            + "\n"
-        )
+        totstring += "\n# ====== setup field completion for subcommands =====\n"
         totstring += get_subcommands(cmd_names_help, nobasicfields, extravalues)
         # Set up completion for all the command options
         totstring += get_all_commands(beetcmds)
@@ -156,17 +146,13 @@ def _escape(name):
 
 def get_cmds_list(cmds_names):
     # Make a list of all Beets core & plugin commands
-    substr = ""
-    substr += "set CMDS " + " ".join(cmds_names) + ("\n" * 2)
-    return substr
+    return f"set CMDS {' '.join(cmds_names)}\n\n"
 
 
 def get_standard_fields(fields):
     # Make a list of album/track fields and append with ':'
-    fields = (field + ":" for field in fields)
-    substr = ""
-    substr += "set FIELDS " + " ".join(fields) + ("\n" * 2)
-    return substr
+    fields = (f"{field}:" for field in fields)
+    return f"set FIELDS {' '.join(fields)}\n\n"
 
 
 def get_extravalues(lib, extravalues):
@@ -175,14 +161,7 @@ def get_extravalues(lib, extravalues):
     word = ""
     values_set = get_set_of_values_for_field(lib, extravalues)
     for fld in extravalues:
-        extraname = fld.upper() + "S"
-        word += (
-            "set  "
-            + extraname
-            + " "
-            + " ".join(sorted(values_set[fld]))
-            + ("\n" * 2)
-        )
+        word += f"set {fld.upper()}S {' '.join(sorted(values_set[fld]))}\n\n"
     return word
 
 
@@ -226,11 +205,7 @@ def get_subcommands(cmd_name_and_help, nobasicfields, extravalues):
     for cmdname, cmdhelp in cmd_name_and_help:
         cmdname = _escape(cmdname)
 
-        word += (
-            "\n"
-            + "# ------ {} -------".format("fieldsetups for  " + cmdname)
-            + "\n"
-        )
+        word += f"\n# ------ fieldsetups for {cmdname} -------\n"
         word += BL_NEED2.format(
             ("-a " + cmdname), ("-f " + "-d " + wrap(clean_whitespace(cmdhelp)))
         )
@@ -267,12 +242,7 @@ def get_all_commands(beetcmds):
         for name in names:
             name = _escape(name)
 
-            word += "\n"
-            word += (
-                ("\n" * 2)
-                + "# ====== {} =====".format("completions for  " + name)
-                + "\n"
-            )
+            word += "\n\n\n# ====== completions for {name} =====\n"
 
             for option in cmd.parser._get_all_options()[1:]:
                 cmd_l = (

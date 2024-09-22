@@ -212,10 +212,10 @@ def get_singleton_disambig_fields(info: hooks.TrackInfo) -> Sequence[str]:
     out = []
     chosen_fields = config["match"]["singleton_disambig_fields"].as_str_seq()
     calculated_values = {
-        "index": "Index {}".format(str(info.index)),
-        "track_alt": "Track {}".format(info.track_alt),
+        "index": f"Index {str(info.index)}",
+        "track_alt": f"Track {info.track_alt}",
         "album": (
-            "[{}]".format(info.album)
+            f"[{info.album}]"
             if (
                 config["import"]["singleton_album_disambig"].get()
                 and info.get("album")
@@ -241,7 +241,7 @@ def get_album_disambig_fields(info: hooks.AlbumInfo) -> Sequence[str]:
     chosen_fields = config["match"]["album_disambig_fields"].as_str_seq()
     calculated_values = {
         "media": (
-            "{}x{}".format(info.mediums, info.media)
+            f"{info.mediums}x{info.media}"
             if (info.mediums and info.mediums > 1)
             else info.media
         ),
@@ -489,7 +489,6 @@ class ChangeRepresentation:
         """Format colored track indices."""
         cur_track = self.format_index(item)
         new_track = self.format_index(track_info)
-        templ = "(#{})"
         changed = False
         # Choose color based on change.
         if cur_track != new_track:
@@ -501,8 +500,8 @@ class ChangeRepresentation:
         else:
             highlight_color = "text_faint"
 
-        cur_track = templ.format(cur_track)
-        new_track = templ.format(new_track)
+        cur_track = f"(#{cur_track})"
+        new_track = f"(#{new_track})"
         lhs_track = ui.colorize(highlight_color, cur_track)
         rhs_track = ui.colorize(highlight_color, new_track)
         return lhs_track, rhs_track, changed
@@ -710,9 +709,9 @@ class AlbumChange(ChangeRepresentation):
         if self.match.extra_items:
             print_(f"Unmatched tracks ({len(self.match.extra_items)}):")
         for item in self.match.extra_items:
-            line = " ! {} (#{})".format(item.title, self.format_index(item))
+            line = f" ! {item.title} (#{self.format_index(item)})"
             if item.length:
-                line += " ({})".format(ui.human_seconds_short(item.length))
+                line += f" ({ui.human_seconds_short(item.length)})"
             print_(ui.colorize("text_warning", line))
 
 
@@ -768,7 +767,7 @@ def summarize_items(items, singleton):
     """
     summary_parts = []
     if not singleton:
-        summary_parts.append("{} items".format(len(items)))
+        summary_parts.append(f"{len(items)} items")
 
     format_counts = {}
     for item in items:
@@ -884,7 +883,7 @@ def choose_candidate(
         if singleton:
             print_("No matching recordings found.")
         else:
-            print_("No matching release found for {} tracks.".format(itemcount))
+            print_(f"No matching release found for {itemcount} tracks.")
             print_(
                 "For help, see: "
                 "https://beets.readthedocs.org/en/latest/faq.html#nomatch"
@@ -919,7 +918,7 @@ def choose_candidate(
             print_(ui.indent(2) + "Candidates:")
             for i, match in enumerate(candidates):
                 # Index, metadata, and distance.
-                index0 = "{0}.".format(i + 1)
+                index0 = f"{i + 1}."
                 index = dist_colorize(index0, match.distance)
                 dist = "({:.1f}%)".format((1 - match.distance) * 100)
                 distance = dist_colorize(dist, match.distance)
@@ -1042,9 +1041,9 @@ class TerminalImportSession(importer.ImportSession):
 
         path_str0 = displayable_path(task.paths, "\n")
         path_str = ui.colorize("import_path", path_str0)
-        items_str0 = "({} items)".format(len(task.items))
+        items_str0 = f"({len(task.items)} items)"
         items_str = ui.colorize("import_path_items", items_str0)
-        print_(" ".join([path_str, items_str]))
+        print_(f"{path_str} {items_str}")
 
         # Let plugins display info or prompt the user before we go through the
         # process of selecting candidate.

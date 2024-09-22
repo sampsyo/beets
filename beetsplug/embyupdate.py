@@ -39,9 +39,7 @@ def api_url(host, port, endpoint):
         hostname_list.insert(0, "http://")
         hostname = "".join(hostname_list)
 
-    joined = urljoin(
-        "{hostname}:{port}".format(hostname=hostname, port=port), endpoint
-    )
+    joined = urljoin(f"{hostname}:{port}", endpoint)
 
     scheme, netloc, path, query_string, fragment = urlsplit(joined)
     query_params = parse_qs(query_string)
@@ -82,12 +80,12 @@ def create_headers(user_id, token=None):
     headers = {}
 
     authorization = (
-        'MediaBrowser UserId="{user_id}", '
+        f'MediaBrowser UserId="{user_id}", '
         'Client="other", '
         'Device="beets", '
         'DeviceId="beets", '
         'Version="0.0.0"'
-    ).format(user_id=user_id)
+    )
 
     headers["x-emby-authorization"] = authorization
 

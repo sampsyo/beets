@@ -44,7 +44,7 @@ def resize_url(url, maxwidth, quality=0):
     if quality > 0:
         params["q"] = quality
 
-    return "{}?{}".format(PROXY_URL, urlencode(params))
+    return f"{PROXY_URL}?{urlencode(params)}"
 
 
 class LocalBackendNotAvailableError(Exception):

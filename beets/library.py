@@ -157,7 +157,7 @@ class PathQuery(dbcore.FieldQuery[bytes]):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}({self.field!r}, {self.pattern!r}, "
+            f"{self.__class__.__name__}({repr(self.field)}, {repr(self.pattern)}, "
             f"fast={self.fast}, case_sensitive={self.case_sensitive})"
         )
 
@@ -734,13 +734,10 @@ class Item(LibModel):
         # This must not use `with_album=True`, because that might access
         # the database. When debugging, that is not guaranteed to succeed, and
         # can even deadlock due to the database lock.
-        return "{}({})".format(
-            type(self).__name__,
-            ", ".join(
-                "{}={!r}".format(k, self[k])
-                for k in self.keys(with_album=False)
-            ),
-        )
+        name = type(self).__name__
+        keys = self.keys(with_album=False)
+        fields = (f"{k}={repr(self[k])}" for k in keys)
+        return f"{name}({', '.join(fields)})"
 
     def keys(self, computed=False, with_album=True):
         """Get a list of available field names.
@@ -1582,7 +1579,7 @@ def parse_query_string(s, model_cls):
 
     The string is split into components using shell-like syntax.
     """
-    message = f"Query is not unicode: {s!r}"
+    message = f"Query is not unicode: {repr(s)}"
     assert isinstance(s, str), message
     try:
         parts = shlex.split(s)

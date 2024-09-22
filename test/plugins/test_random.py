@@ -69,7 +69,7 @@ class RandomTest(TestHelper, unittest.TestCase):
             # Print a histogram (useful for debugging).
             if histogram:
                 for i in range(len(self.items)):
-                    print("{:2d} {}".format(i, "*" * positions.count(i)))
+                    print(f"{i:2d} {'*'*positions.count(i)}")
             return self._stats(positions)
 
         mean1, stdev1, median1 = experiment("artist")

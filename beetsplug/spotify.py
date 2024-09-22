@@ -146,7 +146,7 @@ class SpotifyPlugin(MetadataSourcePlugin, BeetsPlugin):
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
             raise ui.UserError(
-                "Spotify authorization failed: {}\n{}".format(e, response.text)
+                f"Spotify authorization failed: {e}\n{response.text}"
             )
         self.access_token = response.json()["access_token"]
 
@@ -271,9 +271,7 @@ class SpotifyPlugin(MetadataSourcePlugin, BeetsPlugin):
         else:
             raise ui.UserError(
                 "Invalid `release_date_precision` returned "
-                "by {} API: '{}'".format(
-                    self.data_source, release_date_precision
-                )
+                f"by {self.data_source} API: '{release_date_precision}'"
             )
 
         tracks_data = album_data["tracks"]
@@ -457,17 +455,15 @@ class SpotifyPlugin(MetadataSourcePlugin, BeetsPlugin):
             "-m",
             "--mode",
             action="store",
-            help='"open" to open {} with playlist, '
-            '"list" to print (default)'.format(self.data_source),
+            help=f'"open" to open {self.data_source} with '
+            'playlist, "list" to print (default)',
         )
         spotify_cmd.parser.add_option(
             "-f",
             "--show-failures",
             action="store_true",
             dest="show_failures",
-            help="list tracks that did not match a {} ID".format(
-                self.data_source
-            ),
+            help=f"list tracks that did not match a {self.data_source} ID",
         )
         spotify_cmd.func = queries
 
@@ -628,9 +624,7 @@ class SpotifyPlugin(MetadataSourcePlugin, BeetsPlugin):
             spotify_ids = [track_data["id"] for track_data in results]
             if self.config["mode"].get() == "open":
                 self._log.info(
-                    "Attempting to open {} with playlist".format(
-                        self.data_source
-                    )
+                    "Attempting to open {} with playlist", self.data_source
                 )
                 spotify_url = "spotify:trackset:Playlist:" + ",".join(
                     spotify_ids

@@ -77,9 +77,7 @@ def call(args: List[Any], log: Logger, **kwargs: Any):
         return command_output(args, **kwargs)
     except subprocess.CalledProcessError as e:
         log.debug(e.output.decode("utf8", "ignore"))
-        raise ReplayGainError(
-            "{} exited with status {}".format(args[0], e.returncode)
-        )
+        raise ReplayGainError(f"{args[0]} exited with status {e.returncode}")
     except UnicodeEncodeError:
         # Due to a bug in Python 2's subprocess on Windows, Unicode
         # filenames can fail to encode on that platform. See:
@@ -182,9 +180,7 @@ class RgTask:
             # `track_gains` without throwing FatalReplayGainError
             #  => raise non-fatal exception & continue
             raise ReplayGainError(
-                "ReplayGain backend `{}` failed for track {}".format(
-                    self.backend_name, item
-                )
+                f"ReplayGain backend `{self.backend_name}` failed for track {item}"
             )
 
         self._store_track_gain(item, self.track_gains[0])
@@ -203,10 +199,8 @@ class RgTask:
             # `album_gain` without throwing FatalReplayGainError
             #  => raise non-fatal exception & continue
             raise ReplayGainError(
-                "ReplayGain backend `{}` failed "
-                "for some tracks in album {}".format(
-                    self.backend_name, self.album
-                )
+                f"ReplayGain backend `{self.backend_name}` failed "
+                f"for some tracks in album {self.album}"
             )
         for item, track_gain in zip(self.items, self.track_gains):
             self._store_track_gain(item, track_gain)
@@ -515,12 +509,10 @@ class FfmpegBackend(Backend):
                 if self._parse_float(b"M: " + line[1]) >= gating_threshold:
                     n_blocks += 1
             self._log.debug(
-                "{}: {} blocks over {} LUFS".format(
-                    item, n_blocks, gating_threshold
-                )
+                "{}: {} blocks over {} LUFS", item, n_blocks, gating_threshold
             )
 
-        self._log.debug("{}: gain {} LU, peak {}".format(item, gain, peak))
+        self._log.debug("{}: gain {} LU, peak {}", item, gain, peak)
 
         return Gain(gain, peak), n_blocks
 
@@ -540,9 +532,7 @@ class FfmpegBackend(Backend):
             if output[i].startswith(search):
                 return i
         raise ReplayGainError(
-            "ffmpeg output: missing {} after line {}".format(
-                repr(search), start_line
-            )
+            f"ffmpeg output: missing {repr(search)} after line {start_line}"
         )
 
     def _parse_float(self, line: bytes) -> float:
@@ -555,7 +545,7 @@ class FfmpegBackend(Backend):
         parts = line.split(b":", 1)
         if len(parts) < 2:
             raise ReplayGainError(
-                f"ffmpeg output: expected key value pair, found {line!r}"
+                f"ffmpeg output: expected key value pair, found {repr(line)}"
             )
         value = parts[1].lstrip()
         # strip unit
@@ -565,7 +555,7 @@ class FfmpegBackend(Backend):
             return float(value)
         except ValueError:
             raise ReplayGainError(
-                f"ffmpeg output: expected float value, found {value!r}"
+                f"ffmpeg output: expected float value, found {repr(value)}"
             )
 
 
@@ -589,7 +579,7 @@ class CommandBackend(Backend):
             # Explicit executable path.
             if not os.path.isfile(self.command):
                 raise FatalReplayGainError(
-                    "replaygain command does not exist: {}".format(self.command)
+                    f"replaygain command does not exist: {self.command}"
                 )
         else:
             # Check whether the program is in $PATH.
@@ -894,7 +884,7 @@ class GStreamerBackend(Backend):
         f = self._src.get_property("location")
         # A GStreamer error, either an unsupported format or a bug.
         self._error = ReplayGainError(
-            f"Error {err!r} - {debug!r} on file {f!r}"
+            f"Error {repr(err)} - {repr(debug)} on file {repr(f)}"
         )
 
     def _on_tag(self, bus, message):
@@ -1239,10 +1229,8 @@ class ReplayGainPlugin(BeetsPlugin):
 
         if self.backend_name not in BACKENDS:
             raise ui.UserError(
-                "Selected ReplayGain backend {} is not supported. "
-                "Please select one of: {}".format(
-                    self.backend_name, ", ".join(BACKENDS.keys())
-                )
+                f"Selected ReplayGain backend {self.backend_name} is not supported. "
+                f"Please select one of: {', '.join(BACKENDS.keys())}"
             )
 
         # FIXME: Consider renaming the configuration option to 'peak_method'
@@ -1250,10 +1238,8 @@ class ReplayGainPlugin(BeetsPlugin):
         peak_method = self.config["peak"].as_str()
         if peak_method not in PeakMethod.__members__:
             raise ui.UserError(
-                "Selected ReplayGain peak method {} is not supported. "
-                "Please select one of: {}".format(
-                    peak_method, ", ".join(PeakMethod.__members__)
-                )
+                f"Selected ReplayGain peak method {peak_method} is not supported. "
+                f"Please select one of: {', '.join(PeakMethod.__members__)}"
             )
         # This only applies to plain old rg tags, r128 doesn't store peak
         # values.
@@ -1541,18 +1527,18 @@ class ReplayGainPlugin(BeetsPlugin):
             if opts.album:
                 albums = lib.albums(ui.decargs(args))
                 self._log.info(
-                    "Analyzing {} albums ~ {} backend...".format(
-                        len(albums), self.backend_name
-                    )
+                    "Analyzing {} albums ~ {} backend...",
+                    len(albums),
+                    self.backend_name,
                 )
                 for album in albums:
                     self.handle_album(album, write, force)
             else:
                 items = lib.items(ui.decargs(args))
                 self._log.info(
-                    "Analyzing {} tracks ~ {} backend...".format(
-                        len(items), self.backend_name
-                    )
+                    "Analyzing {} tracks ~ {} backend...",
+                    len(items),
+                    self.backend_name,
                 )
                 for item in items:
                     self.handle_track(item, write, force)

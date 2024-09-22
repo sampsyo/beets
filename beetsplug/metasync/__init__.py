@@ -118,13 +118,13 @@ class MetaSyncPlugin(BeetsPlugin):
             try:
                 cls = META_SOURCES[player]
             except KeyError:
-                self._log.error("Unknown metadata source '{}'".format(player))
+                self._log.error("Unknown metadata source '{}'", player)
 
             try:
                 meta_source_instances[player] = cls(self.config, self._log)
             except (ImportError, ConfigValueError) as e:
                 self._log.error(
-                    f"Failed to instantiate metadata source {player!r}: {e}"
+                    "Failed to instantiate metadata source {!r}: {}", player, e
                 )
 
         # Avoid needlessly iterating over items

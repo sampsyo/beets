@@ -223,9 +223,9 @@ class LyricsAssertions:
 
         if not keywords <= words:
             details = (
-                f"{keywords!r} is not a subset of {words!r}."
-                f" Words only in expected set {keywords - words!r},"
-                f" Words only in result set {words - keywords!r}."
+                f"{repr(keywords)} is not a subset of {repr(words)}."
+                f" Words only in expected set {repr(keywords - words)},"
+                f" Words only in result set {repr(words - keywords)}."
             )
             self.fail(f"{details} : {msg}")
 

@@ -132,7 +132,7 @@ class MPCResponse:
             cmd, rest = rest[2:].split("}")
             return False, (int(code), int(pos), cmd, rest[1:])
         else:
-            raise RuntimeError(f"Unexpected status: {status!r}")
+            raise RuntimeError(f"Unexpected status: {repr(status)}")
 
     def _parse_body(self, body):
         """Messages are generally in the format "header: content".
@@ -145,7 +145,7 @@ class MPCResponse:
             if not line:
                 continue
             if ":" not in line:
-                raise RuntimeError(f"Unexpected line: {line!r}")
+                raise RuntimeError(f"Unexpected line: {repr(line)}")
             header, content = line.split(":", 1)
             content = content.lstrip()
             if header in repeated_headers:
@@ -191,7 +191,7 @@ class MPCClient:
                 responses.append(MPCResponse(response))
                 response = b""
             elif not line:
-                raise RuntimeError(f"Unexpected response: {line!r}")
+                raise RuntimeError(f"Unexpected response: {repr(line)}")
 
     def serialise_command(self, command, *args):
         cmd = [command.encode("utf-8")]

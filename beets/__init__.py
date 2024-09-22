@@ -35,7 +35,7 @@ class IncludeLazyConfig(confuse.LazyConfig):
         except confuse.NotFoundError:
             pass
         except confuse.ConfigReadError as err:
-            stderr.write("configuration `import` failed: {}".format(err.reason))
+            stderr.write(f"configuration `import` failed: {err.reason}")
 
 
 config = IncludeLazyConfig("beets", __name__)

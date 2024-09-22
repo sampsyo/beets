@@ -1582,9 +1582,7 @@ def resolve_duplicates(session, task):
     if task.choice_flag in (action.ASIS, action.APPLY, action.RETAG):
         found_duplicates = task.find_duplicates(session.lib)
         if found_duplicates:
-            log.debug(
-                "found duplicates: {}".format([o.id for o in found_duplicates])
-            )
+            log.debug("found duplicates: {0}", [o.id for o in found_duplicates])
 
             # Get the default action to follow from config.
             duplicate_action = config["import"]["duplicate_action"].as_choice(

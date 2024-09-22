@@ -71,7 +71,7 @@ class ThumbnailsTest(BeetsTestCase):
                 return False
             if path == syspath(LARGE_DIR):
                 return True
-            raise ValueError(f"unexpected path {path!r}")
+            raise ValueError(f"unexpected path {repr(path)}")
 
         mock_os.path.exists = exists
         plugin = ThumbnailsPlugin()

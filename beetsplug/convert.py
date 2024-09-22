@@ -63,9 +63,7 @@ def get_format(fmt=None):
         command = format_info["command"]
         extension = format_info.get("extension", fmt)
     except KeyError:
-        raise ui.UserError(
-            'convert: format {} needs the "command" field'.format(fmt)
-        )
+        raise ui.UserError(f'convert: format {fmt} needs the "command" field')
     except ConfigTypeError:
         command = config["convert"]["formats"][fmt].get(str)
         extension = fmt

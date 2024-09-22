@@ -221,7 +221,7 @@ class MissingPlugin(BeetsPlugin):
             missing_titles = {rg["title"] for rg in missing}
 
             for release_title in missing_titles:
-                print_("{} - {}".format(artist[0], release_title))
+                print_(f"{artist[0]} - {release_title}")
 
         if total:
             print(total_missing)

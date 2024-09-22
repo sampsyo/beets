@@ -63,14 +63,11 @@ class FetchImageTestCase(FetchImageHelper, UseThePlugin):
 class CAAHelper:
     """Helper mixin for mocking requests to the Cover Art Archive."""
 
-    MBID_RELASE = "rid"
+    MBID_RELEASE = "rid"
     MBID_GROUP = "rgid"
 
-    RELEASE_URL = "coverartarchive.org/release/{}".format(MBID_RELASE)
-    GROUP_URL = "coverartarchive.org/release-group/{}".format(MBID_GROUP)
-
-    RELEASE_URL = "https://" + RELEASE_URL
-    GROUP_URL = "https://" + GROUP_URL
+    RELEASE_URL = f"https://coverartarchive.org/release/{MBID_RELEASE}"
+    GROUP_URL = f"https://coverartarchive.org/release-group/{MBID_GROUP}"
 
     RESPONSE_RELEASE = """{
     "images": [
@@ -280,10 +277,8 @@ class FSArtTest(UseThePlugin):
 class CombinedTest(FetchImageTestCase, CAAHelper):
     ASIN = "xxxx"
     MBID = "releaseid"
-    AMAZON_URL = "https://images.amazon.com/images/P/{}.01.LZZZZZZZ.jpg".format(
-        ASIN
-    )
-    AAO_URL = "https://www.albumart.org/index_detail.php?asin={}".format(ASIN)
+    AMAZON_URL = f"https://images.amazon.com/images/P/{ASIN}.01.LZZZZZZZ.jpg"
+    AAO_URL = f"https://www.albumart.org/index_detail.php?asin={ASIN}"
 
     def setUp(self):
         super().setUp()
@@ -341,7 +336,7 @@ class CombinedTest(FetchImageTestCase, CAAHelper):
             content_type="image/jpeg",
         )
         album = _common.Bag(
-            mb_albumid=self.MBID_RELASE,
+            mb_albumid=self.MBID_RELEASE,
             mb_releasegroupid=self.MBID_GROUP,
             asin=self.ASIN,
         )
@@ -561,7 +556,7 @@ class CoverArtArchiveTest(UseThePlugin, CAAHelper):
 
     def test_caa_finds_image(self):
         album = _common.Bag(
-            mb_albumid=self.MBID_RELASE, mb_releasegroupid=self.MBID_GROUP
+            mb_albumid=self.MBID_RELEASE, mb_releasegroupid=self.MBID_GROUP
         )
         self.mock_caa_response(self.RELEASE_URL, self.RESPONSE_RELEASE)
         self.mock_caa_response(self.GROUP_URL, self.RESPONSE_GROUP)
@@ -577,7 +572,7 @@ class CoverArtArchiveTest(UseThePlugin, CAAHelper):
         self.settings = Settings(maxwidth=maxwidth)
 
         album = _common.Bag(
-            mb_albumid=self.MBID_RELASE, mb_releasegroupid=self.MBID_GROUP
+            mb_albumid=self.MBID_RELEASE, mb_releasegroupid=self.MBID_GROUP
         )
         self.mock_caa_response(self.RELEASE_URL, self.RESPONSE_RELEASE)
         self.mock_caa_response(self.GROUP_URL, self.RESPONSE_GROUP)
@@ -593,7 +588,7 @@ class CoverArtArchiveTest(UseThePlugin, CAAHelper):
         self.settings = Settings(maxwidth=maxwidth)
 
         album = _common.Bag(
-            mb_albumid=self.MBID_RELASE, mb_releasegroupid=self.MBID_GROUP
+            mb_albumid=self.MBID_RELEASE, mb_releasegroupid=self.MBID_GROUP
         )
         self.mock_caa_response(
             self.RELEASE_URL, self.RESPONSE_RELEASE_WITHOUT_THUMBNAILS

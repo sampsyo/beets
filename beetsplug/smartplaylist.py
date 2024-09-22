@@ -311,10 +311,11 @@ class SmartPlaylistPlugin(BeetsPlugin):
                 )
                 mkdirall(m3u_path)
                 pl_format = self.config["output"].get()
-                if pl_format != "m3u" and pl_format != "extm3u":
-                    msg = "Unsupported output format '{}' provided! "
-                    msg += "Supported: m3u, extm3u"
-                    raise Exception(msg.format(pl_format))
+                if pl_format not in ["m3u", "extm3u"]:
+                    raise Exception(
+                        f"Unsupported output format '{pl_format}' provided! "
+                        "Supported: m3u, extm3u"
+                    )
                 extm3u = pl_format == "extm3u"
                 with open(syspath(m3u_path), "wb") as f:
                     keys = []
@@ -330,8 +331,9 @@ class SmartPlaylistPlugin(BeetsPlugin):
                                 f" {a[0]}={json.dumps(str(a[1]))}" for a in attr
                             ]
                             attrs = "".join(al)
-                            comment = "#EXTINF:{}{},{} - {}\n".format(
-                                int(item.length), attrs, item.artist, item.title
+                            comment = (
+                                f"#EXTINF:{int(item.length)}{attrs},"
+                                f"{item.artist} - {item.title}\n"
                             )
                         f.write(comment.encode("utf-8") + entry.uri + b"\n")
             # Send an event when playlists were updated.

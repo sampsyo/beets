@@ -42,9 +42,7 @@ def call(args):
     try:
         return util.command_output(args).stdout
     except subprocess.CalledProcessError as e:
-        raise ABSubmitError(
-            "{} exited with status {}".format(args[0], e.returncode)
-        )
+        raise ABSubmitError(f"{args[0]} exited with status {e.returncode}")
 
 
 class AcousticBrainzSubmitPlugin(plugins.BeetsPlugin):
@@ -63,9 +61,7 @@ class AcousticBrainzSubmitPlugin(plugins.BeetsPlugin):
             # Explicit path to extractor
             if not os.path.isfile(self.extractor):
                 raise ui.UserError(
-                    "Extractor command does not exist: {0}.".format(
-                        self.extractor
-                    )
+                    f"Extractor command does not exist: {self.extractor}."
                 )
         else:
             # Implicit path to extractor, search for it in path

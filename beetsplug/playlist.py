@@ -192,9 +192,10 @@ class PlaylistPlugin(beets.plugins.BeetsPlugin):
 
         if changes or deletions:
             self._log.info(
-                "Updated playlist {} ({} changes, {} deletions)".format(
-                    filename, changes, deletions
-                )
+                "Updated playlist {} ({} changes, {} deletions)",
+                filename,
+                changes,
+                deletions,
             )
             beets.util.copy(new_playlist, filename, replace=True)
         beets.util.remove(new_playlist)

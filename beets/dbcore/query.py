@@ -151,6 +151,7 @@ class FieldQuery(Query, Generic[P]):
         self.fast = fast
 
     def col_clause(self) -> Tuple[str, Sequence[SQLiteType]]:
+        # TODO: Avoid having to insert raw text into SQL clauses.
         return self.field, ()
 
     def clause(self) -> Tuple[Optional[str], Sequence[SQLiteType]]:
@@ -170,7 +171,7 @@ class FieldQuery(Query, Generic[P]):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}({self.field_name!r}, {self.pattern!r}, "
+            f"{self.__class__.__name__}({repr(self.field_name)}, {repr(self.pattern)}, "
             f"fast={self.fast})"
         )
 
@@ -209,7 +210,9 @@ class NoneQuery(FieldQuery[None]):
         return obj.get(self.field_name) is None
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.field_name!r}, {self.fast})"
+        return (
+            f"{self.__class__.__name__}({repr(self.field_name)}, {self.fast})"
+        )
 
 
 class StringFieldQuery(FieldQuery[P]):
@@ -502,7 +505,7 @@ class CollectionQuery(Query):
         return clause, subvals
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.subqueries!r})"
+        return f"{self.__class__.__name__}({repr(self.subqueries)})"
 
     def __eq__(self, other) -> bool:
         return super().__eq__(other) and self.subqueries == other.subqueries
@@ -547,7 +550,7 @@ class AnyFieldQuery(CollectionQuery):
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__name__}({self.pattern!r}, {self.fields!r}, "
+            f"{self.__class__.__name__}({repr(self.pattern)}, {repr(self.fields)}, "
             f"{self.query_class.__name__})"
         )
 
@@ -618,7 +621,7 @@ class NotQuery(Query):
         return not self.subquery.match(obj)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.subquery!r})"
+        return f"{self.__class__.__name__}({repr(self.subquery)})"
 
     def __eq__(self, other) -> bool:
         return super().__eq__(other) and self.subquery == other.subquery
@@ -791,9 +794,7 @@ class DateInterval:
 
     def __init__(self, start: Optional[datetime], end: Optional[datetime]):
         if start is not None and end is not None and not start < end:
-            raise ValueError(
-                "start date {} is not before end date {}".format(start, end)
-            )
+            raise ValueError(f"start date {start} is not before end date {end}")
         self.start = start
         self.end = end
 
@@ -841,8 +842,6 @@ class DateQuery(FieldQuery[str]):
         date = datetime.fromtimestamp(timestamp)
         return self.interval.contains(date)
 
-    _clause_tmpl = "{0} {1} ?"
-
     def col_clause(self) -> Tuple[str, Sequence[SQLiteType]]:
         clause_parts = []
         subvals = []
@@ -850,11 +849,11 @@ class DateQuery(FieldQuery[str]):
         # Convert the `datetime` objects to an integer number of seconds since
         # the (local) Unix epoch using `datetime.timestamp()`.
         if self.interval.start:
-            clause_parts.append(self._clause_tmpl.format(self.field, ">="))
+            clause_parts.append(f"{self.field} >= ?")
             subvals.append(int(self.interval.start.timestamp()))
 
         if self.interval.end:
-            clause_parts.append(self._clause_tmpl.format(self.field, "<"))
+            clause_parts.append(f"{self.field} < ?")
             subvals.append(int(self.interval.end.timestamp()))
 
         if clause_parts:
@@ -978,7 +977,7 @@ class MultipleSort(Sort):
         return items
 
     def __repr__(self):
-        return f"{self.__class__.__name__}({self.sorts!r})"
+        return f"{self.__class__.__name__}({repr(self.sorts)})"
 
     def __hash__(self):
         return hash(tuple(self.sorts))
@@ -1018,7 +1017,7 @@ class FieldSort(Sort):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}"
-            f"({self.field!r}, ascending={self.ascending!r})"
+            f"({repr(self.field)}, ascending={repr(self.ascending)})"
         )
 
     def __hash__(self) -> int:

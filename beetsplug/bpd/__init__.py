@@ -894,9 +894,7 @@ class MPDConnection(Connection):
                     return
                 except BPDIdleError as e:
                     self.idle_subscriptions = e.subsystems
-                    self.debug(
-                        "awaiting: {}".format(" ".join(e.subsystems)), kind="z"
-                    )
+                    self.debug(f"awaiting: {' '.join(e.subsystems)}", kind="z")
                 yield bluelet.call(self.server.dispatch_events())
 
 
@@ -928,7 +926,7 @@ class ControlConnection(Connection):
                 func = command.delegate("ctrl_", self)
                 yield bluelet.call(func(*command.args))
             except (AttributeError, TypeError) as e:
-                yield self.send("ERROR: {}".format(e.args[0]))
+                yield self.send(f"ERROR: {e.args[0]}")
             except Exception:
                 yield self.send(
                     ["ERROR: server error", traceback.format_exc().rstrip()]
@@ -1006,7 +1004,7 @@ class Command:
         # If the command accepts a variable number of arguments skip the check.
         if wrong_num and not argspec.varargs:
             raise TypeError(
-                'wrong number of arguments for "{}"'.format(self.name),
+                f'wrong number of arguments for "{self.name}"',
                 self.name,
             )
 
@@ -1113,10 +1111,8 @@ class Server(BaseServer):
         self.lib = library
         self.player = gstplayer.GstPlayer(self.play_finished)
         self.cmd_update(None)
-        log.info("Server ready and listening on {}:{}".format(host, port))
-        log.debug(
-            "Listening for control signals on {}:{}".format(host, ctrl_port)
-        )
+        log.info("Server ready and listening on {}:{}", host, port)
+        log.debug("Listening for control signals on {}:{}", host, ctrl_port)
 
     def run(self):
         self.player.run()
@@ -1145,9 +1141,7 @@ class Server(BaseServer):
             pass
 
         for tagtype, field in self.tagtype_map.items():
-            info_lines.append(
-                "{}: {}".format(tagtype, str(getattr(item, field)))
-            )
+            info_lines.append(f"{tagtype}: {str(getattr(item, field))}")
 
         return info_lines
 
@@ -1305,22 +1299,15 @@ class Server(BaseServer):
             item = self.playlist[self.current_index]
 
             yield (
-                "bitrate: " + str(item.bitrate / 1000),
-                "audio: {}:{}:{}".format(
-                    str(item.samplerate),
-                    str(item.bitdepth),
-                    str(item.channels),
-                ),
+                f"bitrate: {item.bitrate / 1000}",
+                f"audio: {item.samplerate}:{item.bitdepth}:{item.channels}",
             )
 
             (pos, total) = self.player.time()
             yield (
-                "time: {}:{}".format(
-                    str(int(pos)),
-                    str(int(total)),
-                ),
-                "elapsed: " + f"{pos:.3f}",
-                "duration: " + f"{total:.3f}",
+                f"time: {int(pos)}:{int(total)}",
+                f"elapsed: {pos:.3f}",
+                f"duration: {total:.3f}",
             )
 
         # Also missing 'updating_db'.

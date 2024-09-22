@@ -204,9 +204,7 @@ class ReplayGainCliTest:
             # This test is a lot less interesting if the backend cannot write
             # both tag types.
             self.skipTest(
-                "r128 tags for opus not supported on backend {}".format(
-                    self.backend
-                )
+                f"r128 tags for opus not supported on backend {self.backend}"
             )
 
         album_rg = self._add_album(1)
@@ -263,9 +261,7 @@ class ReplayGainCliTest:
     def test_cli_writes_only_r128_tags(self):
         if not self.has_r128_support:
             self.skipTest(
-                "r128 tags for opus not supported on backend {}".format(
-                    self.backend
-                )
+                f"r128 tags for opus not supported on backend {self.backend}"
             )
 
         album = self._add_album(2, ext="opus")
@@ -299,9 +295,7 @@ class ReplayGainCliTest:
     def test_r128_targetlevel_has_effect(self):
         if not self.has_r128_support:
             self.skipTest(
-                "r128 tags for opus not supported on backend {}".format(
-                    self.backend
-                )
+                f"r128 tags for opus not supported on backend {self.backend}"
             )
 
         album = self._add_album(1, ext="opus")

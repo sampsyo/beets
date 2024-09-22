@@ -180,7 +180,7 @@ def search_pairs(item):
         # examples include (live), (remix), and (acoustic).
         r"(.+?)\s+[(].*[)]$",
         # Remove any featuring artists from the title
-        r"(.*?) {}".format(plugins.feat_tokens(for_artist=False)),
+        rf"(.*?) {plugins.feat_tokens(for_artist=False)}",
         # Remove part of title after colon ':' for songs with subtitles
         r"(.+?)\s*:.*",
     ]
@@ -995,12 +995,10 @@ class LyricsPlugin(plugins.BeetsPlugin):
             tmpalbum = self.album = item.album.strip()
             if self.album == "":
                 tmpalbum = "Unknown album"
-            self.rest += "{}\n{}\n\n".format(tmpalbum, "-" * len(tmpalbum))
+            self.rest += f"{tmpalbum}\n{'-'*len(tmpalbum)}\n\n"
         title_str = ":index:`%s`" % item.title.strip()
         block = "| " + item.lyrics.replace("\n", "\n| ")
-        self.rest += "{}\n{}\n\n{}\n\n".format(
-            title_str, "~" * len(title_str), block
-        )
+        self.rest += f"{title_str}\n{'~'*len(title_str)}\n\n{block}\n\n"
 
     def writerest(self, directory):
         """Write self.rest to a ReST file"""
@@ -1130,5 +1128,5 @@ class LyricsPlugin(plugins.BeetsPlugin):
             translations = dict(zip(text_lines, lines_translated.split("|")))
             result = ""
             for line in text.split("\n"):
-                result += "{} / {}\n".format(line, translations[line])
+                result += f"{line} / {translations[line]}\n"
             return result

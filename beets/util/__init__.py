@@ -106,7 +106,7 @@ class HumanReadableError(Exception):
         elif hasattr(self.reason, "strerror"):  # i.e., EnvironmentError
             return self.reason.strerror
         else:
-            return '"{}"'.format(str(self.reason))
+            return f'"{str(self.reason)}"'
 
     def get_message(self):
         """Create the human-readable description of the error, sans
