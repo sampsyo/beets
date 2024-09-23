@@ -64,6 +64,8 @@ class ImportHistPlugin(BeetsPlugin):
 
     def suggest_removal(self, item):
         """Prompts the user to delete the original path the item was imported from."""
+        if not self.config["suggest_removal"]:
+            return
         if "source_path" not in item:
             self._log.warning(
                 "Item without source_path (probably imported before plugin "
@@ -72,8 +74,6 @@ class ImportHistPlugin(BeetsPlugin):
             )
             return
         if item.mb_albumid in self.stop_suggestions_for_albums:
-            return
-        if not self.config["suggest_removal"]:
             return
         if not os.path.isfile(syspath(item.source_path)):
             self._log.warning(
