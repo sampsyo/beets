@@ -66,8 +66,8 @@ class ImportHistPlugin(BeetsPlugin):
         """Prompts the user to delete the original path the item was imported from."""
         if "source_path" not in item:
             self._log.warning(
-                "Item without a source_path was found at:\n{}\n"
-                "probably was imported before this plugin was used",
+                "Item without source_path (probably imported before plugin "
+                "usage): {}",
                 item.path.decode("utf-8"),
             )
             return
@@ -77,7 +77,7 @@ class ImportHistPlugin(BeetsPlugin):
             return
         if not os.path.isfile(syspath(item.source_path)):
             self._log.warning(
-                "Item with a source_path that doesn't exist was found:\n{}",
+                "Item with source_path that doesn't exist: {}",
                 item.source_path.decode("utf-8"),
             )
             return
@@ -87,7 +87,7 @@ class ImportHistPlugin(BeetsPlugin):
             and os.access(source_dir, os.W_OK | os.X_OK)
         ):
             self._log.warning(
-                "Item with a source_path isn't deletable:\n{}",
+                "Item with source_path not deletable: {}",
                 item.source_path.decode("utf-8"),
             )
             return
