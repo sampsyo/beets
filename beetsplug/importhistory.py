@@ -11,7 +11,7 @@ from beets import library
 from beets.plugins import BeetsPlugin
 from beets.ui import colorize as colorize_text
 from beets.ui import input_options
-from beets.util import syspath
+from beets.util import syspath, displayable_path
 
 
 class ImportHistPlugin(BeetsPlugin):
@@ -69,7 +69,7 @@ class ImportHistPlugin(BeetsPlugin):
             self._log.warning(
                 "Item without source_path (probably imported before plugin "
                 "usage): {}",
-                item.path.decode("utf-8"),
+                displayable_path(item.path),
             )
             return
         if item.mb_albumid in self.stop_suggestions_for_albums:
@@ -77,7 +77,7 @@ class ImportHistPlugin(BeetsPlugin):
         if not os.path.isfile(syspath(item.source_path)):
             self._log.warning(
                 "Item with source_path that doesn't exist: {}",
-                item.source_path.decode("utf-8"),
+                displayable_path(item.source_path),
             )
             return
         source_dir = os.path.dirname(syspath(item.source_path))
@@ -87,7 +87,7 @@ class ImportHistPlugin(BeetsPlugin):
         ):
             self._log.warning(
                 "Item with source_path not deletable: {}",
-                item.source_path.decode("utf-8"),
+                displayable_path(item.source_path),
             )
             return
         # We ask the user whether they'd like to delete the item's source
@@ -95,9 +95,9 @@ class ImportHistPlugin(BeetsPlugin):
         print(
             "The item:\n{path}\nis originated from:\n{source}\n"
             "What would you like to do?".format(
-                path=colorize_text("text_warning", item.path.decode("utf-8")),
+                path=colorize_text("text_warning", displayable_path(item.path)),
                 source=colorize_text(
-                    "text_warning", item.source_path.decode("utf-8")
+                    "text_warning", displayable_path(item.source_path)
                 ),
             )
         )
@@ -112,7 +112,8 @@ class ImportHistPlugin(BeetsPlugin):
         )
         if resp == "d":
             self._log.info(
-                "Deleting the item's source file: {}", item.source_path
+                "Deleting the item's source file: {}",
+                displayable_path(item.source_path)
             )
             os.remove(syspath(item.source_path))
         elif resp == "r":
@@ -132,7 +133,7 @@ class ImportHistPlugin(BeetsPlugin):
                 print(
                     colorize_text(
                         "text_warning",
-                        searched_item["path"].decode("utf-8"),
+                        displayable_path(searched_item["path"])
                     )
                 )
             print("Would you like to continue?")
@@ -142,7 +143,8 @@ class ImportHistPlugin(BeetsPlugin):
             )
             if continue_resp == "y":
                 self._log.info(
-                    "Deleting the item's source directory: {}", source_dir
+                    "Deleting the item's source directory: {}",
+                    displayable_path(source_dir)
                 )
                 rmtree(source_dir)
             elif continue_resp == "n":
@@ -151,7 +153,7 @@ class ImportHistPlugin(BeetsPlugin):
             elif continue_resp == "f":
                 self._log.info(
                     "removing just the item's original source: {}",
-                    item.source_path,
+                    displayable_path(item.source_path),
                 )
                 os.remove(item.source_path)
         elif resp == "s":
