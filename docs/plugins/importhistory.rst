@@ -1,16 +1,13 @@
 ImportHistory Plugin
 ====================
 
-The ``importhistory`` plugin is a simple plugin that adds a `source_path` field
-to every item imported to your library. It is useful when you import many
-directories in a bulk, and you want to keep track of the directories you
-already imported. 
+The ``importhistory`` plugin adds a `source_path` field to every item imported
+to the library which stores the original media files' paths. Using this plugin
+makes most sense when the general importing workflow is to use ``beet import
+--copy``.
 
-Another feature of the plugin is suggesting the user to delete the source
-paths of items you remove from your beets library. This is useful if you keep
-backups of your imports in their original source paths by using `beet import
---copy`, and you want to delete their backup when you regret the imports
-altogether.
+Another feature of the plugin is suggesting to delete those original source
+files as well whenever items are removed from the Beets library.
 
 To use the ``importhistory`` plugin, enable it in your configuration (see
 :ref:`using-plugins`).
