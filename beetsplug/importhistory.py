@@ -27,9 +27,8 @@ class ImportHistPlugin(BeetsPlugin):
         )
         self.import_stages = [self.import_stage]
         self.register_listener("item_removed", self.suggest_removal)
-        # In order to stop suggestions for certain albums in
-        # self.suggest_removal, we initialize an empty set of `mb_albumid`s
-        # that these will be ignored in future runs of the suggest_removal.
+        # In order to stop future removal suggestions for an album we keep
+        # track of `mb_albumid`s in this set.
         self.stop_suggestions_for_albums = set()
         # In case 'import --library' is used, we will get both the import
         # event triggered, and the item_removed event triggered because
