@@ -46,9 +46,8 @@ class ImportHistPlugin(BeetsPlugin):
     def import_stage(self, _, task):
         """Event handler for albums import finished."""
         for item in task.imported_items():
-            # If import --library is used, this check prevents changing the
-            # source_path attribute to the path from the music library -
-            # something which would make this attribute completely useless.
+            # During reimports (import --library), we prevent overwriting the
+            # source_path attribute with the path from the music library
             if "source_path" in item:
                 self._log.info(
                     "Preserving source_path of reimported item {}", item.id
