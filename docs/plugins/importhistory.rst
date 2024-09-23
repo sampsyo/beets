@@ -70,7 +70,7 @@ To configure the plugin, make an ``importhistory:`` section in your
 configuration file. There is one option available:
 
 - **suggest_removal**: By default ``importhistory`` suggests to remove the
-    original directories / files from which the items were imported whenever
-    library items (and files) are removed. To disable these prompts set this
-    option to ``no``.
+  original directories / files from which the items were imported whenever
+  library items (and files) are removed. To disable these prompts set this
+  option to ``no``.
   Default: ``yes``.
