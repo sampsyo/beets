@@ -30,13 +30,10 @@ class ImportHistPlugin(BeetsPlugin):
         # In order to stop future removal suggestions for an album we keep
         # track of `mb_albumid`s in this set.
         self.stop_suggestions_for_albums = set()
-        # In case 'import --library' is used, we will get both the import
-        # event triggered, and the item_removed event triggered because
-        # that's how 'import --library' works. Unfortuneatly, but
-        # naturally, the item_removed event is triggered first, and we need
-        # to prevent suggesting to remove the source_path because that has
-        # nothing to do with the import. Hence we use this event, and use
-        # the self.stop_suggestions_for_albums array
+        # During reimports (import --library) both the import_task_choice and
+        # the item_removed event are triggered. The item_removed event is
+        # triggered first. For the import_task_choice event we prevent removal
+        # suggestions using the existing stop_suggestions_for_album mechanism.
         self.register_listener(
             "import_task_choice", self.prevent_suggest_removal
         )
