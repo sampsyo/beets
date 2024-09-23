@@ -53,13 +53,13 @@ class ImportHistPlugin(BeetsPlugin):
             # If import --library is used, this check prevents changing the
             # source_path attribute to the path from the music library -
             # something which would make this attribute completely useless.
-            if "source_path" not in item:
-                item["source_path"] = item.path
-                item.try_sync(write=True, move=False)
-            else:
+            if "source_path" in item:
                 self._log.info(
                     "Preserving source_path of reimported item {}", item.id
                 )
+                continue
+            item["source_path"] = item.path
+            item.try_sync(write=True, move=False)
 
     def suggest_removal(self, item):
         """Prompts the user to delete the original path the item was imported from."""
