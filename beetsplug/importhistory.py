@@ -58,8 +58,7 @@ class ImportHistPlugin(BeetsPlugin):
                 item.try_sync(write=True, move=False)
             else:
                 self._log.info(
-                    "Not changing source_path of item already imported - "
-                    "probably 'import --library' was used"
+                    "Preserving source_path of reimported item {}", item.id
                 )
 
     def suggest_removal(self, item):
