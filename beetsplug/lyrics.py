@@ -40,10 +40,18 @@ from beets import plugins, ui
 from beets.autotag.hooks import string_dist
 
 if TYPE_CHECKING:
+    from logging import Logger
+
     from beets.importer import ImportTask
     from beets.library import Item
 
-    from ._typing import GeniusAPI, GoogleCustomSearchAPI, JSONDict, LRCLibAPI
+    from ._typing import (
+        GeniusAPI,
+        GoogleCustomSearchAPI,
+        JSONDict,
+        LRCLibAPI,
+        TranslatorAPI,
+    )
 
 USER_AGENT = f"beets/{beets.__version__}"
 INSTRUMENTAL_LYRICS = "[Instrumental]"
@@ -251,6 +259,12 @@ class RequestHandler:
         url = self.format_url(url, params)
         self.debug("Fetching JSON from {}", url)
         return r_session.get(url, **kwargs).json()
+
+    def post_json(self, url: str, params: JSONDict | None = None, **kwargs):
+        """Send POST request and return JSON response."""
+        url = self.format_url(url, params)
+        self.debug("Posting JSON to {}", url)
+        return r_session.post(url, **kwargs).json()
 
     @contextmanager
     def handle_request(self) -> Iterator[None]:
@@ -760,6 +774,97 @@ class Google(SearchBackend):
         return None
 
 
+@dataclass
+class Translator(RequestHandler):
+    TRANSLATE_URL = "https://api.cognitive.microsofttranslator.com/translate"
+    LINE_PARTS_RE = re.compile(r"^(\[\d\d:\d\d.\d\d\]|) *(.*)$")
+
+    _log: Logger
+    api_key: str
+    to_language: str
+    from_languages: list[str]
+
+    @classmethod
+    def from_config(
+        cls,
+        log: Logger,
+        api_key: str,
+        to_language: str,
+        from_languages: list[str] | None = None,
+    ) -> Translator:
+        return cls(
+            log,
+            api_key,
+            to_language.upper(),
+            [x.upper() for x in from_languages or []],
+        )
+
+    def get_translations(self, texts: Iterable[str]) -> list[tuple[str, str]]:
+        """Return translations for the given texts.
+
+        To reduce the translation 'cost', we translate unique texts, and then
+        map the translations back to the original texts.
+        """
+        unique_texts = list(dict.fromkeys(texts))
+        data: list[TranslatorAPI.Response] = self.post_json(
+            self.TRANSLATE_URL,
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
+            json=[{"text": "|".join(unique_texts)}],
+            params={"api-version": "3.0", "to": self.to_language},
+        )
+
+        translations = data[0]["translations"][0]["text"].split("|")
+        trans_by_text = dict(zip(unique_texts, translations))
+        return list(zip(texts, (trans_by_text.get(t, "") for t in texts)))
+
+    @classmethod
+    def split_line(cls, line: str) -> tuple[str, str]:
+        """Split line to (timestamp, text)."""
+        if m := cls.LINE_PARTS_RE.match(line):
+            return m[1], m[2]
+
+        return "", ""
+
+    def append_translations(self, lines: Iterable[str]) -> list[str]:
+        """Append translations to the given lyrics texts.
+
+        Lines may contain timestamps from LRCLib which need to be temporarily
+        removed for the translation. They can take any of these forms:
+                        - empty
+        Text            - text only
+        [00:00:00]      - timestamp only
+        [00:00:00] Text - timestamp with text
+        """
+        # split into [(timestamp, text), ...]]
+        ts_and_text = list(map(self.split_line, lines))
+        timestamps = [ts for ts, _ in ts_and_text]
+        text_pairs = self.get_translations([ln for _, ln in ts_and_text])
+
+        # only add the separator for non-empty translations
+        texts = [" / ".join(filter(None, p)) for p in text_pairs]
+        # only add the space between non-empty timestamps and texts
+        return [" ".join(filter(None, p)) for p in zip(timestamps, texts)]
+
+    def translate(self, lyrics: str) -> str:
+        """Translate the given lyrics to the target language.
+
+        If the lyrics are already in the target language or not in any of
+        of the source languages (if configured), they are returned as is.
+
+        The footer with the source URL is preserved, if present.
+        """
+        lyrics_language = langdetect.detect(lyrics).upper()
+        if lyrics_language == self.to_language or (
+            self.from_languages and lyrics_language not in self.from_languages
+        ):
+            return lyrics
+
+        lyrics, *url = lyrics.split("\n\nSource: ")
+        with self.handle_request():
+            translated_lines = self.append_translations(lyrics.splitlines())
+            return "\n\nSource: ".join(["\n".join(translated_lines), *url])
+
+
 class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
     BACKEND_BY_NAME = {
         b.name: b for b in [LRCLib, Google, Genius, Tekstowo, MusiXmatch]
@@ -776,15 +881,24 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
 
         return [self.BACKEND_BY_NAME[c](self.config, self._log) for c in chosen]
 
+    @cached_property
+    def translator(self) -> Translator | None:
+        config = self.config["translate"]
+        if config["api_key"].get() and config["to_language"].get():
+            return Translator.from_config(self._log, **config.flatten())
+        return None
+
     def __init__(self):
         super().__init__()
         self.import_stages = [self.imported]
         self.config.add(
             {
                 "auto": True,
-                "bing_client_secret": None,
-                "bing_lang_from": [],
-                "bing_lang_to": None,
+                "translate": {
+                    "api_key": None,
+                    "from_languages": [],
+                    "to_language": None,
+                },
                 "dist_thresh": 0.11,
                 "google_API_key": None,
                 "google_engine_ID": "009217259823014548361:lndtuqkycfu",
@@ -803,7 +917,7 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
                 ],
             }
         )
-        self.config["bing_client_secret"].redact = True
+        self.config["translate"]["api_key"].redact = True
         self.config["google_API_key"].redact = True
         self.config["google_engine_ID"].redact = True
         self.config["genius_api_key"].redact = True
@@ -816,24 +930,6 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
         # The current rest file content. None means the file is not
         # open yet.
         self.rest = None
-
-        self.config["bing_lang_from"] = [
-            x.lower() for x in self.config["bing_lang_from"].as_str_seq()
-        ]
-
-    @cached_property
-    def bing_access_token(self) -> str | None:
-        params = {
-            "client_id": "beets",
-            "client_secret": self.config["bing_client_secret"],
-            "scope": "https://api.microsofttranslator.com",
-            "grant_type": "client_credentials",
-        }
-
-        oauth_url = "https://datamarket.accesscontrol.windows.net/v2/OAuth2-13"
-        with self.handle_request():
-            r = r_session.post(oauth_url, params=params)
-            return r.json()["access_token"]
 
     def commands(self):
         cmd = ui.Subcommand("lyrics", help="fetch song lyrics")
@@ -996,14 +1092,12 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
 
         if lyrics:
             self.info("🟢 Found lyrics: {0}", item)
-            if self.config["bing_client_secret"].get():
-                lang_from = langdetect.detect(lyrics)
-                if self.config["bing_lang_to"].get() != lang_from and (
-                    not self.config["bing_lang_from"]
-                    or (lang_from in self.config["bing_lang_from"].as_str_seq())
-                ):
-                    lyrics = self.append_translation(
-                        lyrics, self.config["bing_lang_to"]
+            if translator := self.translator:
+                initial_lyrics = lyrics
+                if (lyrics := translator.translate(lyrics)) != initial_lyrics:
+                    self.info(
+                        "🟢 Added translation to {}",
+                        self.config["translate_to"].get().upper(),
                     )
         else:
             self.info("🔴 Lyrics not found: {}", item)
@@ -1027,30 +1121,3 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
                     return f"{lyrics}\n\nSource: {url}"
 
         return None
-
-    def append_translation(self, text, to_lang):
-        from xml.etree import ElementTree
-
-        if not (token := self.bing_access_token):
-            self.warn(
-                "Could not get Bing Translate API access token. "
-                "Check your 'bing_client_secret' password."
-            )
-            return text
-
-        # Extract unique lines to limit API request size per song
-        lines = text.split("\n")
-        unique_lines = set(lines)
-        url = "https://api.microsofttranslator.com/v2/Http.svc/Translate"
-        with self.handle_request():
-            text = self.fetch_text(
-                url,
-                headers={"Authorization": f"Bearer {token}"},
-                params={"text": "|".join(unique_lines), "to": to_lang},
-            )
-            if translated := ElementTree.fromstring(text.encode("utf-8")).text:
-                # Use a translation mapping dict to build resulting lyrics
-                translations = dict(zip(unique_lines, translated.split("|")))
-                return "".join(f"{ln} / {translations[ln]}\n" for ln in lines)
-
-        return text

@@ -15,6 +15,7 @@
 """Tests for the 'lyrics' plugin."""
 
 import re
+import textwrap
 from functools import partial
 from http import HTTPStatus
 
@@ -502,3 +503,87 @@ class TestLRCLibLyrics(LyricsBackendTest):
             lyrics, _ = fetch_lyrics()
 
             assert lyrics == expected_lyrics
+
+
+class TestTranslation:
+    @pytest.fixture(autouse=True)
+    def _patch_bing(self, requests_mock):
+        def callback(request, _):
+            if b"Refrain" in request.body:
+                translations = (
+                    ""
+                    "|[Refrain : Doja Cat]"
+                    "|Difficile pour moi de te laisser partir (Te laisser partir, te laisser partir)"  # noqa: E501
+                    "|Mon corps ne me laissait pas le cacher (Cachez-le)"
+                    "|Quoi qu’il arrive, je ne plierais pas (Ne plierait pas, ne plierais pas)"  # noqa: E501
+                    "|Chevauchant à travers le tonnerre, la foudre"
+                )
+            elif b"00:00.00" in request.body:
+                translations = (
+                    ""
+                    "|[00:00.00] Quelques paroles synchronisées"
+                    "|[00:01.00] Quelques paroles plus synchronisées"
+                )
+            else:
+                translations = (
+                    ""
+                    "|Quelques paroles synchronisées"
+                    "|Quelques paroles plus synchronisées"
+                )
+
+            return [
+                {
+                    "detectedLanguage": {"language": "en", "score": 1.0},
+                    "translations": [{"text": translations, "to": "fr"}],
+                }
+            ]
+
+        requests_mock.post(lyrics.Translator.TRANSLATE_URL, json=callback)
+
+    @pytest.mark.parametrize(
+        "initial_lyrics, expected",
+        [
+            pytest.param(
+                """
+                [Refrain: Doja Cat]
+                Hard for me to let you go (Let you go, let you go)
+                My body wouldn't let me hide it (Hide it)
+                No matter what, I wouldn't fold (Wouldn't fold, wouldn't fold)
+                Ridin' through the thunder, lightnin'""",
+                """
+                [Refrain: Doja Cat] / [Refrain : Doja Cat]
+                Hard for me to let you go (Let you go, let you go) / Difficile pour moi de te laisser partir (Te laisser partir, te laisser partir)
+                My body wouldn't let me hide it (Hide it) / Mon corps ne me laissait pas le cacher (Cachez-le)
+                No matter what, I wouldn't fold (Wouldn't fold, wouldn't fold) / Quoi qu’il arrive, je ne plierais pas (Ne plierait pas, ne plierais pas)
+                Ridin' through the thunder, lightnin' / Chevauchant à travers le tonnerre, la foudre""",  # noqa: E501
+                id="plain",
+            ),
+            pytest.param(
+                """
+                [00:00.00] Some synced lyrics
+                [00:00:50]
+                [00:01.00] Some more synced lyrics
+
+                Source: https://lrclib.net/api/123""",
+                """
+                [00:00.00] Some synced lyrics / Quelques paroles synchronisées
+                [00:00:50]
+                [00:01.00] Some more synced lyrics / Quelques paroles plus synchronisées
+
+                Source: https://lrclib.net/api/123""",  # noqa: E501
+                id="synced",
+            ),
+            pytest.param(
+                "Quelques paroles",
+                "Quelques paroles",
+                id="already in the target language",
+            ),
+        ],
+    )
+    def test_translate(self, initial_lyrics, expected):
+        plugin = lyrics.LyricsPlugin()
+        bing = lyrics.Translator(plugin._log, "123", "FR", ["EN"])
+
+        assert bing.translate(
+            textwrap.dedent(initial_lyrics)
+        ) == textwrap.dedent(expected)
