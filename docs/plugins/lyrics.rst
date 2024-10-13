@@ -107,9 +107,8 @@ Rendering Lyrics into Other Formats
 -----------------------------------
 
 The ``-r directory, --write-rest directory`` option renders all lyrics as
-`reStructuredText`_ (ReST) documents in ``directory`` (by default, the current
-directory). That directory, in turn, can be parsed by tools like `Sphinx`_ to
-generate HTML, ePUB, or PDF documents.
+`reStructuredText`_ (ReST) documents in ``directory``. That directory, in turn,
+can be parsed by tools like `Sphinx`_ to generate HTML, ePUB, or PDF documents.
 
 Minimal ``conf.py`` and ``index.rst`` files are created the first time the
 command is run. They are not overwritten on subsequent runs, so you can safely
@@ -122,19 +121,19 @@ Sphinx supports various `builders`_, see a few suggestions:
 
   ::
 
-      sphinx-build -b html . _build/html
+      sphinx-build -b html <dir> <dir>/html
 
 .. admonition:: Build an ePUB3 formatted file, usable on ebook readers
 
   ::
 
-      sphinx-build -b epub3 . _build/epub
+      sphinx-build -b epub3 <dir> <dir>/epub
 
 .. admonition:: Build a PDF file, which incidentally also builds a LaTeX file
 
   ::
 
-      sphinx-build -b latex %s _build/latex && make -C _build/latex all-pdf
+      sphinx-build -b latex <dir> <dir>/latex && make -C <dir>/latex all-pdf
 
 
 .. _Sphinx: https://www.sphinx-doc.org/

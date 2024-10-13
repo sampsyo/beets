@@ -17,16 +17,17 @@
 from __future__ import annotations
 
 import atexit
-import errno
 import itertools
 import math
-import os.path
 import re
+import textwrap
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from functools import cached_property, partial, total_ordering
 from html import unescape
 from http import HTTPStatus
+from itertools import groupby
+from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Iterator, NamedTuple
 from urllib.parse import quote, quote_plus, urlencode, urlparse
 
@@ -55,41 +56,6 @@ if TYPE_CHECKING:
 
 USER_AGENT = f"beets/{beets.__version__}"
 INSTRUMENTAL_LYRICS = "[Instrumental]"
-
-# The content for the base index.rst generated in ReST mode.
-REST_INDEX_TEMPLATE = """Lyrics
-======
-
-* :ref:`Song index <genindex>`
-* :ref:`search`
-
-Artist index:
-
-.. toctree::
-   :maxdepth: 1
-   :glob:
-
-   artists/*
-"""
-
-# The content for the base conf.py generated.
-REST_CONF_TEMPLATE = """# -*- coding: utf-8 -*-
-master_doc = 'index'
-project = 'Lyrics'
-copyright = 'none'
-author = 'Various Authors'
-latex_documents = [
-    (master_doc, 'Lyrics.tex', project,
-     author, 'manual'),
-]
-epub_title = project
-epub_author = author
-epub_publisher = author
-epub_copyright = copyright
-epub_exclude_files = ['search.html']
-epub_tocdepth = 1
-epub_tocdup = False
-"""
 
 
 class NotFoundError(requests.exceptions.HTTPError):
@@ -865,6 +831,97 @@ class Translator(RequestHandler):
             return "\n\nSource: ".join(["\n".join(translated_lines), *url])
 
 
+@dataclass
+class RestFiles:
+    # The content for the base index.rst generated in ReST mode.
+    REST_INDEX_TEMPLATE = textwrap.dedent("""
+        Lyrics
+        ======
+
+        * :ref:`Song index <genindex>`
+        * :ref:`search`
+
+        Artist index:
+
+        .. toctree::
+           :maxdepth: 1
+           :glob:
+
+           artists/*
+        """).strip()
+
+    # The content for the base conf.py generated.
+    REST_CONF_TEMPLATE = textwrap.dedent("""
+        master_doc = "index"
+        project = "Lyrics"
+        copyright = "none"
+        author = "Various Authors"
+        latex_documents = [
+            (master_doc, "Lyrics.tex", project, author, "manual"),
+        ]
+        epub_exclude_files = ["search.html"]
+        epub_tocdepth = 1
+        epub_tocdup = False
+        """).strip()
+
+    directory: Path
+
+    @cached_property
+    def artists_dir(self) -> Path:
+        dir = self.directory / "artists"
+        dir.mkdir(parents=True, exist_ok=True)
+        return dir
+
+    def write_indexes(self) -> None:
+        """Write conf.py and index.rst files necessary for Sphinx
+
+        We write minimal configurations that are necessary for Sphinx
+        to operate. We do not overwrite existing files so that
+        customizations are respected."""
+        index_file = self.directory / "index.rst"
+        if not index_file.exists():
+            index_file.write_text(self.REST_INDEX_TEMPLATE)
+        conf_file = self.directory / "conf.py"
+        if not conf_file.exists():
+            conf_file.write_text(self.REST_CONF_TEMPLATE)
+
+    def write_artist(self, artist: str, items: Iterable[Item]) -> None:
+        parts = [
+            f'{artist}\n{"=" * len(artist)}',
+            ".. contents::\n   :local:",
+        ]
+        for album, items in groupby(items, key=lambda i: i.album):
+            parts.append(f'{album}\n{"-" * len(album)}')
+            parts.extend(
+                part
+                for i in items
+                if (title := f":index:`{i.title.strip()}`")
+                for part in (
+                    f'{title}\n{"~" * len(title)}',
+                    textwrap.indent(i.lyrics, "| "),
+                )
+            )
+        file = self.artists_dir / f"{slug(artist)}.rst"
+        file.write_text("\n\n".join(parts).strip())
+
+    def write(self, items: list[Item]) -> None:
+        self.directory.mkdir(exist_ok=True, parents=True)
+        self.write_indexes()
+
+        items.sort(key=lambda i: i.albumartist)
+        for artist, artist_items in groupby(items, key=lambda i: i.albumartist):
+            self.write_artist(artist.strip(), artist_items)
+
+        d = self.directory
+        text = f"""
+        ReST files generated. to build, use one of:
+          sphinx-build -b html  {d} {d/"html"}
+          sphinx-build -b epub  {d} {d/"epub"}
+          sphinx-build -b latex {d} {d/"latex"} && make -C {d/"latex"} all-pdf
+        """
+        ui.print_(textwrap.dedent(text))
+
+
 class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
     BACKEND_BY_NAME = {
         b.name: b for b in [LRCLib, Google, Genius, Tekstowo, MusiXmatch]
@@ -922,15 +979,6 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
         self.config["google_engine_ID"].redact = True
         self.config["genius_api_key"].redact = True
 
-        # State information for the ReST writer.
-        # First, the current artist we're writing.
-        self.artist = "Unknown artist"
-        # The current album: False means no album yet.
-        self.album = False
-        # The current rest file content. None means the file is not
-        # open yet.
-        self.rest = None
-
     def commands(self):
         cmd = ui.Subcommand("lyrics", help="fetch song lyrics")
         cmd.parser.add_option(
@@ -944,7 +992,7 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
         cmd.parser.add_option(
             "-r",
             "--write-rest",
-            dest="writerest",
+            dest="rest_directory",
             action="store",
             default=None,
             metavar="dir",
@@ -970,98 +1018,25 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
         def func(lib, opts, args):
             # The "write to files" option corresponds to the
             # import_write config value.
-            write = ui.should_write()
-            if opts.writerest:
-                self.writerest_indexes(opts.writerest)
-            items = lib.items(ui.decargs(args))
+            items = list(lib.items(ui.decargs(args)))
             for item in items:
                 if not opts.local_only and not self.config["local"]:
                     self.fetch_item_lyrics(
-                        item, write, opts.force_refetch or self.config["force"]
+                        item,
+                        ui.should_write(),
+                        opts.force_refetch or self.config["force"],
                     )
                 if item.lyrics:
                     if opts.printlyr:
                         ui.print_(item.lyrics)
-                    if opts.writerest:
-                        self.appendrest(opts.writerest, item)
-            if opts.writerest and items:
-                # flush last artist & write to ReST
-                self.writerest(opts.writerest)
-                ui.print_("ReST files generated. to build, use one of:")
-                ui.print_(
-                    "  sphinx-build -b html %s _build/html" % opts.writerest
-                )
-                ui.print_(
-                    "  sphinx-build -b epub %s _build/epub" % opts.writerest
-                )
-                ui.print_(
-                    (
-                        "  sphinx-build -b latex %s _build/latex "
-                        "&& make -C _build/latex all-pdf"
-                    )
-                    % opts.writerest
-                )
+
+            if opts.rest_directory and (
+                items := [i for i in items if i.lyrics]
+            ):
+                RestFiles(Path(opts.rest_directory)).write(items)
 
         cmd.func = func
         return [cmd]
-
-    def appendrest(self, directory, item):
-        """Append the item to an ReST file
-
-        This will keep state (in the `rest` variable) in order to avoid
-        writing continuously to the same files.
-        """
-
-        if slug(self.artist) != slug(item.albumartist):
-            # Write current file and start a new one ~ item.albumartist
-            self.writerest(directory)
-            self.artist = item.albumartist.strip()
-            self.rest = "%s\n%s\n\n.. contents::\n   :local:\n\n" % (
-                self.artist,
-                "=" * len(self.artist),
-            )
-
-        if self.album != item.album:
-            tmpalbum = self.album = item.album.strip()
-            if self.album == "":
-                tmpalbum = "Unknown album"
-            self.rest += "{}\n{}\n\n".format(tmpalbum, "-" * len(tmpalbum))
-        title_str = ":index:`%s`" % item.title.strip()
-        block = "| " + item.lyrics.replace("\n", "\n| ")
-        self.rest += "{}\n{}\n\n{}\n\n".format(
-            title_str, "~" * len(title_str), block
-        )
-
-    def writerest(self, directory):
-        """Write self.rest to a ReST file"""
-        if self.rest is not None and self.artist is not None:
-            path = os.path.join(
-                directory, "artists", slug(self.artist) + ".rst"
-            )
-            with open(path, "wb") as output:
-                output.write(self.rest.encode("utf-8"))
-
-    def writerest_indexes(self, directory):
-        """Write conf.py and index.rst files necessary for Sphinx
-
-        We write minimal configurations that are necessary for Sphinx
-        to operate. We do not overwrite existing files so that
-        customizations are respected."""
-        try:
-            os.makedirs(os.path.join(directory, "artists"))
-        except OSError as e:
-            if e.errno == errno.EEXIST:
-                pass
-            else:
-                raise
-        indexfile = os.path.join(directory, "index.rst")
-        if not os.path.exists(indexfile):
-            with open(indexfile, "w") as output:
-                output.write(REST_INDEX_TEMPLATE)
-        conffile = os.path.join(directory, "conf.py")
-        if not os.path.exists(conffile):
-            with open(conffile, "w") as output:
-                output.write(REST_CONF_TEMPLATE)
 
     def imported(self, _, task: ImportTask) -> None:
         """Import hook for fetching lyrics automatically."""

@@ -18,6 +18,7 @@ import re
 import textwrap
 from functools import partial
 from http import HTTPStatus
+from pathlib import Path
 
 import pytest
 
@@ -587,3 +588,51 @@ class TestTranslation:
         assert bing.translate(
             textwrap.dedent(initial_lyrics)
         ) == textwrap.dedent(expected)
+
+
+class TestRestFiles:
+    @pytest.fixture
+    def rest_dir(self, tmp_path):
+        return tmp_path
+
+    @pytest.fixture
+    def rest_files(self, rest_dir):
+        return lyrics.RestFiles(rest_dir)
+
+    def test_write(self, rest_dir: Path, rest_files):
+        items = [
+            Item(albumartist=aa, album=a, title=t, lyrics=lyr)
+            for aa, a, t, lyr in [
+                ("Artist One", "Album One", "Song One", "Lyrics One"),
+                ("Artist One", "Album One", "Song Two", "Lyrics Two"),
+                ("Artist Two", "Album Two", "Song Three", "Lyrics Three"),
+            ]
+        ]
+
+        rest_files.write(items)
+
+        assert (rest_dir / "index.rst").exists()
+        assert (rest_dir / "conf.py").exists()
+
+        artist_one_file = rest_dir / "artists" / "artist-one.rst"
+        artist_two_file = rest_dir / "artists" / "artist-two.rst"
+        assert artist_one_file.exists()
+        assert artist_two_file.exists()
+
+        c = artist_one_file.read_text()
+        assert (
+            c.index("Artist One")
+            < c.index("Album One")
+            < c.index("Song One")
+            < c.index("Lyrics One")
+            < c.index("Song Two")
+            < c.index("Lyrics Two")
+        )
+
+        c = artist_two_file.read_text()
+        assert (
+            c.index("Artist Two")
+            < c.index("Album Two")
+            < c.index("Song Three")
+            < c.index("Lyrics Three")
+        )
