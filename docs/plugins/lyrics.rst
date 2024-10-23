@@ -47,6 +47,7 @@ Default configuration:
         force: no
         google_API_key: null
         google_engine_ID: 009217259823014548361:lndtuqkycfu
+        print: no
         sources: [lrclib, google, genius, tekstowo]
         synced: no
 
@@ -75,6 +76,7 @@ The available options are:
 - **google_engine_ID**: The custom search engine to use.
   Default: The `beets custom search engine`_, which gathers an updated list of
   sources known to be scrapeable.
+- **print**: Print lyrics to the console.
 - **sources**: List of sources to search for lyrics. An asterisk ``*`` expands
   to all available sources. The ``google`` source will be automatically
   deactivated if no ``google_API_key`` is setup.

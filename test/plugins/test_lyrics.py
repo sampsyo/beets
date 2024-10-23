@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 from beets.library import Item
-from beets.test.helper import PluginMixin
+from beets.test.helper import PluginMixin, TestHelper
 from beetsplug import lyrics
 
 from .lyrics_pages import LyricsPage, lyrics_pages
@@ -33,6 +33,14 @@ PHRASE_BY_TITLE = {
     "Jazz'n'blues": "as i check my balance i kiss the screen",
     "Beets song": "via plugins, beets becomes a panacea",
 }
+
+
+@pytest.fixture(scope="module")
+def helper():
+    helper = TestHelper()
+    helper.setup_beets()
+    yield helper
+    helper.teardown_beets()
 
 
 class TestLyricsUtils:
@@ -233,6 +241,27 @@ class TestLyricsPlugin(LyricsPluginMixin):
         assert last_log
         assert re.search(expected_log_match, last_log, re.I)
 
+    @pytest.mark.parametrize(
+        "plugin_config, found, expected",
+        [
+            ({}, "new", "old"),
+            ({"force": True}, "new", "new"),
+            ({"force": True, "local": True}, "new", "old"),
+            ({"force": True, "fallback": None}, "", "old"),
+            ({"force": True, "fallback": ""}, "", ""),
+            ({"force": True, "fallback": "default"}, "", "default"),
+        ],
+    )
+    def test_overwrite_config(
+        self, monkeypatch, helper, lyrics_plugin, found, expected
+    ):
+        monkeypatch.setattr(lyrics_plugin, "find_lyrics", lambda _: found)
+        item = helper.create_item(id=1, lyrics="old")
+
+        lyrics_plugin.add_item_lyrics(item, False)
+
+        assert item.lyrics == expected
+
 
 class LyricsBackendTest(LyricsPluginMixin):
     @pytest.fixture
@@ -282,8 +311,13 @@ class TestLyricsSources(LyricsBackendTest):
 
     def test_backend_source(self, lyrics_plugin, lyrics_page: LyricsPage):
         """Test parsed lyrics from each of the configured lyrics pages."""
-        lyrics_info = lyrics_plugin.get_lyrics(
-            lyrics_page.artist, lyrics_page.track_title, "", 186
+        lyrics_info = lyrics_plugin.find_lyrics(
+            Item(
+                artist=lyrics_page.artist,
+                title=lyrics_page.track_title,
+                album="",
+                length=186.0,
+            )
         )
 
         assert lyrics_info

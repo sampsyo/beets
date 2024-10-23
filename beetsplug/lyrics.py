@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from logging import Logger
 
     from beets.importer import ImportTask
-    from beets.library import Item
+    from beets.library import Item, Library
 
     from ._typing import (
         GeniusAPI,
@@ -947,7 +947,6 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
 
     def __init__(self):
         super().__init__()
-        self.import_stages = [self.imported]
         self.config.add(
             {
                 "auto": True,
@@ -966,6 +965,7 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
                 "fallback": None,
                 "force": False,
                 "local": False,
+                "print": False,
                 "synced": False,
                 # Musixmatch is disabled by default as they are currently blocking
                 # requests with the beets user agent.
@@ -979,14 +979,16 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
         self.config["google_engine_ID"].redact = True
         self.config["genius_api_key"].redact = True
 
+        if self.config["auto"]:
+            self.import_stages = [self.imported]
+
     def commands(self):
         cmd = ui.Subcommand("lyrics", help="fetch song lyrics")
         cmd.parser.add_option(
             "-p",
             "--print",
-            dest="printlyr",
             action="store_true",
-            default=False,
+            default=self.config["print"].get(),
             help="print lyrics to console",
         )
         cmd.parser.add_option(
@@ -1001,34 +1003,27 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
         cmd.parser.add_option(
             "-f",
             "--force",
-            dest="force_refetch",
             action="store_true",
-            default=False,
+            default=self.config["force"].get(),
             help="always re-download lyrics",
         )
         cmd.parser.add_option(
             "-l",
             "--local",
-            dest="local_only",
             action="store_true",
-            default=False,
+            default=self.config["local"].get(),
             help="do not fetch missing lyrics",
         )
 
-        def func(lib, opts, args):
+        def func(lib: Library, opts, args) -> None:
             # The "write to files" option corresponds to the
             # import_write config value.
-            items = list(lib.items(ui.decargs(args)))
+            self.config.set(vars(opts))
+            items = list(lib.items(args))
             for item in items:
-                if not opts.local_only and not self.config["local"]:
-                    self.fetch_item_lyrics(
-                        item,
-                        ui.should_write(),
-                        opts.force_refetch or self.config["force"],
-                    )
-                if item.lyrics:
-                    if opts.printlyr:
-                        ui.print_(item.lyrics)
+                self.add_item_lyrics(item, ui.should_write())
+                if item.lyrics and opts.print:
+                    ui.print_(item.lyrics)
 
             if opts.rest_directory and (
                 items := [i for i in items if i.lyrics]
@@ -1040,32 +1035,34 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
 
     def imported(self, _, task: ImportTask) -> None:
         """Import hook for fetching lyrics automatically."""
-        if self.config["auto"]:
-            for item in task.imported_items():
-                self.fetch_item_lyrics(item, False, self.config["force"])
+        for item in task.imported_items():
+            self.add_item_lyrics(item, False)
 
-    def fetch_item_lyrics(self, item: Item, write: bool, force: bool) -> None:
+    def find_lyrics(self, item: Item) -> str:
+        album, length = item.album, round(item.length)
+        matches = (
+            [
+                lyrics
+                for t in titles
+                if (lyrics := self.get_lyrics(a, t, album, length))
+            ]
+            for a, titles in search_pairs(item)
+        )
+
+        return "\n\n---\n\n".join(next(filter(None, matches), []))
+
+    def add_item_lyrics(self, item: Item, write: bool) -> None:
         """Fetch and store lyrics for a single item. If ``write``, then the
         lyrics will also be written to the file itself.
         """
-        # Skip if the item already has lyrics.
-        if not force and item.lyrics:
+        if self.config["local"]:
+            return
+
+        if not self.config["force"] and item.lyrics:
             self.info("🔵 Lyrics already present: {}", item)
             return
 
-        lyrics_matches = []
-        album, length = item.album, round(item.length)
-        for artist, titles in search_pairs(item):
-            lyrics_matches = [
-                self.get_lyrics(artist, title, album, length)
-                for title in titles
-            ]
-            if any(lyrics_matches):
-                break
-
-        lyrics = "\n\n---\n\n".join(filter(None, lyrics_matches))
-
-        if lyrics:
+        if lyrics := self.find_lyrics(item):
             self.info("🟢 Found lyrics: {0}", item)
             if translator := self.translator:
                 initial_lyrics = lyrics
