@@ -20,11 +20,12 @@ import contextlib
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 from abc import ABC
 from collections import defaultdict
-from sqlite3 import Connection
+from sqlite3 import Connection, sqlite_version_info
 from types import TracebackType
 from typing import (
     Any,
@@ -71,6 +72,16 @@ class DBAccessError(Exception):
     example, the database file is deleted or otherwise disappears. There
     is probably no way to recover from this error.
     """
+
+
+class DBCustomFunctionError(Exception):
+    """A sqlite function registered by beets failed."""
+
+    def __init__(self):
+        super().__init__(
+            "beets defined SQLite function failed; "
+            "see the other errors above for details"
+        )
 
 
 class FormattedMapping(Mapping[str, str]):
@@ -970,6 +981,12 @@ class Transaction:
             self._mutated = False
             self.db._db_lock.release()
 
+        if (
+            isinstance(exc_value, sqlite3.OperationalError)
+            and exc_value.args[0] == "user-defined function raised exception"
+        ):
+            raise DBCustomFunctionError()
+
     def query(self, statement: str, subvals: Sequence = ()) -> List:
         """Execute an SQL statement with substitution values and return
         a list of rows from the database.
@@ -1027,6 +1044,10 @@ class Database:
             raise RuntimeError(
                 "sqlite3 must be compiled with multi-threading support"
             )
+
+        # Print tracebacks for exceptions in user defined functions
+        # See also `self.add_functions` and `DBCustomFunctionError`.
+        sqlite3.enable_callback_tracebacks(True)
 
         self.path = path
         self.timeout = timeout
@@ -1123,9 +1144,14 @@ class Database:
 
             return bytestring
 
-        conn.create_function("regexp", 2, regexp)
-        conn.create_function("unidecode", 1, unidecode)
-        conn.create_function("bytelower", 1, bytelower)
+        deterministic = {}
+        if sys.version_info >= (3, 8) and sqlite_version_info >= (3, 8, 3):
+            # Let sqlite make extra optimizations
+            deterministic["deterministic"] = True
+
+        conn.create_function("regexp", 2, regexp, **deterministic)
+        conn.create_function("unidecode", 1, unidecode, **deterministic)
+        conn.create_function("bytelower", 1, bytelower, **deterministic)
 
     def _close(self):
         """Close the all connections to the underlying SQLite database
