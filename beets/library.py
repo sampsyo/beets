@@ -360,8 +360,9 @@ class LibModel(dbcore.Model["Library"]):
         plugins.send("database_change", lib=self._db, model=self)
 
     def add(self, lib=None):
+        # super().add() calls self.store(), which sends `database_change`,
+        # so don't do it here
         super().add(lib)
-        plugins.send("database_change", lib=self._db, model=self)
 
     def __format__(self, spec):
         if not spec:

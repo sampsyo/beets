@@ -23,13 +23,15 @@ from pathlib import Path
 from typing import Union
 
 
-def is_hidden(path: Union[bytes, Path]) -> bool:
+def is_hidden(path: Union[bytes, str, Path]) -> bool:
     """
     Determine whether the given path is treated as a 'hidden file' by the OS.
     """
 
     if isinstance(path, bytes):
         path = Path(os.fsdecode(path))
+    elif isinstance(path, str):
+        path = Path(path)
 
     # TODO: Avoid doing a platform check on every invocation of the function.
     # TODO: Stop supporting 'bytes' inputs once 'pathlib' is fully integrated.

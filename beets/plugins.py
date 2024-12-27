@@ -25,6 +25,7 @@ import mediafile
 
 import beets
 from beets import logging
+from beets.types import EventType
 
 PLUGIN_NAMESPACE = "beetsplug"
 
@@ -204,7 +205,7 @@ class BeetsPlugin:
     _raw_listeners = None
     listeners = None
 
-    def register_listener(self, event, func):
+    def register_listener(self, event: EventType, func):
         """Add a function as a listener for the specified event."""
         wrapped_func = self._set_log_level_and_params(logging.WARNING, func)
 

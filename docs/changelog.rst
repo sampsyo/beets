@@ -27,6 +27,9 @@ Bug fixes:
   :bug:`5265`
   :bug:`5371`
   :bug:`4715`
+* Fix an issue where calling `Library.add` would cause the `database_change`
+  event to be sent twice, not once.
+  :bug:`5560`
 
 For packagers:
 
