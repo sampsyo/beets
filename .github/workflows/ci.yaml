@@ -14,8 +14,17 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ubuntu-latest, windows-latest]
-        python-version: ["3.9"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        experimental: [false]
+        include:
+          - python-version: "3.13"
+            platform: ubuntu-latest
+            experimental: true
+          - python-version: "3.14-dev"
+            platform: ubuntu-latest
+            experimental: true
     runs-on: ${{ matrix.platform }}
+    continue-on-error: ${{ matrix.experimental }}
     env:
       IS_MAIN_PYTHON: ${{ matrix.python-version == '3.9' && matrix.platform == 'ubuntu-latest' }}
     steps:
@@ -33,7 +42,7 @@ jobs:
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt update
-          sudo apt install ffmpeg gobject-introspection libgirepository1.0-dev
+          sudo apt install ffmpeg gobject-introspection libgirepository1.0-dev llvm libopenblas-dev
           poetry install --extras=replaygain --extras=reflink
 
       - name: Install Python dependencies
