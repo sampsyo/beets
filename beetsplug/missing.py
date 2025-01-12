@@ -127,7 +127,7 @@ class MissingPlugin(BeetsPlugin):
             help=(
                 "show missing release for artist instead of tracks. Defaults "
                 "to only releases of type 'album'"
-            )
+            ),
         )
         self._command.parser.add_option(
             "--release-type",
