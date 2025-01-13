@@ -547,23 +547,23 @@ class TestTranslation:
             if b"Refrain" in request.body:
                 translations = (
                     ""
-                    "|[Refrain : Doja Cat]"
-                    "|Difficile pour moi de te laisser partir (Te laisser partir, te laisser partir)"  # noqa: E501
-                    "|Mon corps ne me laissait pas le cacher (Cachez-le)"
-                    "|Quoi qu’il arrive, je ne plierais pas (Ne plierait pas, ne plierais pas)"  # noqa: E501
-                    "|Chevauchant à travers le tonnerre, la foudre"
+                    " | [Refrain : Doja Cat]"
+                    " | Difficile pour moi de te laisser partir (Te laisser partir, te laisser partir)"  # noqa: E501
+                    " | Mon corps ne me laissait pas le cacher (Cachez-le)"
+                    " | Quoi qu’il arrive, je ne plierais pas (Ne plierait pas, ne plierais pas)"  # noqa: E501
+                    " | Chevauchant à travers le tonnerre, la foudre"
                 )
             elif b"00:00.00" in request.body:
                 translations = (
                     ""
-                    "|[00:00.00] Quelques paroles synchronisées"
-                    "|[00:01.00] Quelques paroles plus synchronisées"
+                    " | [00:00.00] Quelques paroles synchronisées"
+                    " | [00:01.00] Quelques paroles plus synchronisées"
                 )
             else:
                 translations = (
                     ""
-                    "|Quelques paroles synchronisées"
-                    "|Quelques paroles plus synchronisées"
+                    " | Quelques paroles synchronisées"
+                    " | Quelques paroles plus synchronisées"
                 )
 
             return [

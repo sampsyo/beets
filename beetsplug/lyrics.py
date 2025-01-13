@@ -744,6 +744,7 @@ class Google(SearchBackend):
 class Translator(RequestHandler):
     TRANSLATE_URL = "https://api.cognitive.microsofttranslator.com/translate"
     LINE_PARTS_RE = re.compile(r"^(\[\d\d:\d\d.\d\d\]|) *(.*)$")
+    SEPARATOR = " | "
     remove_translations = partial(re.compile(r" / [^\n]+").sub, "")
 
     _log: Logger
@@ -773,14 +774,16 @@ class Translator(RequestHandler):
         map the translations back to the original texts.
         """
         unique_texts = list(dict.fromkeys(texts))
+        text = self.SEPARATOR.join(unique_texts)
         data: list[TranslatorAPI.Response] = self.post_json(
             self.TRANSLATE_URL,
             headers={"Ocp-Apim-Subscription-Key": self.api_key},
-            json=[{"text": "|".join(unique_texts)}],
+            json=[{"text": text}],
             params={"api-version": "3.0", "to": self.to_language},
         )
 
-        translations = data[0]["translations"][0]["text"].split("|")
+        translated_text = data[0]["translations"][0]["text"]
+        translations = translated_text.split(self.SEPARATOR)
         trans_by_text = dict(zip(unique_texts, translations))
         return list(zip(texts, (trans_by_text.get(t, "") for t in texts)))
 
