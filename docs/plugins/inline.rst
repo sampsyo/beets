@@ -13,7 +13,10 @@ new template field; the key is the name of the field (you'll use the name to
 refer to the field in your templates) and the value is a Python expression or
 function body. The Python code has all of a track's fields in scope, so you can
 refer to any normal attributes (such as ``artist`` or ``title``) as Python
-variables.
+variables. The Python code also has direct access to the item object as ``item``
+for item fields, and as ``album`` for album fields. This allows use of computed
+fields and plugin fields, for example, ``album.albumtotal``, or ``album.missing``
+if the :doc:`/plugins/missing` plugin is enabled.
 
 Here are a couple of examples of expressions::
 
