@@ -1075,26 +1075,19 @@ class Item(LibModel):
 
     def destination(
         self,
-        fragment=False,
+        relative_to_libdir=False,
         basedir=None,
-        platform=None,
         path_formats=None,
-        replacements=None,
-    ):
-        """Return the path in the library directory designated for the
-        item (i.e., where the file ought to be).
+    ) -> bytes:
+        """Return the path in the library directory designated for the item
+        (i.e., where the file ought to be).
 
-        fragment makes this method return just the path fragment underneath
-        the root library directory; the path is also returned as Unicode
-        instead of encoded as a bytestring. basedir can override the library's
-        base directory for the destination.
+        The path is returned as a bytestring. ``basedir`` can override the
+        library's base directory for the destination.
         """
         db = self._check_db()
-        platform = platform or sys.platform
         basedir = basedir or db.directory
         path_formats = path_formats or db.path_formats
-        if replacements is None:
-            replacements = self._db.replacements
 
         # Use a path format based on a query, falling back on the
         # default.
@@ -1122,7 +1115,7 @@ class Item(LibModel):
         subpath = self.evaluate_template(subpath_tmpl, True)
 
         # Prepare path for output: normalize Unicode characters.
-        if platform == "darwin":
+        if sys.platform == "darwin":
             subpath = unicodedata.normalize("NFD", subpath)
         else:
             subpath = unicodedata.normalize("NFC", subpath)
@@ -1137,14 +1130,10 @@ class Item(LibModel):
             # When zero, try to determine from filesystem.
             maxlen = util.max_filename_length(db.directory)
 
-        subpath, fellback = util.legalize_path(
-            subpath,
-            replacements,
-            maxlen,
-            os.path.splitext(self.path)[1],
-            fragment,
+        lib_path_str, fallback = util.legalize_path(
+            subpath, db.replacements, maxlen, os.path.splitext(self.path)[1]
         )
-        if fellback:
+        if fallback:
             # Print an error message if legalization fell back to
             # default replacements because of the maximum length.
             log.warning(
@@ -1153,11 +1142,12 @@ class Item(LibModel):
                 "the filename.",
                 subpath,
             )
+        lib_path_bytes = util.bytestring_path(lib_path_str)
 
-        if fragment:
-            return util.as_string(subpath)
-        else:
-            return normpath(os.path.join(basedir, subpath))
+        if relative_to_libdir:
+            return lib_path_bytes
+
+        return normpath(os.path.join(basedir, lib_path_bytes))
 
 
 class Album(LibModel):
