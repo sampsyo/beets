@@ -17,12 +17,13 @@
 import codecs
 import os
 import shlex
+import re
 import subprocess
 from tempfile import NamedTemporaryFile
 
 import yaml
 
-from beets import plugins, ui, util
+from beets import plugins, ui, util, config
 from beets.dbcore import types
 from beets.importer import action
 from beets.ui.commands import PromptChoice, _do_query
@@ -140,6 +141,112 @@ def apply_(obj, data):
             obj.set_parse(key, str(value))
 
 
+def dump_and_prune_fields(data):
+    """For a set of "set fields", plus `id` and `path`, make sure that
+    those fields are presented in a way that makes sense
+    (this is for import sessions, where fields affected by the `--set` flag are
+    effectively read-only, and both `id` and `path` can only contain placeholders
+    for now)
+    This function takes the data for the editable text, and returns a modified
+    version of said text.
+    """
+
+    # this does the following:
+    # take set fields into account, by setting their values, commenting them out,
+    # and annotating them
+    # also pruning the "id" and "path" fields, which can only contain placeholders
+    # at this time
+
+    data = [obj.copy() for obj in data]
+
+    # prepare regex matching
+    # the following regex detects yaml lines setting values for 'id' or 'path'
+    placeholder_field_detector = re.compile(r"\s*(-\s+)?(id|path):(\s+.*)?")
+    set_fields = config["import"]["set_fields"]
+    if set_fields:
+        # a similar regex, but for setting values for any field
+        # in the set_fields list
+        ro_field_detector = re.compile(
+            r"\s*(-\s+)?({0:s}):(\s+.*)?".format(
+                "|".join(re.escape(key) for key in set_fields.keys())
+            )
+        )
+
+        # deal with the values of the set fields
+        for obj in data:
+            obj.update({k: v.get() for k, v in set_fields.items()})
+    else:
+        # will in theory not be read
+        # this line is just to make static analysis happy
+        ro_field_detector = None
+
+    # convert to text, then comment/annotate/prune lines (only on import)
+    data_lines = dump(data).split("\n")
+
+    line_i = 0
+    while line_i < len(data_lines):
+        line = data_lines[line_i]
+        if set_fields and ro_field_detector.fullmatch(line):
+            line = "#" + line + "   # [read-only field]"
+            data_lines[line_i] = line
+            line_i += 1
+        elif placeholder_field_detector.fullmatch(line):
+            del data_lines[line_i]
+        else:
+            line_i += 1
+
+    return "\n".join(data_lines)
+
+
+def fix_warn_ro_fields(old_data, new_data):
+    """For a set of new data obtained from edited text,
+    take care of the read-only fields that were commented out or
+    pruned out of the text prior to editing:
+    - first re-add the fields that are now missing
+    - then warned if those fields were changed when the text was edited
+    """
+
+    set_fields = config["import"]["set_fields"].keys()
+    set_fields = list(set_fields) + ["id", "path"]
+    for field in set_fields:
+        changed = False
+        for old_obj, new_obj in zip(old_data, new_data):
+            if field in old_obj and field not in new_obj:
+                # only copy 'missing fields' if they are missing
+                # due to us pruning/commenting them out in the editable
+                # text
+                new_obj[field] = old_obj[field]
+            if old_obj.get(field, "") != new_obj.get(field, ""):
+                changed = True
+                if field in old_obj:
+                    new_obj[field] = old_obj[field]
+                else:
+                    del new_obj[field]
+        if changed:
+            if field in ("id", "path"):
+                ui.print_(
+                    ui.colorize(
+                        "text_warning",
+                        f'NOTICE: the field "{field:s}" is read-only '
+                        "because it can only contain placeholder values "
+                        "at this time.\nThe values you have manually set "
+                        "will have to be discarded.",
+                    )
+                )
+            else:
+                ui.print_(
+                    ui.colorize(
+                        "text_warning",
+                        f'NOTICE: the field "{field:s}" is read-only '
+                        "because it was set through the `--set` "
+                        "command line arguemnt or an equivalent in beets's "
+                        "configuration.\nThe manual changes you have made "
+                        "to it will have to be discarded.",
+                    )
+                )
+    return new_data
+
+
 class EditPlugin(plugins.BeetsPlugin):
     def __init__(self):
         super().__init__()
@@ -157,6 +264,7 @@ class EditPlugin(plugins.BeetsPlugin):
         self.register_listener(
             "before_choose_candidate", self.before_choose_candidate_listener
         )
+        self.session_is_import = False
 
     def commands(self):
         edit_command = ui.Subcommand("edit", help="interactively edit metadata")
@@ -235,11 +343,15 @@ class EditPlugin(plugins.BeetsPlugin):
         # Get the content to edit as raw data structures.
         old_data = [flatten(o, fields) for o in objs]
 
+        if self.session_is_import:
+            old_str = dump_and_prune_fields(old_data)
+        else:
+            old_str = dump(old_data)
+
         # Set up a temporary file with the initial data for editing.
         new = NamedTemporaryFile(
             mode="w", suffix=".yaml", delete=False, encoding="utf-8"
         )
-        old_str = dump(old_data)
         new.write(old_str)
         new.close()
 
@@ -266,6 +378,10 @@ class EditPlugin(plugins.BeetsPlugin):
                         continue
                     else:
                         return False
+
+                # see if any changes to the data need to be discarded:
+                if self.session_is_import:
+                    new_data = fix_warn_ro_fields(old_data, new_data)
 
                 # Show the changes.
                 # If the objects are not on the DB yet, we need a copy of their
@@ -369,6 +485,8 @@ class EditPlugin(plugins.BeetsPlugin):
             if not obj._db or obj.id is None:
                 obj.id = -i
 
+        self.session_is_import = True
+
         # Present the YAML to the user and let them change it.
         fields = self._get_fields(album=False, extra=[])
         success = self.edit_objects(task.items, fields)
@@ -399,4 +517,5 @@ class EditPlugin(plugins.BeetsPlugin):
         task.match = task.candidates[sel - 1]
         task.apply_metadata()
 
+        self.session_is_import = True
         return self.importer_edit(session, task)
