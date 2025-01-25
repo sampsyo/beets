@@ -16,6 +16,7 @@
 
 import codecs
 import os
+import platform
 import shlex
 import subprocess
 from tempfile import NamedTemporaryFile
@@ -40,7 +41,8 @@ class ParseError(Exception):
 
 def edit(filename, log):
     """Open `filename` in a text editor."""
-    cmd = shlex.split(util.editor_command())
+    is_windows = platform.system() == "Windows"
+    cmd = shlex.split(util.editor_command(), posix=not is_windows)
     cmd.append(filename)
     log.debug("invoking editor command: {!r}", cmd)
     try:
