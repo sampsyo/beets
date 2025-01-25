@@ -20,6 +20,7 @@ import contextlib
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 from abc import ABC
@@ -1061,6 +1062,12 @@ class Database:
             # call conn.close() in _close()
             check_same_thread=False,
         )
+
+        if sys.version_info >= (3, 12) and sqlite3.sqlite_version_info >= (3, 29, 0):
+            # If possible, disable double-quoted strings
+            conn.setconfig(sqlite3.SQLITE_DBCONFIG_DQS_DDL, 0)
+            conn.setconfig(sqlite3.SQLITE_DBCONFIG_DQS_DML, 0)
+
         self.add_functions(conn)
 
         if self.supports_extensions:
