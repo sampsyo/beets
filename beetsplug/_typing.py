@@ -113,3 +113,23 @@ class GoogleCustomSearchAPI:
         """Pagemap data with a single meta tags dict in a list."""
 
         metatags: list[JSONDict]
+
+
+class TranslatorAPI:
+    class Language(TypedDict):
+        """Language data returned by the translator API."""
+
+        language: str
+        score: float
+
+    class Translation(TypedDict):
+        """Translation data returned by the translator API."""
+
+        text: str
+        to: str
+
+    class Response(TypedDict):
+        """Response from the translator API."""
+
+        detectedLanguage: TranslatorAPI.Language
+        translations: list[TranslatorAPI.Translation]

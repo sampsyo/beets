@@ -17,16 +17,17 @@
 from __future__ import annotations
 
 import atexit
-import errno
 import itertools
 import math
-import os.path
 import re
+import textwrap
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from functools import cached_property, partial, total_ordering
 from html import unescape
 from http import HTTPStatus
+from itertools import groupby
+from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Iterator, NamedTuple
 from urllib.parse import quote, quote_plus, urlencode, urlparse
 
@@ -40,48 +41,21 @@ from beets import plugins, ui
 from beets.autotag.hooks import string_dist
 
 if TYPE_CHECKING:
-    from beets.importer import ImportTask
-    from beets.library import Item
+    from logging import Logger
 
-    from ._typing import GeniusAPI, GoogleCustomSearchAPI, JSONDict, LRCLibAPI
+    from beets.importer import ImportTask
+    from beets.library import Item, Library
+
+    from ._typing import (
+        GeniusAPI,
+        GoogleCustomSearchAPI,
+        JSONDict,
+        LRCLibAPI,
+        TranslatorAPI,
+    )
 
 USER_AGENT = f"beets/{beets.__version__}"
 INSTRUMENTAL_LYRICS = "[Instrumental]"
-
-# The content for the base index.rst generated in ReST mode.
-REST_INDEX_TEMPLATE = """Lyrics
-======
-
-* :ref:`Song index <genindex>`
-* :ref:`search`
-
-Artist index:
-
-.. toctree::
-   :maxdepth: 1
-   :glob:
-
-   artists/*
-"""
-
-# The content for the base conf.py generated.
-REST_CONF_TEMPLATE = """# -*- coding: utf-8 -*-
-master_doc = 'index'
-project = 'Lyrics'
-copyright = 'none'
-author = 'Various Authors'
-latex_documents = [
-    (master_doc, 'Lyrics.tex', project,
-     author, 'manual'),
-]
-epub_title = project
-epub_author = author
-epub_publisher = author
-epub_copyright = copyright
-epub_exclude_files = ['search.html']
-epub_tocdepth = 1
-epub_tocdup = False
-"""
 
 
 class NotFoundError(requests.exceptions.HTTPError):
@@ -251,6 +225,12 @@ class RequestHandler:
         url = self.format_url(url, params)
         self.debug("Fetching JSON from {}", url)
         return r_session.get(url, **kwargs).json()
+
+    def post_json(self, url: str, params: JSONDict | None = None, **kwargs):
+        """Send POST request and return JSON response."""
+        url = self.format_url(url, params)
+        self.debug("Posting JSON to {}", url)
+        return r_session.post(url, **kwargs).json()
 
     @contextmanager
     def handle_request(self) -> Iterator[None]:
@@ -760,6 +740,214 @@ class Google(SearchBackend):
         return None
 
 
+@dataclass
+class Translator(RequestHandler):
+    TRANSLATE_URL = "https://api.cognitive.microsofttranslator.com/translate"
+    LINE_PARTS_RE = re.compile(r"^(\[\d\d:\d\d.\d\d\]|) *(.*)$")
+    SEPARATOR = " | "
+    remove_translations = partial(re.compile(r" / [^\n]+").sub, "")
+
+    _log: Logger
+    api_key: str
+    to_language: str
+    from_languages: list[str]
+
+    @classmethod
+    def from_config(
+        cls,
+        log: Logger,
+        api_key: str,
+        to_language: str,
+        from_languages: list[str] | None = None,
+    ) -> Translator:
+        return cls(
+            log,
+            api_key,
+            to_language.upper(),
+            [x.upper() for x in from_languages or []],
+        )
+
+    def get_translations(self, texts: Iterable[str]) -> list[tuple[str, str]]:
+        """Return translations for the given texts.
+
+        To reduce the translation 'cost', we translate unique texts, and then
+        map the translations back to the original texts.
+        """
+        unique_texts = list(dict.fromkeys(texts))
+        text = self.SEPARATOR.join(unique_texts)
+        data: list[TranslatorAPI.Response] = self.post_json(
+            self.TRANSLATE_URL,
+            headers={"Ocp-Apim-Subscription-Key": self.api_key},
+            json=[{"text": text}],
+            params={"api-version": "3.0", "to": self.to_language},
+        )
+
+        translated_text = data[0]["translations"][0]["text"]
+        translations = translated_text.split(self.SEPARATOR)
+        trans_by_text = dict(zip(unique_texts, translations))
+        return list(zip(texts, (trans_by_text.get(t, "") for t in texts)))
+
+    @classmethod
+    def split_line(cls, line: str) -> tuple[str, str]:
+        """Split line to (timestamp, text)."""
+        if m := cls.LINE_PARTS_RE.match(line):
+            return m[1], m[2]
+
+        return "", ""
+
+    def append_translations(self, lines: Iterable[str]) -> list[str]:
+        """Append translations to the given lyrics texts.
+
+        Lines may contain timestamps from LRCLib which need to be temporarily
+        removed for the translation. They can take any of these forms:
+                        - empty
+        Text            - text only
+        [00:00:00]      - timestamp only
+        [00:00:00] Text - timestamp with text
+        """
+        # split into [(timestamp, text), ...]]
+        ts_and_text = list(map(self.split_line, lines))
+        timestamps = [ts for ts, _ in ts_and_text]
+        text_pairs = self.get_translations([ln for _, ln in ts_and_text])
+
+        # only add the separator for non-empty translations
+        texts = [" / ".join(filter(None, p)) for p in text_pairs]
+        # only add the space between non-empty timestamps and texts
+        return [" ".join(filter(None, p)) for p in zip(timestamps, texts)]
+
+    def translate(self, new_lyrics: str, old_lyrics: str) -> str:
+        """Translate the given lyrics to the target language.
+
+        Check old lyrics for existing translations and return them if their
+        original text matches the new lyrics. This is to avoid translating
+        the same lyrics multiple times.
+
+        If the lyrics are already in the target language or not in any of
+        of the source languages (if configured), they are returned as is.
+
+        The footer with the source URL is preserved, if present.
+        """
+        if (
+            " / " in old_lyrics
+            and self.remove_translations(old_lyrics) == new_lyrics
+        ):
+            self.info("🔵 Translations already exist")
+            return old_lyrics
+
+        lyrics_language = langdetect.detect(new_lyrics).upper()
+        if lyrics_language == self.to_language:
+            self.info(
+                "🔵 Lyrics are already in the target language {}",
+                self.to_language,
+            )
+            return new_lyrics
+
+        if self.from_languages and lyrics_language not in self.from_languages:
+            self.info(
+                "🔵 Configuration {} does not permit translating from {}",
+                self.from_languages,
+                lyrics_language,
+            )
+            return new_lyrics
+
+        lyrics, *url = new_lyrics.split("\n\nSource: ")
+        with self.handle_request():
+            translated_lines = self.append_translations(lyrics.splitlines())
+            self.info("🟢 Translated lyrics to {}", self.to_language)
+            return "\n\nSource: ".join(["\n".join(translated_lines), *url])
+
+
+@dataclass
+class RestFiles:
+    # The content for the base index.rst generated in ReST mode.
+    REST_INDEX_TEMPLATE = textwrap.dedent("""
+        Lyrics
+        ======
+
+        * :ref:`Song index <genindex>`
+        * :ref:`search`
+
+        Artist index:
+
+        .. toctree::
+           :maxdepth: 1
+           :glob:
+
+           artists/*
+        """).strip()
+
+    # The content for the base conf.py generated.
+    REST_CONF_TEMPLATE = textwrap.dedent("""
+        master_doc = "index"
+        project = "Lyrics"
+        copyright = "none"
+        author = "Various Authors"
+        latex_documents = [
+            (master_doc, "Lyrics.tex", project, author, "manual"),
+        ]
+        epub_exclude_files = ["search.html"]
+        epub_tocdepth = 1
+        epub_tocdup = False
+        """).strip()
+
+    directory: Path
+
+    @cached_property
+    def artists_dir(self) -> Path:
+        dir = self.directory / "artists"
+        dir.mkdir(parents=True, exist_ok=True)
+        return dir
+
+    def write_indexes(self) -> None:
+        """Write conf.py and index.rst files necessary for Sphinx
+
+        We write minimal configurations that are necessary for Sphinx
+        to operate. We do not overwrite existing files so that
+        customizations are respected."""
+        index_file = self.directory / "index.rst"
+        if not index_file.exists():
+            index_file.write_text(self.REST_INDEX_TEMPLATE)
+        conf_file = self.directory / "conf.py"
+        if not conf_file.exists():
+            conf_file.write_text(self.REST_CONF_TEMPLATE)
+
+    def write_artist(self, artist: str, items: Iterable[Item]) -> None:
+        parts = [
+            f'{artist}\n{"=" * len(artist)}',
+            ".. contents::\n   :local:",
+        ]
+        for album, items in groupby(items, key=lambda i: i.album):
+            parts.append(f'{album}\n{"-" * len(album)}')
+            parts.extend(
+                part
+                for i in items
+                if (title := f":index:`{i.title.strip()}`")
+                for part in (
+                    f'{title}\n{"~" * len(title)}',
+                    textwrap.indent(i.lyrics, "| "),
+                )
+            )
+        file = self.artists_dir / f"{slug(artist)}.rst"
+        file.write_text("\n\n".join(parts).strip())
+
+    def write(self, items: list[Item]) -> None:
+        self.directory.mkdir(exist_ok=True, parents=True)
+        self.write_indexes()
+
+        items.sort(key=lambda i: i.albumartist)
+        for artist, artist_items in groupby(items, key=lambda i: i.albumartist):
+            self.write_artist(artist.strip(), artist_items)
+
+        d = self.directory
+        text = f"""
+        ReST files generated. to build, use one of:
+          sphinx-build -b html  {d} {d/"html"}
+          sphinx-build -b epub  {d} {d/"epub"}
+          sphinx-build -b latex {d} {d/"latex"} && make -C {d/"latex"} all-pdf
+        """
+        ui.print_(textwrap.dedent(text))
+
+
 class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
     BACKEND_BY_NAME = {
         b.name: b for b in [LRCLib, Google, Genius, Tekstowo, MusiXmatch]
@@ -776,15 +964,23 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
 
         return [self.BACKEND_BY_NAME[c](self.config, self._log) for c in chosen]
 
+    @cached_property
+    def translator(self) -> Translator | None:
+        config = self.config["translate"]
+        if config["api_key"].get() and config["to_language"].get():
+            return Translator.from_config(self._log, **config.flatten())
+        return None
+
     def __init__(self):
         super().__init__()
-        self.import_stages = [self.imported]
         self.config.add(
             {
                 "auto": True,
-                "bing_client_secret": None,
-                "bing_lang_from": [],
-                "bing_lang_to": None,
+                "translate": {
+                    "api_key": None,
+                    "from_languages": [],
+                    "to_language": None,
+                },
                 "dist_thresh": 0.11,
                 "google_API_key": None,
                 "google_engine_ID": "009217259823014548361:lndtuqkycfu",
@@ -795,6 +991,7 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
                 "fallback": None,
                 "force": False,
                 "local": False,
+                "print": False,
                 "synced": False,
                 # Musixmatch is disabled by default as they are currently blocking
                 # requests with the beets user agent.
@@ -803,52 +1000,27 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
                 ],
             }
         )
-        self.config["bing_client_secret"].redact = True
+        self.config["translate"]["api_key"].redact = True
         self.config["google_API_key"].redact = True
         self.config["google_engine_ID"].redact = True
         self.config["genius_api_key"].redact = True
 
-        # State information for the ReST writer.
-        # First, the current artist we're writing.
-        self.artist = "Unknown artist"
-        # The current album: False means no album yet.
-        self.album = False
-        # The current rest file content. None means the file is not
-        # open yet.
-        self.rest = None
-
-        self.config["bing_lang_from"] = [
-            x.lower() for x in self.config["bing_lang_from"].as_str_seq()
-        ]
-
-    @cached_property
-    def bing_access_token(self) -> str | None:
-        params = {
-            "client_id": "beets",
-            "client_secret": self.config["bing_client_secret"],
-            "scope": "https://api.microsofttranslator.com",
-            "grant_type": "client_credentials",
-        }
-
-        oauth_url = "https://datamarket.accesscontrol.windows.net/v2/OAuth2-13"
-        with self.handle_request():
-            r = r_session.post(oauth_url, params=params)
-            return r.json()["access_token"]
+        if self.config["auto"]:
+            self.import_stages = [self.imported]
 
     def commands(self):
         cmd = ui.Subcommand("lyrics", help="fetch song lyrics")
         cmd.parser.add_option(
             "-p",
             "--print",
-            dest="printlyr",
             action="store_true",
-            default=False,
+            default=self.config["print"].get(),
             help="print lyrics to console",
         )
         cmd.parser.add_option(
             "-r",
             "--write-rest",
-            dest="writerest",
+            dest="rest_directory",
             action="store",
             default=None,
             metavar="dir",
@@ -857,154 +1029,69 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
         cmd.parser.add_option(
             "-f",
             "--force",
-            dest="force_refetch",
             action="store_true",
-            default=False,
+            default=self.config["force"].get(),
             help="always re-download lyrics",
         )
         cmd.parser.add_option(
             "-l",
             "--local",
-            dest="local_only",
             action="store_true",
-            default=False,
+            default=self.config["local"].get(),
             help="do not fetch missing lyrics",
         )
 
-        def func(lib, opts, args):
+        def func(lib: Library, opts, args) -> None:
             # The "write to files" option corresponds to the
             # import_write config value.
-            write = ui.should_write()
-            if opts.writerest:
-                self.writerest_indexes(opts.writerest)
-            items = lib.items(ui.decargs(args))
+            self.config.set(vars(opts))
+            items = list(lib.items(args))
             for item in items:
-                if not opts.local_only and not self.config["local"]:
-                    self.fetch_item_lyrics(
-                        item, write, opts.force_refetch or self.config["force"]
-                    )
-                if item.lyrics:
-                    if opts.printlyr:
-                        ui.print_(item.lyrics)
-                    if opts.writerest:
-                        self.appendrest(opts.writerest, item)
-            if opts.writerest and items:
-                # flush last artist & write to ReST
-                self.writerest(opts.writerest)
-                ui.print_("ReST files generated. to build, use one of:")
-                ui.print_(
-                    "  sphinx-build -b html %s _build/html" % opts.writerest
-                )
-                ui.print_(
-                    "  sphinx-build -b epub %s _build/epub" % opts.writerest
-                )
-                ui.print_(
-                    (
-                        "  sphinx-build -b latex %s _build/latex "
-                        "&& make -C _build/latex all-pdf"
-                    )
-                    % opts.writerest
-                )
+                self.add_item_lyrics(item, ui.should_write())
+                if item.lyrics and opts.print:
+                    ui.print_(item.lyrics)
+
+            if opts.rest_directory and (
+                items := [i for i in items if i.lyrics]
+            ):
+                RestFiles(Path(opts.rest_directory)).write(items)
 
         cmd.func = func
         return [cmd]
 
-    def appendrest(self, directory, item):
-        """Append the item to an ReST file
-
-        This will keep state (in the `rest` variable) in order to avoid
-        writing continuously to the same files.
-        """
-
-        if slug(self.artist) != slug(item.albumartist):
-            # Write current file and start a new one ~ item.albumartist
-            self.writerest(directory)
-            self.artist = item.albumartist.strip()
-            self.rest = "%s\n%s\n\n.. contents::\n   :local:\n\n" % (
-                self.artist,
-                "=" * len(self.artist),
-            )
-
-        if self.album != item.album:
-            tmpalbum = self.album = item.album.strip()
-            if self.album == "":
-                tmpalbum = "Unknown album"
-            self.rest += "{}\n{}\n\n".format(tmpalbum, "-" * len(tmpalbum))
-        title_str = ":index:`%s`" % item.title.strip()
-        block = "| " + item.lyrics.replace("\n", "\n| ")
-        self.rest += "{}\n{}\n\n{}\n\n".format(
-            title_str, "~" * len(title_str), block
-        )
-
-    def writerest(self, directory):
-        """Write self.rest to a ReST file"""
-        if self.rest is not None and self.artist is not None:
-            path = os.path.join(
-                directory, "artists", slug(self.artist) + ".rst"
-            )
-            with open(path, "wb") as output:
-                output.write(self.rest.encode("utf-8"))
-
-    def writerest_indexes(self, directory):
-        """Write conf.py and index.rst files necessary for Sphinx
-
-        We write minimal configurations that are necessary for Sphinx
-        to operate. We do not overwrite existing files so that
-        customizations are respected."""
-        try:
-            os.makedirs(os.path.join(directory, "artists"))
-        except OSError as e:
-            if e.errno == errno.EEXIST:
-                pass
-            else:
-                raise
-        indexfile = os.path.join(directory, "index.rst")
-        if not os.path.exists(indexfile):
-            with open(indexfile, "w") as output:
-                output.write(REST_INDEX_TEMPLATE)
-        conffile = os.path.join(directory, "conf.py")
-        if not os.path.exists(conffile):
-            with open(conffile, "w") as output:
-                output.write(REST_CONF_TEMPLATE)
-
     def imported(self, _, task: ImportTask) -> None:
         """Import hook for fetching lyrics automatically."""
-        if self.config["auto"]:
-            for item in task.imported_items():
-                self.fetch_item_lyrics(item, False, self.config["force"])
+        for item in task.imported_items():
+            self.add_item_lyrics(item, False)
 
-    def fetch_item_lyrics(self, item: Item, write: bool, force: bool) -> None:
+    def find_lyrics(self, item: Item) -> str:
+        album, length = item.album, round(item.length)
+        matches = (
+            [
+                lyrics
+                for t in titles
+                if (lyrics := self.get_lyrics(a, t, album, length))
+            ]
+            for a, titles in search_pairs(item)
+        )
+
+        return "\n\n---\n\n".join(next(filter(None, matches), []))
+
+    def add_item_lyrics(self, item: Item, write: bool) -> None:
         """Fetch and store lyrics for a single item. If ``write``, then the
         lyrics will also be written to the file itself.
         """
-        # Skip if the item already has lyrics.
-        if not force and item.lyrics:
+        if self.config["local"]:
+            return
+
+        if not self.config["force"] and item.lyrics:
             self.info("🔵 Lyrics already present: {}", item)
             return
 
-        lyrics_matches = []
-        album, length = item.album, round(item.length)
-        for artist, titles in search_pairs(item):
-            lyrics_matches = [
-                self.get_lyrics(artist, title, album, length)
-                for title in titles
-            ]
-            if any(lyrics_matches):
-                break
-
-        lyrics = "\n\n---\n\n".join(filter(None, lyrics_matches))
-
-        if lyrics:
+        if lyrics := self.find_lyrics(item):
             self.info("🟢 Found lyrics: {0}", item)
-            if self.config["bing_client_secret"].get():
-                lang_from = langdetect.detect(lyrics)
-                if self.config["bing_lang_to"].get() != lang_from and (
-                    not self.config["bing_lang_from"]
-                    or (lang_from in self.config["bing_lang_from"].as_str_seq())
-                ):
-                    lyrics = self.append_translation(
-                        lyrics, self.config["bing_lang_to"]
-                    )
+            if translator := self.translator:
+                lyrics = translator.translate(lyrics, item.lyrics)
         else:
             self.info("🔴 Lyrics not found: {}", item)
             lyrics = self.config["fallback"].get()
@@ -1027,30 +1114,3 @@ class LyricsPlugin(RequestHandler, plugins.BeetsPlugin):
                     return f"{lyrics}\n\nSource: {url}"
 
         return None
-
-    def append_translation(self, text, to_lang):
-        from xml.etree import ElementTree
-
-        if not (token := self.bing_access_token):
-            self.warn(
-                "Could not get Bing Translate API access token. "
-                "Check your 'bing_client_secret' password."
-            )
-            return text
-
-        # Extract unique lines to limit API request size per song
-        lines = text.split("\n")
-        unique_lines = set(lines)
-        url = "https://api.microsofttranslator.com/v2/Http.svc/Translate"
-        with self.handle_request():
-            text = self.fetch_text(
-                url,
-                headers={"Authorization": f"Bearer {token}"},
-                params={"text": "|".join(unique_lines), "to": to_lang},
-            )
-            if translated := ElementTree.fromstring(text.encode("utf-8")).text:
-                # Use a translation mapping dict to build resulting lyrics
-                translations = dict(zip(unique_lines, translated.split("|")))
-                return "".join(f"{ln} / {translations[ln]}\n" for ln in lines)
-
-        return text

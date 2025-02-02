@@ -38,26 +38,30 @@ Default configuration:
 
     lyrics:
         auto: yes
-        bing_client_secret: null
-        bing_lang_from: []
-        bing_lang_to: null
+        translate:
+            api_key:
+            from_languages: []
+            to_language:
         dist_thresh: 0.11
         fallback: null
         force: no
         google_API_key: null
         google_engine_ID: 009217259823014548361:lndtuqkycfu
+        print: no
         sources: [lrclib, google, genius, tekstowo]
         synced: no
 
 The available options are:
 
 - **auto**: Fetch lyrics automatically during import.
-- **bing_client_secret**: Your Bing Translation application password
-  (see :ref:`lyrics-translation`)
-- **bing_lang_from**: By default all lyrics with a language other than
-  ``bing_lang_to`` are translated. Use a list of lang codes to restrict the set
-  of source languages to translate.
-- **bing_lang_to**: Language to translate lyrics into.
+- **translate**:
+
+  - **api_key**: Api key to access your Azure Translator resource. (see
+    :ref:`lyrics-translation`)
+  - **from_languages**: By default all lyrics with a language other than
+    ``translate_to`` are translated. Use a list of language codes to restrict
+    them.
+  - **to_language**: Language code to translate lyrics to.
 - **dist_thresh**: The maximum distance between the artist and title
   combination of the music file and lyrics candidate to consider them a match.
   Lower values will make the plugin more strict, higher values will make it
@@ -72,6 +76,7 @@ The available options are:
 - **google_engine_ID**: The custom search engine to use.
   Default: The `beets custom search engine`_, which gathers an updated list of
   sources known to be scrapeable.
+- **print**: Print lyrics to the console.
 - **sources**: List of sources to search for lyrics. An asterisk ``*`` expands
   to all available sources. The ``google`` source will be automatically
   deactivated if no ``google_API_key`` is setup.
@@ -104,9 +109,8 @@ Rendering Lyrics into Other Formats
 -----------------------------------
 
 The ``-r directory, --write-rest directory`` option renders all lyrics as
-`reStructuredText`_ (ReST) documents in ``directory`` (by default, the current
-directory). That directory, in turn, can be parsed by tools like `Sphinx`_ to
-generate HTML, ePUB, or PDF documents.
+`reStructuredText`_ (ReST) documents in ``directory``. That directory, in turn,
+can be parsed by tools like `Sphinx`_ to generate HTML, ePUB, or PDF documents.
 
 Minimal ``conf.py`` and ``index.rst`` files are created the first time the
 command is run. They are not overwritten on subsequent runs, so you can safely
@@ -119,19 +123,19 @@ Sphinx supports various `builders`_, see a few suggestions:
 
   ::
 
-      sphinx-build -b html . _build/html
+      sphinx-build -b html <dir> <dir>/html
 
 .. admonition:: Build an ePUB3 formatted file, usable on ebook readers
 
   ::
 
-      sphinx-build -b epub3 . _build/epub
+      sphinx-build -b epub3 <dir> <dir>/epub
 
 .. admonition:: Build a PDF file, which incidentally also builds a LaTeX file
 
   ::
 
-      sphinx-build -b latex %s _build/latex && make -C _build/latex all-pdf
+      sphinx-build -b latex <dir> <dir>/latex && make -C <dir>/latex all-pdf
 
 
 .. _Sphinx: https://www.sphinx-doc.org/
@@ -165,10 +169,28 @@ After that, the lyrics plugin will fall back on other declared data sources.
 Activate On-the-Fly Translation
 -------------------------------
 
-You need to register for a Microsoft Azure Marketplace free account and
-to the `Microsoft Translator API`_. Follow the four steps process, specifically
-at step 3 enter ``beets`` as *Client ID* and copy/paste the generated
-*Client secret* into your ``bing_client_secret`` configuration, alongside
-``bing_lang_to`` target ``language code``.
+We use Azure to optionally translate your lyrics. To set up the integration,
+follow these steps:
 
-.. _Microsoft Translator API: https://docs.microsoft.com/en-us/azure/cognitive-services/translator/translator-how-to-signup
+1. `Create a Translator resource`_ on Azure.
+2. `Obtain its API key`_.
+3. Add the API key to your configuration as ``translate.api_key``.
+4. Configure your target language using the ``translate.to_language`` option.
+
+
+For example, with the following configuration
+
+.. code-block:: yaml
+
+  lyrics:
+    translate:
+      api_key: YOUR_TRANSLATOR_API_KEY
+      to_language: de
+
+You should expect lyrics like this::
+
+  Original verse / Ursprünglicher Vers
+  Some other verse / Ein anderer Vers
+
+.. _create a Translator resource: https://learn.microsoft.com/en-us/azure/ai-services/translator/create-translator-resource
+.. _obtain its API key: https://learn.microsoft.com/en-us/python/api/overview/azure/ai-translation-text-readme?view=azure-python&preserve-view=true#get-an-api-key
