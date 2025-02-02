@@ -58,6 +58,13 @@ class MBSyncPlugin(BeetsPlugin):
             dest="write",
             help="don't write updated metadata to files",
         )
+        cmd.parser.add_option(
+            "-t",
+            "--timid",
+            dest="timid",
+            action="store_true",
+            help="always confirm all actions",
+        )
         cmd.parser.add_format_option()
         cmd.func = self.func
         return [cmd]
@@ -66,13 +73,14 @@ class MBSyncPlugin(BeetsPlugin):
         """Command handler for the mbsync function."""
         move = ui.should_move(opts.move)
         pretend = opts.pretend
+        timid = opts.timid
         write = ui.should_write(opts.write)
         query = ui.decargs(args)
 
-        self.singletons(lib, query, move, pretend, write)
-        self.albums(lib, query, move, pretend, write)
+        self.singletons(lib, query, move, pretend, write, timid)
+        self.albums(lib, query, move, pretend, write, timid)
 
-    def singletons(self, lib, query, move, pretend, write):
+    def singletons(self, lib, query, move, pretend, write, timid):
         """Retrieve and apply info from the autotagger for items matched by
         query.
         """
@@ -102,12 +110,26 @@ class MBSyncPlugin(BeetsPlugin):
                 )
                 continue
 
+            item_old = item.copy()
+            autotag.apply_item_metadata(item, track_info)
+            if not ui.show_model_changes(item, item_old):
+                continue
+
+            if timid:
+                print()
+                choice = ui.input_options(("Apply", "cancel", "skip"))
+                if choice == "a":  # Apply.
+                    pass
+                elif choice == "c":  # Cancel.
+                    return
+                elif choice == "s":  # Skip.
+                    continue
+
             # Apply.
             with lib.transaction():
-                autotag.apply_item_metadata(item, track_info)
                 apply_item_changes(lib, item, move, pretend, write)
 
-    def albums(self, lib, query, move, pretend, write):
+    def albums(self, lib, query, move, pretend, write, timid):
         """Retrieve and apply info from the autotagger for albums matched by
         query and their items.
         """
@@ -174,28 +196,37 @@ class MBSyncPlugin(BeetsPlugin):
                                 mapping[item] = c
                                 break
 
+            # Gather changes.
+            changed = []
+            items_old = [item.copy() for item in items]
+            autotag.apply_metadata(album_info, mapping)
+            for item, item_old in zip(items, items_old):
+                if ui.show_model_changes(item, item_old):
+                    changed.append(item)
+
+            if len(changed) == 0:
+                continue
+
+            if timid:
+                print()
+                choice = ui.input_options(("Apply", "cancel", "skip"))
+                if choice == "a":  # Apply.
+                    pass
+                elif choice == "c":  # Cancel.
+                    return
+                elif choice == "s":  # Skip.
+                    continue
+
             # Apply.
             self._log.debug("applying changes to {}", album_formatted)
             with lib.transaction():
-                autotag.apply_metadata(album_info, mapping)
-                changed = False
-                # Find any changed item to apply MusicBrainz changes to album.
-                any_changed_item = items[0]
-                for item in items:
-                    item_changed = ui.show_model_changes(item)
-                    changed |= item_changed
-                    if item_changed:
-                        any_changed_item = item
-                        apply_item_changes(lib, item, move, pretend, write)
-
-                if not changed:
-                    # No change to any item.
-                    continue
+                for item in changed:
+                    apply_item_changes(lib, item, move, pretend, write)
 
                 if not pretend:
                     # Update album structure to reflect an item in it.
                     for key in library.Album.item_keys:
-                        a[key] = any_changed_item[key]
+                        a[key] = changed[0][key]
                     a.store()
 
                     # Move album art (and any inconsistent items).
