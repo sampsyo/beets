@@ -283,7 +283,7 @@ class SmartPlaylistTest(BeetsTestCase):
         assert (
             content
             == b"#EXTM3U\n"
-            + b'#EXTINF:300 id="456" genre="Fake Genre",Fake Artist - fake Title\n'
+            + b'#EXTINF:300 id="456" genre="Fake%20Genre",Fake Artist - fake Title\n'
             + b"/tagada.mp3\n"
         )
 
