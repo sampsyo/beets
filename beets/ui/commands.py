@@ -1631,8 +1631,8 @@ def update_items(lib, query, album, move, pretend, fields, exclude_fields=None):
             # database.
             fields.append("path")
         if fields is None:
-            # no fields were provided, update all media fields
-            item_fields = fields or library.Item._media_fields
+            # no fields were provided, update all fields
+            item_fields = fields or library.Item._fields.keys()
             if move and "path" not in item_fields:
                 # move is enabled, add 'path' to the list of fields to update
                 item_fields.add("path")
