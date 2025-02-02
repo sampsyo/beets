@@ -1,12 +1,19 @@
 body {
     font-family: Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    overflow-y: hidden;
 }
 
 #header {
-    position: fixed;
-    left: 0;
-    right: 0;
+    position: sticky;
     top: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     height: 36px;
 
     color: white;
@@ -23,33 +30,76 @@ body {
     background: -moz-linear-gradient(top, #6b6b6b 0%, #0e0e0e 100%);
     background: -webkit-linear-gradient(top, #6b6b6b 0%,#0e0e0e 100%);
 }
+
+.headerLeft {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-direction: row;
+}
+.headerRight {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-direction: row;
+}
+
 #header h1 {
     font-size: 1.1em;
     font-weight: bold;
     color: white;
     margin: 0.35em;
-    float: left;
+}
+#player {
+    display: flex;
+    align-items: center;
+}
+#album-browser {
+    margin: 0.35em;
+}
+#album-browser .browseAlbums {
+    color: white;
+    font-size: 1.5em;
+    text-decoration: none;
+    -webkit-appearance: none;
+    font-family: Helvetica, Arial, sans-serif;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+#album-browser .browseAlbums:hover {
+    color: lightseagreen;
+}
+
+#content {
+    display: flex;
+    flex-direction: row;
+    height: calc(100% - 32px);
+    flex-grow: 1;
 }
 
 #entities {
+    display: flex;
+    flex-direction: column;
     width: 17em;
+    flex-shrink: 0;
+    height: 100%;
+    align-items: flex-start;
 
-    position: fixed;
-    top: 36px;
-    left: 0;
-    bottom: 0;
-    margin: 0;
-
-    z-index: 1;
     background: #dde4eb;
 
     /* shadowy border */
     box-shadow: 0 0 20px #666;
     -webkit-box-shadow: 0 0 20px #666;
     -moz-box-shadow: 0 0 20px #666;
+
+    overflow-y: auto;
 }
+
 #queryForm {
-    display: block;
+    display: sticky;
+    top: 0;
+    align-self: flex-start;
     text-align: center;
     margin: 0.25em 0;
 }
@@ -57,14 +107,11 @@ body {
     width: 95%;
     font-size: 1em;
 }
+
 #entities ul {
     width: 17em;
 
-    position: fixed;
-    top: 36px;
-    left: 0;
-    bottom: 0;
-    margin: 2.2em 0 0 0;
+    margin: 0;
     padding: 0;
 
     overflow-y: auto;
@@ -74,7 +121,7 @@ body {
     list-style: none;
     padding: 4px 8px;
     margin: 0;
-    cursor: default;
+    cursor: pointer;
 }
 #entities ul li.selected {
     background: #7abcff;
@@ -88,14 +135,16 @@ body {
 }
 
 
+#details {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    margin-right: 1em;
+}
 #main-detail, #extra-detail {
-    position: fixed;
-    left: 17em;
     margin: 1.0em 0 0 1.5em;
 }
 #main-detail {
-    top: 36px;
-    height: 98px;
 }
 #main-detail .artist, #main-detail .album, #main-detail .title {
     display: block;
@@ -111,13 +160,16 @@ body {
 #extra-detail {
     overflow-x: hidden;
     overflow-y: auto;
-    top: 134px;
-    bottom: 0;
-    right: 0;
+    margin-bottom: 2em;
 }
 /*Fix for correctly displaying line breaks in lyrics*/
 #extra-detail .lyrics {
     white-space: pre-wrap;
+}
+#extra-detail dl {
+    display: grid;
+    grid-template-columns: max-content auto;
+    grid-row-gap: 4px;
 }
 #extra-detail dl dt, #extra-detail dl dd {
     list-style: none;
@@ -125,20 +177,55 @@ body {
     padding: 0;
 }
 #extra-detail dl dt {
-    width: 10em;
-    float: left;
     text-align: right;
     font-weight: bold;
-    clear: both;
+    min-width: 10em;
 }
 #extra-detail dl dd {
-    margin-left: 10.5em;
+    margin-left: 1em;
+}
+
+
+#cover-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow-y: auto;
+    margin-top: 1em;
+}
+
+
+#cover-grid .albumCover {
+    width: 200px;
+    height: 200px;
+    color: #666666;
+    font-weight: bold;
+    border: none;
+    font-size: 1.3em;
+    text-align: center;
+    padding: 0;
+    margin: 0;
+    border-spacing: 0;
+}
+#cover-grid .albumCover img {
+    width: 100%;
+    height: 100%;
+    /* display alt text with linebreaks (but allow additional linebreaks
+     * for long lines) */
+    white-space: pre-line;
+    vertical-align: middle;
+}
+#cover-grid .albumCover td {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    vertical-align: middle;
+    text-align: center;
 }
 
 
 #player {
-    float: left;
-    width: 150px;
+    display: flex;
     height: 36px;
 }
 #player .play, #player .pause, #player .disabled {

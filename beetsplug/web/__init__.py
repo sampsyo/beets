@@ -16,10 +16,13 @@
 
 import base64
 import json
+import mimetypes
 import os
+import random
+from io import BytesIO
 
 import flask
-from flask import g, jsonify
+from flask import g, jsonify, request
 from unidecode import unidecode
 from werkzeug.routing import BaseConverter, PathConverter
 
@@ -77,11 +80,8 @@ def json_generator(items, root, expand=False):
     :returns:     generator that yields strings
     """
     yield '{"%s":[' % root
-    first = True
-    for item in items:
-        if first:
-            first = False
-        else:
+    for index, item in enumerate(items):
+        if index != 0:
             yield ","
         yield json.dumps(_rep(item, expand=expand))
     yield "]}"
@@ -377,10 +377,14 @@ def get_album(id):
 
 
 @app.route("/album/")
+@app.route("/album")
 @app.route("/album/query/")
 @resource_list("albums")
 def all_albums():
-    return g.lib.albums()
+    albums = list(g.lib.albums())
+    if "random" in request.args:
+        random.shuffle(albums)
+    return albums
 
 
 @app.route("/album/query/<query:queries>", methods=["GET", "DELETE"])
@@ -393,7 +397,18 @@ def album_query(queries):
 def album_art(album_id):
     album = g.lib.get_album(album_id)
     if album and album.artpath:
-        return flask.send_file(album.artpath.decode())
+        if "b64" in request.args:
+            stream = BytesIO()
+            with open(album.artpath, "rb") as art_file:
+                data = base64.b64encode(art_file.read())
+                stream.write(data)
+                stream.seek(0)
+            return flask.send_file(
+                stream,
+                mimetype=f"{mimetypes.guess_type(util.syspath(album.artpath))};base64",
+            )
+        else:
+            return flask.send_file(album.artpath.decode())
     else:
         return flask.abort(404)
 
