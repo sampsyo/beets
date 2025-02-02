@@ -304,7 +304,13 @@ class DelimitedString(BaseString[list[str], list[str]]):
             return []
         return string.split(self.delimiter)
 
-    def to_sql(self, model_value: list[str]):
+    def normalize(self, value: Any) -> list[str]:
+        if not value:
+            return []
+
+        return value.split(self.delimiter) if isinstance(value, str) else value
+
+    def to_sql(self, model_value: list[str]) -> str:
         return self.delimiter.join(model_value)
 
 

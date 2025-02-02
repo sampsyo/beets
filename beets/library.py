@@ -354,10 +354,27 @@ class LibModel(dbcore.Model["Library"]):
     def writable_media_fields(cls) -> set[str]:
         return set(MediaFile.fields()) & cls._fields.keys()
 
+    @property
+    def genre(self) -> str:
+        _type: types.DelimitedString = self._type("genres")
+        return _type.to_sql(self.get("genres"))
+
+    @genre.setter
+    def genre(self, value: str) -> None:
+        self.genres = value
+
+    @classmethod
+    def _getters(cls):
+        return {
+            "genre": lambda m: cls._fields["genres"].delimiter.join(m.genres)
+        }
+
     def _template_funcs(self):
-        funcs = DefaultTemplateFunctions(self, self._db).functions()
-        funcs.update(plugins.template_funcs())
-        return funcs
+        return {
+            **DefaultTemplateFunctions(self, self._db).functions(),
+            **plugins.template_funcs(),
+            "genre": "$genres",
+        }
 
     def store(self, fields=None):
         super().store(fields)
@@ -533,7 +550,7 @@ class Item(LibModel):
         "albumartists_sort": types.MULTI_VALUE_DSV,
         "albumartist_credit": types.STRING,
         "albumartists_credit": types.MULTI_VALUE_DSV,
-        "genre": types.STRING,
+        "genres": types.SEMICOLON_SPACE_DSV,
         "style": types.STRING,
         "discogs_albumid": types.INTEGER,
         "discogs_artistid": types.INTEGER,
@@ -614,7 +631,7 @@ class Item(LibModel):
         "comments",
         "album",
         "albumartist",
-        "genre",
+        "genres",
     )
 
     _types = {
@@ -689,10 +706,12 @@ class Item(LibModel):
 
     @classmethod
     def _getters(cls):
-        getters = plugins.item_field_getters()
-        getters["singleton"] = lambda i: i.album_id is None
-        getters["filesize"] = Item.try_filesize  # In bytes.
-        return getters
+        return {
+            **plugins.item_field_getters(),
+            "singleton": lambda i: i.album_id is None,
+            "filesize": Item.try_filesize,  # In bytes.
+            "genre": lambda i: cls._fields["genres"].delimiter.join(i.genres),
+        }
 
     def duplicates_query(self, fields: list[str]) -> dbcore.AndQuery:
         """Return a query for entities with same values in the given fields."""
@@ -768,6 +787,10 @@ class Item(LibModel):
 
         Set `with_album` to false to skip album fallback.
         """
+        if key in dir(self) and isinstance(
+            getattr(self.__class__, key), property
+        ):
+            return getattr(self, key)
         try:
             return self._get(key, default, raise_=with_album)
         except KeyError:
@@ -1181,7 +1204,7 @@ class Album(LibModel):
         "albumartists_sort": types.MULTI_VALUE_DSV,
         "albumartists_credit": types.MULTI_VALUE_DSV,
         "album": types.STRING,
-        "genre": types.STRING,
+        "genres": types.SEMICOLON_SPACE_DSV,
         "style": types.STRING,
         "discogs_albumid": types.INTEGER,
         "discogs_artistid": types.INTEGER,
@@ -1215,7 +1238,7 @@ class Album(LibModel):
         "original_day": types.PaddedInt(2),
     }
 
-    _search_fields = ("album", "albumartist", "genre")
+    _search_fields = ("album", "albumartist", "genres")
 
     _types = {
         "path": PathType(),
@@ -1237,7 +1260,7 @@ class Album(LibModel):
         "albumartist_credit",
         "albumartists_credit",
         "album",
-        "genre",
+        "genres",
         "style",
         "discogs_albumid",
         "discogs_artistid",
@@ -1293,10 +1316,12 @@ class Album(LibModel):
     def _getters(cls):
         # In addition to plugin-provided computed fields, also expose
         # the album's directory as `path`.
-        getters = plugins.album_field_getters()
-        getters["path"] = Album.item_dir
-        getters["albumtotal"] = Album._albumtotal
-        return getters
+        return {
+            **super()._getters(),
+            **plugins.album_field_getters(),
+            "path": Album.item_dir,
+            "albumtotal": Album._albumtotal,
+        }
 
     def items(self):
         """Return an iterable over the items associated with this
