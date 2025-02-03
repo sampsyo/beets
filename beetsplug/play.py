@@ -28,6 +28,11 @@ from beets.util import get_temp_filename
 # If this is missing, they're placed at the end.
 ARGS_MARKER = "$args"
 
+# Indicate where the playlist file (with absolute path) should be inserted into
+# the command string. If this is missing, its placed at the end, but before
+# arguments.
+PLS_MARKER = '$playlist'
+
 
 def play(
     command_str,
@@ -134,6 +139,16 @@ class PlayPlugin(BeetsPlugin):
         open_args = self._playlist_or_paths(paths)
         command_str = self._command_str(opts.args)
 
+        if PLS_MARKER in command_str:
+            if not config['play']['raw']:
+                command_str = command_str.replace(PLS_MARKER,
+                                                  ''.join(open_args))
+                self._log.debug('command altered by PLS_MARKER to: {}',
+                                command_str)
+                open_args = []
+            else:
+                command_str = command_str.replace(PLS_MARKER, " ")
+
         # Check if the selection exceeds configured threshold. If True,
         # cancel, otherwise proceed with play command.
         if opts.yes or not self._exceeds_threshold(
@@ -161,7 +176,7 @@ class PlayPlugin(BeetsPlugin):
         if config["play"]["raw"]:
             return paths
         else:
-            return [self._create_tmp_playlist(paths)]
+            return [shlex.quote(self._create_tmp_playlist(paths))]
 
     def _exceeds_threshold(
         self, selection, command_str, open_args, item_type="track"
