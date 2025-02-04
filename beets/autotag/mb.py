@@ -89,7 +89,17 @@ RELEASE_INCLUDES = [
     "isrcs",
     "url-rels",
     "release-rels",
-]
+    "tags",
+] & set(musicbrainzngs.VALID_INCLUDES["release"])
+
+TRACK_INCLUDES = [
+    "artists",
+    "aliases",
+    "isrcs",
+    "work-level-rels",
+    "artist-rels",
+] & set(musicbrainzngs.VALID_INCLUDES["recording"])
+
 BROWSE_INCLUDES = [
     "artist-credits",
     "work-rels",
@@ -101,11 +111,6 @@ if "work-level-rels" in musicbrainzngs.VALID_BROWSE_INCLUDES["recording"]:
     BROWSE_INCLUDES.append("work-level-rels")
 BROWSE_CHUNKSIZE = 100
 BROWSE_MAXTRACKS = 500
-TRACK_INCLUDES = ["artists", "aliases", "isrcs"]
-if "work-level-rels" in musicbrainzngs.VALID_INCLUDES["recording"]:
-    TRACK_INCLUDES += ["work-level-rels", "artist-rels"]
-if "genres" in musicbrainzngs.VALID_INCLUDES["recording"]:
-    RELEASE_INCLUDES += ["genres"]
 
 
 def track_url(trackid: str) -> str:
@@ -607,8 +612,8 @@ def album_info(release: dict) -> beets.autotag.hooks.AlbumInfo:
 
     if config["musicbrainz"]["genres"]:
         sources = [
-            release["release-group"].get("genre-list", []),
-            release.get("genre-list", []),
+            release["release-group"].get("tag-list", []),
+            release.get("tag-list", []),
         ]
         genres: Counter[str] = Counter()
         for source in sources:
