@@ -675,7 +675,7 @@ class ImportSessionFixture(ImportSession):
     >>> importer.run()
 
     This imports ``/path/to/import`` into `lib`. It skips the first
-    album and imports thesecond one with metadata from the tags. For the
+    album and imports the second one with metadata from the tags. For the
     remaining albums, the metadata from the autotagger will be applied.
     """
 

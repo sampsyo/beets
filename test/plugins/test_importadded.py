@@ -57,7 +57,7 @@ class ImportAddedTest(PluginMixin, ImportTestCase):
             os.path.getmtime(mfile.path) for mfile in self.import_media
         )
         self.matcher = AutotagStub().install()
-        self.matcher.macthin = AutotagStub.GOOD
+        self.matcher.matching = AutotagStub.IDENT
         self.importer = self.setup_importer()
         self.importer.add_choice(importer.action.APPLY)
 
