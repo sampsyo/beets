@@ -198,8 +198,8 @@ def ancestry(path: AnyStr) -> list[AnyStr]:
 
 
 def sorted_walk(
-    path: AnyStr,
-    ignore: Sequence[bytes] = (),
+    path: PathLike,
+    ignore: Sequence[PathLike] = (),
     ignore_hidden: bool = False,
     logger: Logger | None = None,
 ) -> Iterator[tuple[bytes, Sequence[bytes], Sequence[bytes]]]:
@@ -297,8 +297,8 @@ def fnmatch_all(names: Sequence[bytes], patterns: Sequence[bytes]) -> bool:
 
 
 def prune_dirs(
-    path: bytes,
-    root: bytes | None = None,
+    path: PathLike,
+    root: PathLike | None = None,
     clutter: Sequence[str] = (".DS_Store", "Thumbs.db"),
 ):
     """If path is an empty directory, then remove it. Recursively remove
@@ -419,12 +419,13 @@ PATH_SEP: bytes = bytestring_path(os.sep)
 
 
 def displayable_path(
-    path: BytesOrStr | tuple[BytesOrStr, ...], separator: str = "; "
+    path: PathLike | Iterable[PathLike], separator: str = "; "
 ) -> str:
     """Attempts to decode a bytestring path to a unicode object for the
     purpose of displaying it to the user. If the `path` argument is a
     list or a tuple, the elements are joined with `separator`.
     """
+
     if isinstance(path, (list, tuple)):
         return separator.join(displayable_path(p) for p in path)
     elif isinstance(path, str):
@@ -472,7 +473,7 @@ def samefile(p1: bytes, p2: bytes) -> bool:
     return False
 
 
-def remove(path: bytes, soft: bool = True):
+def remove(path: PathLike, soft: bool = True):
     """Remove the file. If `soft`, then no error will be raised if the
     file does not exist.
     """
