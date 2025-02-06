@@ -33,7 +33,7 @@ import beets.ui
 from beets import dbcore, vfs
 from beets.library import Item
 from beets.plugins import BeetsPlugin
-from beets.util import bluelet
+from beets.util import as_string, bluelet
 
 if TYPE_CHECKING:
     from beets.dbcore.query import Query
@@ -1130,7 +1130,7 @@ class Server(BaseServer):
 
     def _item_info(self, item):
         info_lines = [
-            "file: " + item.destination(fragment=True),
+            "file: " + as_string(item.destination(relative_to_libdir=True)),
             "Time: " + str(int(item.length)),
             "duration: " + f"{item.length:.3f}",
             "Id: " + str(item.id),
