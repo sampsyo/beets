@@ -92,7 +92,8 @@ class SmartPlaylistPlugin(BeetsPlugin):
             "--dest-regen",
             action="store_true",
             dest="dest_regen",
-            help="regenerate the destination path as 'move' or 'convert' commands would do.",
+            help="regenerate the destination path as 'move' or 'convert' "
+            "commands would do.",
         )
         spl_update.parser.add_option(
             "--relative-to",
