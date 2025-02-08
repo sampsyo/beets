@@ -17,7 +17,6 @@ interface. To invoke the CLI, just call beets.ui.main(). The actual
 CLI commands are implemented in the ui.commands module.
 """
 
-
 import errno
 import optparse
 import os.path
@@ -28,7 +27,7 @@ import sys
 import textwrap
 import traceback
 from difflib import SequenceMatcher
-from typing import Any, Callable, List
+from typing import Any, Callable
 
 import confuse
 
@@ -318,7 +317,7 @@ def input_options(
 
         # Wrap the query text.
         # Start prompt with U+279C: Heavy Round-Tipped Rightwards Arrow
-        prompt = colorize("action", "\u279C ")
+        prompt = colorize("action", "\u279c ")
         line_length = 0
         for i, (part, length) in enumerate(
             zip(prompt_parts, prompt_part_lengths)
@@ -387,7 +386,7 @@ def input_yn(prompt, require=False):
     "yes" unless `require` is `True`, in which case there is no default.
     """
     # Start prompt with U+279C: Heavy Round-Tipped Rightwards Arrow
-    yesno = colorize("action", "\u279C ") + colorize(
+    yesno = colorize("action", "\u279c ") + colorize(
         "action_description", "Enter Y or N:"
     )
     sel = input_options(("y", "n"), require, prompt, yesno)
@@ -1451,7 +1450,7 @@ class Subcommand:
     invoked by a SubcommandOptionParser.
     """
 
-    func: Callable[[library.Library, optparse.Values, List[str]], Any]
+    func: Callable[[library.Library, optparse.Values, list[str]], Any]
 
     def __init__(self, name, parser=None, help="", aliases=(), hide=False):
         """Creates a new subcommand. name is the primary way to invoke
@@ -1497,9 +1496,7 @@ class SubcommandsOptionParser(CommonOptionsParser):
         """
         # A more helpful default usage.
         if "usage" not in kwargs:
-            kwargs[
-                "usage"
-            ] = """
+            kwargs["usage"] = """
   %prog COMMAND [ARGS...]
   %prog help COMMAND"""
         kwargs["add_help_option"] = False
@@ -1861,13 +1858,21 @@ def main(args=None):
     """Run the main command-line interface for beets. Includes top-level
     exception handlers that print friendly error messages.
     """
+    if "AppData\\Local\\Microsoft\\WindowsApps" in sys.exec_prefix:
+        log.error(
+            "error: beets is unable to use the Microsoft Store version of "
+            "Python. Please install Python from https://python.org.\n"
+            "error: More details can be found here "
+            "https://beets.readthedocs.io/en/stable/guides/main.html"
+        )
+        sys.exit(1)
     try:
         _raw_main(args)
     except UserError as exc:
         message = exc.args[0] if exc.args else None
         log.error("error: {0}", message)
         sys.exit(1)
-    except util.HumanReadableException as exc:
+    except util.HumanReadableError as exc:
         exc.log(log)
         sys.exit(1)
     except library.FileOperationError as exc:

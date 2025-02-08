@@ -11,81 +11,74 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Uses Librosa to calculate the `bpm` field.
-"""
+"""Uses Librosa to calculate the `bpm` field."""
 
+from __future__ import annotations
 
-from librosa import beat, load
-from soundfile import LibsndfileError
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
-from beets import ui, util
+import librosa
+
 from beets.plugins import BeetsPlugin
+from beets.ui import Subcommand, should_write
+
+if TYPE_CHECKING:
+    from beets.importer import ImportTask
+    from beets.library import Item, Library
 
 
 class AutoBPMPlugin(BeetsPlugin):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.config.add(
             {
                 "auto": True,
                 "overwrite": False,
+                "beat_track_kwargs": {},
             }
         )
 
-        if self.config["auto"].get(bool):
+        if self.config["auto"]:
             self.import_stages = [self.imported]
 
-    def commands(self):
-        cmd = ui.Subcommand(
+    def commands(self) -> list[Subcommand]:
+        cmd = Subcommand(
             "autobpm", help="detect and add bpm from audio using Librosa"
         )
         cmd.func = self.command
         return [cmd]
 
-    def command(self, lib, opts, args):
-        self.calculate_bpm(lib.items(ui.decargs(args)), write=ui.should_write())
+    def command(self, lib: Library, _, args: list[str]) -> None:
+        self.calculate_bpm(list(lib.items(args)), write=should_write())
 
-    def imported(self, session, task):
+    def imported(self, _, task: ImportTask) -> None:
         self.calculate_bpm(task.imported_items())
 
-    def calculate_bpm(self, items, write=False):
-        overwrite = self.config["overwrite"].get(bool)
-
+    def calculate_bpm(self, items: list[Item], write: bool = False) -> None:
         for item in items:
-            if item["bpm"]:
-                self._log.info(
-                    "found bpm {0} for {1}",
-                    item["bpm"],
-                    util.displayable_path(item.path),
-                )
-                if not overwrite:
+            path = item.filepath
+            if bpm := item.bpm:
+                self._log.info("BPM for {} already exists: {}", path, bpm)
+                if not self.config["overwrite"]:
                     continue
 
             try:
-                y, sr = load(util.syspath(item.path), res_type="kaiser_fast")
-            except LibsndfileError as exc:
-                self._log.error(
-                    "LibsndfileError: failed to load {0} {1}",
-                    util.displayable_path(item.path),
-                    exc,
-                )
-                continue
-            except ValueError as exc:
-                self._log.error(
-                    "ValueError: failed to load {0} {1}",
-                    util.displayable_path(item.path),
-                    exc,
-                )
+                y, sr = librosa.load(item.filepath, res_type="kaiser_fast")
+            except Exception as exc:
+                self._log.error("Failed to load {}: {}", path, exc)
                 continue
 
-            tempo, _ = beat.beat_track(y=y, sr=sr)
-            bpm = round(tempo)
+            kwargs = self.config["beat_track_kwargs"].flatten()
+            try:
+                tempo, _ = librosa.beat.beat_track(y=y, sr=sr, **kwargs)
+            except Exception as exc:
+                self._log.error("Failed to measure BPM for {}: {}", path, exc)
+                continue
+
+            bpm = round(tempo[0] if isinstance(tempo, Iterable) else tempo)
             item["bpm"] = bpm
-            self._log.info(
-                "added computed bpm {0} for {1}",
-                bpm,
-                util.displayable_path(item.path),
-            )
+            self._log.info("Computed BPM for {}: {}", path, bpm)
 
             if write:
                 item.try_write()

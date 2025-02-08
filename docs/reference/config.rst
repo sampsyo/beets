@@ -276,6 +276,21 @@ Either ``yes`` or ``no``, indicating whether matched albums should have their
 That is, if this option is turned on, then ``year`` will always equal
 ``original_year`` and so on. Default: ``no``.
 
+.. _overwrite_null:
+
+overwrite_null
+~~~~~~~~~~~~~~
+
+This confusingly-named option indicates which fields have meaningful `null` values.  If
+an album or track field is in the corresponding list, then an existing value for this
+field in an item in the database can be overwritten with `null`.  By default, however,
+`null` is interpreted as information about the field being unavailable, so it would not
+overwrite existing values.  For example::
+
+    overwrite_null:
+        album: ["albumid"]
+        track: ["title", "date"]
+
 .. _artist_credit:
 
 artist_credit
@@ -600,13 +615,13 @@ Defaults to ``no``.
 
 This kind of clone is only available on certain filesystems: for example,
 btrfs and APFS. For more details on filesystem support, see the `pyreflink`_
-documentation.  Note that you need to install ``pyreflink``, either through
+documentation. Note that you need to install ``pyreflink``, either through
 ``python -m pip install beets[reflink]`` or ``python -m pip install reflink``.
 
 The option is ignored if ``move`` is enabled (i.e., beets can move or
 copy files but it doesn't make sense to do both).
 
-.. _file clones: https://blogs.oracle.com/otn/save-disk-space-on-linux-by-cloning-files-on-btrfs-and-ocfs2
+.. _file clones: https://en.wikipedia.org/wiki/Copy-on-write
 .. _pyreflink: https://reflink.readthedocs.io/en/latest/
 
 resume

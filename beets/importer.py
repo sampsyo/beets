@@ -60,8 +60,7 @@ HISTORY_KEY = "taghistory"
 # def extend_reimport_fresh_fields_item():
 #     importer.REIMPORT_FRESH_FIELDS_ITEM.extend(['tidal_track_popularity']
 # )
-REIMPORT_FRESH_FIELDS_ALBUM = ["data_source"]
-REIMPORT_FRESH_FIELDS_ITEM = [
+REIMPORT_FRESH_FIELDS_ALBUM = [
     "data_source",
     "bandcamp_album_id",
     "spotify_album_id",
@@ -69,12 +68,13 @@ REIMPORT_FRESH_FIELDS_ITEM = [
     "beatport_album_id",
     "tidal_album_id",
 ]
+REIMPORT_FRESH_FIELDS_ITEM = list(REIMPORT_FRESH_FIELDS_ALBUM)
 
 # Global logger.
 log = logging.getLogger("beets")
 
 
-class ImportAbort(Exception):
+class ImportAbortError(Exception):
     """Raised when the user aborts the tagging operation."""
 
     pass
@@ -360,7 +360,7 @@ class ImportSession:
                 pl.run_parallel(QUEUE_SIZE)
             else:
                 pl.run_sequential()
-        except ImportAbort:
+        except ImportAbortError:
             # User aborted operation. Silently stop.
             pass
 
@@ -605,7 +605,7 @@ class ImportTask(BaseImportTask):
         """
         items = self.imported_items()
         for field, view in config["import"]["set_fields"].items():
-            value = view.get()
+            value = str(view.get())
             log.debug(
                 "Set field {1}={2} for {0}",
                 displayable_path(self.paths),
@@ -627,8 +627,7 @@ class ImportTask(BaseImportTask):
             self.save_progress()
         if session.config["incremental"] and not (
             # Should we skip recording to incremental list?
-            self.skip
-            and session.config["incremental_skip_later"]
+            self.skip and session.config["incremental_skip_later"]
         ):
             self.save_history()
 
@@ -708,9 +707,7 @@ class ImportTask(BaseImportTask):
         # use a temporary Album object to generate any computed fields.
         tmp_album = library.Album(lib, **info)
         keys = config["import"]["duplicate_keys"]["album"].as_str_seq()
-        dup_query = library.Album.all_fields_query(
-            {key: tmp_album.get(key) for key in keys}
-        )
+        dup_query = tmp_album.duplicates_query(keys)
 
         # Don't count albums with the same files as duplicates.
         task_paths = {i.path for i in self.items if i}
@@ -815,9 +812,16 @@ class ImportTask(BaseImportTask):
         with lib.transaction():
             self.record_replaced(lib)
             self.remove_replaced(lib)
+
             self.album = lib.add_album(self.imported_items())
-            if "data_source" in self.imported_items()[0]:
-                self.album.data_source = self.imported_items()[0].data_source
+            if self.choice_flag == action.APPLY:
+                # Copy album flexible fields to the DB
+                # TODO: change the flow so we create the `Album` object earlier,
+                #   and we can move this into `self.apply_metadata`, just like
+                #   is done for tracks.
+                autotag.apply_album_metadata(self.match.info, self.album)
+                self.album.store()
+
             self.reimport_metadata(lib)
 
     def record_replaced(self, lib):
@@ -940,7 +944,7 @@ class ImportTask(BaseImportTask):
                 dup_item.remove()
         log.debug(
             "{0} of {1} items replaced",
-            sum(bool(l) for l in self.replaced_items.values()),
+            sum(bool(v) for v in self.replaced_items.values()),
             len(self.imported_items()),
         )
 
@@ -1019,9 +1023,7 @@ class SingletonImportTask(ImportTask):
         # temporary `Item` object to generate any computed fields.
         tmp_item = library.Item(lib, **info)
         keys = config["import"]["duplicate_keys"]["item"].as_str_seq()
-        dup_query = library.Album.all_fields_query(
-            {key: tmp_item.get(key) for key in keys}
-        )
+        dup_query = tmp_item.duplicates_query(keys)
 
         found_items = []
         for other_item in lib.items(dup_query):
@@ -1056,7 +1058,7 @@ class SingletonImportTask(ImportTask):
         values, for the singleton item.
         """
         for field, view in config["import"]["set_fields"].items():
-            value = view.get()
+            value = str(view.get())
             log.debug(
                 "Set field {1}={2} for {0}",
                 displayable_path(self.paths),

@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Fetch various AcousticBrainz metadata using MBID.
-"""
+"""Fetch various AcousticBrainz metadata using MBID."""
 
 from collections import defaultdict
 

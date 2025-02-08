@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Update library's tags using Beatport.
-"""
+"""Update library's tags using Beatport."""
 
 from beets import autotag, library, ui, util
 from beets.plugins import BeetsPlugin, apply_item_changes

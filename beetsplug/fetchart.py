@@ -12,21 +12,19 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Fetches album art.
-"""
+"""Fetches album art."""
 
 import os
 import re
 from collections import OrderedDict
 from contextlib import closing
-from tempfile import NamedTemporaryFile
 
 import confuse
 import requests
 from mediafile import image_mime_type
 
 from beets import config, importer, plugins, ui, util
-from beets.util import bytestring_path, sorted_walk, syspath
+from beets.util import bytestring_path, get_temp_filename, sorted_walk, syspath
 from beets.util.artresizer import ArtResizer
 
 try:
@@ -412,17 +410,17 @@ class RemoteArtSource(ArtSource):
                         ext,
                     )
 
-                suffix = os.fsdecode(ext)
-                with NamedTemporaryFile(suffix=suffix, delete=False) as fh:
+                filename = get_temp_filename(__name__, suffix=ext.decode())
+                with open(filename, "wb") as fh:
                     # write the first already loaded part of the image
                     fh.write(header)
                     # download the remaining part of the image
                     for chunk in data:
                         fh.write(chunk)
                 self._log.debug(
-                    "downloaded art to: {0}", util.displayable_path(fh.name)
+                    "downloaded art to: {0}", util.displayable_path(filename)
                 )
-                candidate.path = util.bytestring_path(fh.name)
+                candidate.path = util.bytestring_path(filename)
                 return
 
         except (OSError, requests.RequestException, TypeError) as exc:
@@ -1253,10 +1251,6 @@ class FetchArtPlugin(plugins.BeetsPlugin, RequestMixin):
         self.cautious = self.config["cautious"].get(bool)
         self.store_source = self.config["store_source"].get(bool)
 
-        self.src_removed = config["import"]["delete"].get(bool) or config[
-            "import"
-        ]["move"].get(bool)
-
         self.cover_format = self.config["cover_format"].get(
             confuse.Optional(str)
         )
@@ -1297,6 +1291,10 @@ class FetchArtPlugin(plugins.BeetsPlugin, RequestMixin):
             ART_SOURCES[s](self._log, self.config, match_by=[c])
             for s, c in sources
         ]
+
+    @staticmethod
+    def _is_source_file_removal_enabled():
+        return config["import"]["delete"] or config["import"]["move"]
 
     # Asynchronous; after music is added to the library.
     def fetch_art(self, session, task):
@@ -1340,10 +1338,11 @@ class FetchArtPlugin(plugins.BeetsPlugin, RequestMixin):
         """Place the discovered art in the filesystem."""
         if task in self.art_candidates:
             candidate = self.art_candidates.pop(task)
+            removal_enabled = FetchArtPlugin._is_source_file_removal_enabled()
 
-            self._set_art(task.album, candidate, not self.src_removed)
+            self._set_art(task.album, candidate, not removal_enabled)
 
-            if self.src_removed:
+            if removal_enabled:
                 task.prune(candidate.path)
 
     # Manual album art fetching.

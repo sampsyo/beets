@@ -14,12 +14,22 @@
 
 """Parsing of strings into DBCore queries."""
 
+from __future__ import annotations
+
 import itertools
 import re
-from typing import Collection, Dict, List, Optional, Sequence, Tuple, Type
+from typing import TYPE_CHECKING
 
-from . import Model, query
-from .query import Sort
+from . import query
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Sequence
+
+    from ..library import LibModel
+    from .query import FieldQueryType, Sort
+
+    Prefixes = dict[str, FieldQueryType]
+
 
 PARSE_QUERY_PART_REGEX = re.compile(
     # Non-capturing optional segment for the keyword.
@@ -35,10 +45,10 @@ PARSE_QUERY_PART_REGEX = re.compile(
 
 def parse_query_part(
     part: str,
-    query_classes: Dict[str, Type[query.FieldQuery]] = {},
-    prefixes: Dict = {},
-    default_class: Type[query.SubstringQuery] = query.SubstringQuery,
-) -> Tuple[Optional[str], str, Type[query.FieldQuery], bool]:
+    query_classes: dict[str, FieldQueryType] = {},
+    prefixes: Prefixes = {},
+    default_class: type[query.SubstringQuery] = query.SubstringQuery,
+) -> tuple[str | None, str, FieldQueryType, bool]:
     """Parse a single *query part*, which is a chunk of a complete query
     string representing a single criterion.
 
@@ -104,8 +114,8 @@ def parse_query_part(
 
 
 def construct_query_part(
-    model_cls: Type[Model],
-    prefixes: Dict,
+    model_cls: type[LibModel],
+    prefixes: Prefixes,
     query_part: str,
 ) -> query.Query:
     """Parse a *query part* string and return a :class:`Query` object.
@@ -127,7 +137,7 @@ def construct_query_part(
 
     # Use `model_cls` to build up a map from field (or query) names to
     # `Query` classes.
-    query_classes: Dict[str, Type[query.FieldQuery]] = {}
+    query_classes: dict[str, FieldQueryType] = {}
     for k, t in itertools.chain(
         model_cls._fields.items(), model_cls._types.items()
     ):
@@ -139,27 +149,14 @@ def construct_query_part(
         query_part, query_classes, prefixes
     )
 
-    # If there's no key (field name) specified, this is a "match
-    # anything" query.
     if key is None:
-        # The query type matches a specific field, but none was
-        # specified. So we use a version of the query that matches
-        # any field.
-        out_query = query.AnyFieldQuery(
-            pattern, model_cls._search_fields, query_class
-        )
-
-    # Field queries get constructed according to the name of the field
-    # they are querying.
+        # If there's no key (field name) specified, this is a "match anything"
+        # query.
+        out_query = model_cls.any_field_query(pattern, query_class)
     else:
-        key = key.lower()
-        if key in model_cls.shared_db_fields:
-            # This field exists in both tables, so SQLite will encounter
-            # an OperationalError if we try to query it in a join.
-            # Using an explicit table name resolves this.
-            key = f"{model_cls._table}.{key}"
-
-        out_query = query_class(key, pattern, key in model_cls.all_db_fields)
+        # Field queries get constructed according to the name of the field
+        # they are querying.
+        out_query = model_cls.field_query(key.lower(), pattern, query_class)
 
     # Apply negation.
     if negate:
@@ -170,9 +167,9 @@ def construct_query_part(
 
 # TYPING ERROR
 def query_from_strings(
-    query_cls: Type[query.CollectionQuery],
-    model_cls: Type[Model],
-    prefixes: Dict,
+    query_cls: type[query.CollectionQuery],
+    model_cls: type[LibModel],
+    prefixes: Prefixes,
     query_parts: Collection[str],
 ) -> query.Query:
     """Creates a collection query of type `query_cls` from a list of
@@ -188,7 +185,7 @@ def query_from_strings(
 
 
 def construct_sort_part(
-    model_cls: Type[Model],
+    model_cls: type[LibModel],
     part: str,
     case_insensitive: bool = True,
 ) -> Sort:
@@ -206,20 +203,20 @@ def construct_sort_part(
     assert direction in ("+", "-"), "part must end with + or -"
     is_ascending = direction == "+"
 
-    if field in model_cls._sorts:
-        sort = model_cls._sorts[field](
-            model_cls, is_ascending, case_insensitive
-        )
+    if sort_cls := model_cls._sorts.get(field):
+        if isinstance(sort_cls, query.SmartArtistSort):
+            field = "albumartist" if model_cls.__name__ == "Album" else "artist"
     elif field in model_cls._fields:
-        sort = query.FixedFieldSort(field, is_ascending, case_insensitive)
+        sort_cls = query.FixedFieldSort
     else:
         # Flexible or computed.
-        sort = query.SlowFieldSort(field, is_ascending, case_insensitive)
-    return sort
+        sort_cls = query.SlowFieldSort
+
+    return sort_cls(field, is_ascending, case_insensitive)
 
 
 def sort_from_strings(
-    model_cls: Type[Model],
+    model_cls: type[LibModel],
     sort_parts: Sequence[str],
     case_insensitive: bool = True,
 ) -> Sort:
@@ -238,11 +235,11 @@ def sort_from_strings(
 
 
 def parse_sorted_query(
-    model_cls: Type[Model],
-    parts: List[str],
-    prefixes: Dict = {},
+    model_cls: type[LibModel],
+    parts: list[str],
+    prefixes: Prefixes = {},
     case_insensitive: bool = True,
-) -> Tuple[query.Query, Sort]:
+) -> tuple[query.Query, Sort]:
     """Given a list of strings, create the `Query` and `Sort` that they
     represent.
     """

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "beets"
-version = "2.0.0"
+version = "2.2.0"
 description = "music tagger and library organizer"
 authors = ["Adrian Sampson <adrian@radbox.org>"]
 maintainers = ["Serene-Arc"]
@@ -17,7 +17,6 @@ classifiers = [
     "Environment :: Web Environment",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -26,28 +25,40 @@ packages = [
     { include = "beets" },
     { include = "beetsplug" },
 ]
+include = [ # extra files to include in the sdist
+    { path = "docs", format = "sdist" },
+    { path = "extra", format = "sdist" },
+    { path = "man/**/*", format = "sdist" },
+    { path = "test/*.py", format = "sdist" },
+    { path = "test/rsrc/**/*", format = "sdist" },
+]
+exclude = ["docs/_build", "docs/modd.conf", "docs/**/*.css"]
 
 [tool.poetry.urls]
 Changelog = "https://github.com/beetbox/beets/blob/master/docs/changelog.rst"
 "Bug Tracker" = "https://github.com/beetbox/beets/issues"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<4"
+python = ">=3.9,<4"
 
 colorama = { version = "*", markers = "sys_platform == 'win32'" }
 confuse = ">=1.5.0"
 jellyfish = "*"
+lap = ">=0.5.12"
 mediafile = ">=0.12.0"
-munkres = ">=1.0.0"
 musicbrainzngs = ">=0.4"
+numpy = ">=1.24.4"
+platformdirs = ">=3.5.0"
 pyyaml = "*"
 typing_extensions = { version = "*", python = "<=3.10" }
 unidecode = ">=1.3.6"
+
 beautifulsoup4 = { version = "*", optional = true }
 dbus-python = { version = "*", optional = true }
 flask = { version = "*", optional = true }
 flask-cors = { version = "*", optional = true }
 langdetect = { version = "*", optional = true }
+librosa = { version = "^0.10.2.post1", optional = true }
 mutagen = { version = ">=1.33", optional = true }
 Pillow = { version = "*", optional = true }
 py7zr = { version = "*", optional = true }
@@ -60,8 +71,12 @@ pyxdg = { version = "*", optional = true }
 rarfile = { version = "*", optional = true }
 reflink = { version = "*", optional = true }
 requests = { version = "*", optional = true }
+resampy = { version = ">=0.4.3", optional = true }
 requests-oauthlib = { version = ">=0.6.1", optional = true }
 soco = { version = "*", optional = true }
+
+pydata-sphinx-theme = { version = "*", optional = true }
+sphinx = { version = "*", optional = true }
 
 [tool.poetry.group.test.dependencies]
 beautifulsoup4 = "*"
@@ -77,30 +92,22 @@ python3-discogs-client = ">=2.3.15"
 py7zr = "*"
 pyxdg = "*"
 rarfile = "*"
-reflink = "*"
+requests-mock = ">=1.12.1"
 requests_oauthlib = "*"
 responses = ">=0.3.0"
 
-[tool.poetry.group.format.dependencies]
-isort = { version = "<5.14", extras = ["colors"] }
-black = ">=24.3,<25"
-
 [tool.poetry.group.lint.dependencies]
-flake8 = "*"
-pep8-naming = "*"
+ruff = ">=0.6.4"
 
 [tool.poetry.group.typing.dependencies]
 mypy = "*"
 types-beautifulsoup4 = "*"
+types-mock = "*"
 types-Flask-Cors = "*"
 types-Pillow = "*"
 types-PyYAML = "*"
 types-requests = "*"
 types-urllib3 = "*"
-
-[tool.poetry.group.docs.dependencies]
-pydata-sphinx-theme = "*"
-sphinx = "*"
 
 [tool.poetry.group.release.dependencies]
 click = ">=8.1.7"
@@ -111,11 +118,13 @@ tomli = ">=2.0.1"
 # inline comments note required external / non-python dependencies
 absubmit = ["requests"] # extractor binary from https://acousticbrainz.org/download
 aura = ["flask", "flask-cors", "Pillow"]
+autobpm = ["librosa", "resampy"]
 # badfiles # mp3val and flac
 beatport = ["requests-oauthlib"]
 bpd = ["PyGObject"] # python-gi and GStreamer 1.0+
 chroma = ["pyacoustid"] # chromaprint or fpcalc
 # convert # ffmpeg
+docs = ["pydata-sphinx-theme", "sphinx"]
 discogs = ["python3-discogs-client"]
 embedart = ["Pillow"] # ImageMagick
 embyupdate = ["requests"]
@@ -150,23 +159,14 @@ build-backend = "poetry.core.masonry.api"
 poethepoet = ">=0.26"
 poetry = ">=1.8"
 
-# We use a default path '.' to make black and isort behave like flake8 and
-# mypy do: they act on the entire codebase (flake8 does it by default, and
-# mypy follows our configuration) by default. Positional command-line arguments
-# override this. Therefore, locally you can run `poe check-format <some-path>`
-# to quickly check a specific path.
-#
-# Note: both tools respect .gitignore, therefore if we see them format
-# something unwanted locally, we should add these paths to .gitignore.
-[tool.poe.tasks._black]
-help = "Run black"
-cmd = "black $OPTS $path"
-args = { path = { help = "Path to blacken", positional = true, multiple = true, default = "." } }
-
-[tool.poe.tasks._isort]
-help = "Run isort"
-cmd = "isort $OPTS $path"
-args = { path = { help = "Path to isort", positional = true, multiple = true, default = "." } }
+[tool.poe.tasks.build]
+help = "Build the package"
+shell = """
+make -C docs man
+rm -rf man
+mv docs/_build/man .
+poetry build
+"""
 
 [tool.poe.tasks.bump]
 help = "Bump project version and update relevant files"
@@ -183,8 +183,7 @@ cmd = "make -C docs linkcheck"
 
 [tool.poe.tasks.check-format]
 help = "Check the code for style issues"
-ref = "format"
-env.OPTS = "--check --diff --color"
+cmd = "ruff format --check --diff"
 
 [tool.poe.tasks.check-types]
 help = "Check the code for typing issues. Accepts mypy options."
@@ -196,13 +195,11 @@ cmd = "make -C docs html"
 
 [tool.poe.tasks.format]
 help = "Format the codebase"
-ignore_fail = "return_non_zero"
-sequence = ["_black $path", "_isort $path"]
-args = { path = { help = "Path to format", positional = true, multiple = true, default = "." } }
+cmd = "ruff format"
 
 [tool.poe.tasks.lint]
-help = "Check the code for linting issues. Accepts flake8 options."
-cmd = "flake8"
+help = "Check the code for linting issues. Accepts ruff options."
+cmd = "ruff check"
 
 [tool.poe.tasks.update-dependencies]
 help = "Update dependencies to their latest versions."
@@ -230,13 +227,57 @@ env.OPTS = """
 --cov-context=test
 """
 
-[tool.black]
-line-length = 80
-target-version = ["py38", "py39", "py310", "py311"]
+[tool.poe.tasks.check-temp-files]
+help = "Run each test module one by one and check for leftover temp files"
+shell = """
+setopt nullglob
+for file in test/**/*.py; do
+  print Temp files created by $file && poe test $file &>/dev/null
+  tempfiles=(/tmp/**/tmp* /tmp/beets/**/*)
+  if (( $#tempfiles )); then
+    print -l $'\t'$^tempfiles
+    rm -r --interactive=never $tempfiles &>/dev/null
+  fi
+done
+"""
+interpreter = "zsh"
 
-[tool.isort]
-profile = "black"
-py_version = 38
-multi_line_output = 3
-line_length = 80
-indent = 4
+[tool.ruff]
+target-version = "py39"
+line-length = 80
+
+[tool.ruff.lint]
+select = [
+    # "ARG", # flake8-unused-arguments
+    # "C4", # flake8-comprehensions
+    "E", # pycodestyle
+    "F", # pyflakes
+    # "B", # flake8-bugbear
+    "I", # isort
+    "N", # pep8-naming
+    "PT", # flake8-pytest-style
+    # "RUF", # ruff
+    # "UP", # pyupgrade
+    "TCH", # flake8-type-checking
+    "W", # pycodestyle
+]
+[tool.ruff.lint.per-file-ignores]
+"beets/**" = ["PT"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 88
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+parametrize-names-type = "csv"
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
+
+[tool.ruff.lint.pep8-naming]
+classmethod-decorators = ["cached_classproperty"]
+extend-ignore-names = ["assert*", "cached_classproperty"]

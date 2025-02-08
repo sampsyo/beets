@@ -13,12 +13,13 @@
 # included in all copies or substantial portions of the Software.
 """Testsuite for the M3UFile class."""
 
-
 import sys
 import unittest
 from os import path
 from shutil import rmtree
 from tempfile import mkdtemp
+
+import pytest
 
 from beets.test._common import RSRC
 from beets.util import bytestring_path
@@ -33,7 +34,7 @@ class M3UFileTest(unittest.TestCase):
         tempdir = bytestring_path(mkdtemp())
         the_playlist_file = path.join(tempdir, b"playlist.m3u8")
         m3ufile = M3UFile(the_playlist_file)
-        with self.assertRaises(EmptyPlaylistError):
+        with pytest.raises(EmptyPlaylistError):
             m3ufile.write()
         rmtree(tempdir)
 
@@ -49,7 +50,7 @@ class M3UFileTest(unittest.TestCase):
             ]
         )
         m3ufile.write()
-        self.assertTrue(path.exists(the_playlist_file))
+        assert path.exists(the_playlist_file)
         rmtree(tempdir)
 
     def test_playlist_write_unicode(self):
@@ -64,7 +65,7 @@ class M3UFileTest(unittest.TestCase):
             ]
         )
         m3ufile.write()
-        self.assertTrue(path.exists(the_playlist_file))
+        assert path.exists(the_playlist_file)
         rmtree(tempdir)
 
     @unittest.skipUnless(sys.platform == "win32", "win32")
@@ -82,23 +83,16 @@ class M3UFileTest(unittest.TestCase):
             ]
         )
         m3ufile.write()
-        self.assertTrue(path.exists(the_playlist_file))
+        assert path.exists(the_playlist_file)
         m3ufile_read = M3UFile(the_playlist_file)
         m3ufile_read.load()
-        self.assertEqual(
-            m3ufile.media_list[0],
-            bytestring_path(
-                path.join("x:\\", "This", "is", "å", "path", "to_a_file.mp3")
-            ),
+        assert m3ufile.media_list[0] == bytestring_path(
+            path.join("x:\\", "This", "is", "å", "path", "to_a_file.mp3")
         )
-        self.assertEqual(
-            m3ufile.media_list[1],
-            bytestring_path(r"x:\This\is\another\path\tö_a_file.mp3"),
-            bytestring_path(
-                path.join(
-                    "x:\\", "This", "is", "another", "path", "tö_a_file.mp3"
-                )
-            ),
+        assert m3ufile.media_list[1] == bytestring_path(
+            r"x:\This\is\another\path\tö_a_file.mp3"
+        ), bytestring_path(
+            path.join("x:\\", "This", "is", "another", "path", "tö_a_file.mp3")
         )
         rmtree(tempdir)
 
@@ -108,9 +102,8 @@ class M3UFileTest(unittest.TestCase):
         the_playlist_file = path.join(RSRC, b"playlist.m3u")
         m3ufile = M3UFile(the_playlist_file)
         m3ufile.load()
-        self.assertEqual(
-            m3ufile.media_list[0],
-            bytestring_path("/This/is/a/path/to_a_file.mp3"),
+        assert m3ufile.media_list[0] == bytestring_path(
+            "/This/is/a/path/to_a_file.mp3"
         )
 
     @unittest.skipIf(sys.platform == "win32", "win32")
@@ -119,9 +112,8 @@ class M3UFileTest(unittest.TestCase):
         the_playlist_file = path.join(RSRC, b"playlist.m3u8")
         m3ufile = M3UFile(the_playlist_file)
         m3ufile.load()
-        self.assertEqual(
-            m3ufile.media_list[0],
-            bytestring_path("/This/is/å/path/to_a_file.mp3"),
+        assert m3ufile.media_list[0] == bytestring_path(
+            "/This/is/å/path/to_a_file.mp3"
         )
 
     @unittest.skipUnless(sys.platform == "win32", "win32")
@@ -133,27 +125,18 @@ class M3UFileTest(unittest.TestCase):
         )
         m3ufile = M3UFile(the_playlist_file)
         m3ufile.load()
-        self.assertEqual(m3ufile.media_list[0], winpath)
+        assert m3ufile.media_list[0] == winpath
 
     def test_playlist_load_extm3u(self):
         """Test loading a playlist with an #EXTM3U header."""
         the_playlist_file = path.join(RSRC, b"playlist.m3u")
         m3ufile = M3UFile(the_playlist_file)
         m3ufile.load()
-        self.assertTrue(m3ufile.extm3u)
+        assert m3ufile.extm3u
 
     def test_playlist_load_non_extm3u(self):
         """Test loading a playlist without an #EXTM3U header."""
         the_playlist_file = path.join(RSRC, b"playlist_non_ext.m3u")
         m3ufile = M3UFile(the_playlist_file)
         m3ufile.load()
-        self.assertFalse(m3ufile.extm3u)
-
-
-def suite():
-    """This testsuite's main function."""
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert not m3ufile.extm3u

@@ -16,29 +16,25 @@
 import ctypes
 import os
 import sys
-import unittest
 
 from beets import util
-from beets.test.helper import TestHelper
+from beets.test.helper import PluginTestCase
 
 
-class FetchartCliTest(unittest.TestCase, TestHelper):
+class FetchartCliTest(PluginTestCase):
+    plugin = "fetchart"
+
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("fetchart")
+        super().setUp()
         self.config["fetchart"]["cover_names"] = "c\xc3\xb6ver.jpg"
         self.config["art_filename"] = "mycover"
         self.album = self.add_album()
         self.cover_path = os.path.join(self.album.path, b"mycover.jpg")
 
-    def tearDown(self):
-        self.unload_plugins()
-        self.teardown_beets()
-
     def check_cover_is_stored(self):
-        self.assertEqual(self.album["artpath"], self.cover_path)
+        assert self.album["artpath"] == self.cover_path
         with open(util.syspath(self.cover_path)) as f:
-            self.assertEqual(f.read(), "IMAGE")
+            assert f.read() == "IMAGE"
 
     def hide_file_windows(self):
         hidden_mask = 2
@@ -60,14 +56,14 @@ class FetchartCliTest(unittest.TestCase, TestHelper):
         os.makedirs(os.path.join(self.album.path, b"mycover.jpg"))
         self.run_command("fetchart")
         self.album.load()
-        self.assertIsNone(self.album["artpath"])
+        assert self.album["artpath"] is None
 
     def test_filesystem_does_not_pick_up_ignored_file(self):
         self.touch(b"co_ver.jpg", dir=self.album.path, content="IMAGE")
         self.config["ignore"] = ["*_*"]
         self.run_command("fetchart")
         self.album.load()
-        self.assertIsNone(self.album["artpath"])
+        assert self.album["artpath"] is None
 
     def test_filesystem_picks_up_non_ignored_file(self):
         self.touch(b"cover.jpg", dir=self.album.path, content="IMAGE")
@@ -84,7 +80,7 @@ class FetchartCliTest(unittest.TestCase, TestHelper):
         self.config["ignore_hidden"] = True
         self.run_command("fetchart")
         self.album.load()
-        self.assertIsNone(self.album["artpath"])
+        assert self.album["artpath"] is None
 
     def test_filesystem_picks_up_non_hidden_file(self):
         self.touch(b"cover.jpg", dir=self.album.path, content="IMAGE")
@@ -102,11 +98,3 @@ class FetchartCliTest(unittest.TestCase, TestHelper):
         self.run_command("fetchart")
         self.album.load()
         self.check_cover_is_stored()
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

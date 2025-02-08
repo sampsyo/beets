@@ -13,8 +13,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""List missing tracks.
-"""
+"""List missing tracks."""
 
 from collections import defaultdict
 

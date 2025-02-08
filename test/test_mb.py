@@ -12,18 +12,16 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Tests for MusicBrainz API wrapper.
-"""
+"""Tests for MusicBrainz API wrapper."""
 
-import unittest
 from unittest import mock
 
 from beets import config
 from beets.autotag import mb
-from beets.test import _common
+from beets.test.helper import BeetsTestCase
 
 
-class MBAlbumInfoTest(_common.TestCase):
+class MBAlbumInfoTest(BeetsTestCase):
     def _make_release(
         self,
         date_str="2009",
@@ -213,25 +211,25 @@ class MBAlbumInfoTest(_common.TestCase):
     def test_parse_release_with_year(self):
         release = self._make_release("1984")
         d = mb.album_info(release)
-        self.assertEqual(d.album, "ALBUM TITLE")
-        self.assertEqual(d.album_id, "ALBUM ID")
-        self.assertEqual(d.artist, "ARTIST NAME")
-        self.assertEqual(d.artist_id, "ARTIST ID")
-        self.assertEqual(d.original_year, 1984)
-        self.assertEqual(d.year, 3001)
-        self.assertEqual(d.artist_credit, "ARTIST CREDIT")
+        assert d.album == "ALBUM TITLE"
+        assert d.album_id == "ALBUM ID"
+        assert d.artist == "ARTIST NAME"
+        assert d.artist_id == "ARTIST ID"
+        assert d.original_year == 1984
+        assert d.year == 3001
+        assert d.artist_credit == "ARTIST CREDIT"
 
     def test_parse_release_type(self):
         release = self._make_release("1984")
         d = mb.album_info(release)
-        self.assertEqual(d.albumtype, "album")
+        assert d.albumtype == "album"
 
     def test_parse_release_full_date(self):
         release = self._make_release("1987-03-31")
         d = mb.album_info(release)
-        self.assertEqual(d.original_year, 1987)
-        self.assertEqual(d.original_month, 3)
-        self.assertEqual(d.original_day, 31)
+        assert d.original_year == 1987
+        assert d.original_month == 3
+        assert d.original_day == 31
 
     def test_parse_tracks(self):
         tracks = [
@@ -242,13 +240,13 @@ class MBAlbumInfoTest(_common.TestCase):
 
         d = mb.album_info(release)
         t = d.tracks
-        self.assertEqual(len(t), 2)
-        self.assertEqual(t[0].title, "TITLE ONE")
-        self.assertEqual(t[0].track_id, "ID ONE")
-        self.assertEqual(t[0].length, 100.0)
-        self.assertEqual(t[1].title, "TITLE TWO")
-        self.assertEqual(t[1].track_id, "ID TWO")
-        self.assertEqual(t[1].length, 200.0)
+        assert len(t) == 2
+        assert t[0].title == "TITLE ONE"
+        assert t[0].track_id == "ID ONE"
+        assert t[0].length == 100.0
+        assert t[1].title == "TITLE TWO"
+        assert t[1].track_id == "ID TWO"
+        assert t[1].length == 200.0
 
     def test_parse_track_indices(self):
         tracks = [
@@ -259,10 +257,10 @@ class MBAlbumInfoTest(_common.TestCase):
 
         d = mb.album_info(release)
         t = d.tracks
-        self.assertEqual(t[0].medium_index, 1)
-        self.assertEqual(t[0].index, 1)
-        self.assertEqual(t[1].medium_index, 2)
-        self.assertEqual(t[1].index, 2)
+        assert t[0].medium_index == 1
+        assert t[0].index == 1
+        assert t[1].medium_index == 2
+        assert t[1].index == 2
 
     def test_parse_medium_numbers_single_medium(self):
         tracks = [
@@ -272,10 +270,10 @@ class MBAlbumInfoTest(_common.TestCase):
         release = self._make_release(tracks=tracks)
 
         d = mb.album_info(release)
-        self.assertEqual(d.mediums, 1)
+        assert d.mediums == 1
         t = d.tracks
-        self.assertEqual(t[0].medium, 1)
-        self.assertEqual(t[1].medium, 1)
+        assert t[0].medium == 1
+        assert t[1].medium == 1
 
     def test_parse_medium_numbers_two_mediums(self):
         tracks = [
@@ -299,91 +297,91 @@ class MBAlbumInfoTest(_common.TestCase):
         )
 
         d = mb.album_info(release)
-        self.assertEqual(d.mediums, 2)
+        assert d.mediums == 2
         t = d.tracks
-        self.assertEqual(t[0].medium, 1)
-        self.assertEqual(t[0].medium_index, 1)
-        self.assertEqual(t[0].index, 1)
-        self.assertEqual(t[1].medium, 2)
-        self.assertEqual(t[1].medium_index, 1)
-        self.assertEqual(t[1].index, 2)
+        assert t[0].medium == 1
+        assert t[0].medium_index == 1
+        assert t[0].index == 1
+        assert t[1].medium == 2
+        assert t[1].medium_index == 1
+        assert t[1].index == 2
 
     def test_parse_release_year_month_only(self):
         release = self._make_release("1987-03")
         d = mb.album_info(release)
-        self.assertEqual(d.original_year, 1987)
-        self.assertEqual(d.original_month, 3)
+        assert d.original_year == 1987
+        assert d.original_month == 3
 
     def test_no_durations(self):
         tracks = [self._make_track("TITLE", "ID", None)]
         release = self._make_release(tracks=tracks)
         d = mb.album_info(release)
-        self.assertIsNone(d.tracks[0].length)
+        assert d.tracks[0].length is None
 
     def test_track_length_overrides_recording_length(self):
         tracks = [self._make_track("TITLE", "ID", 1.0 * 1000.0)]
         release = self._make_release(tracks=tracks, track_length=2.0 * 1000.0)
         d = mb.album_info(release)
-        self.assertEqual(d.tracks[0].length, 2.0)
+        assert d.tracks[0].length == 2.0
 
     def test_no_release_date(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertFalse(d.original_year)
-        self.assertFalse(d.original_month)
-        self.assertFalse(d.original_day)
+        assert not d.original_year
+        assert not d.original_month
+        assert not d.original_day
 
     def test_various_artists_defaults_false(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertFalse(d.va)
+        assert not d.va
 
     def test_detect_various_artists(self):
         release = self._make_release(None)
         release["artist-credit"][0]["artist"]["id"] = mb.VARIOUS_ARTISTS_ID
         d = mb.album_info(release)
-        self.assertTrue(d.va)
+        assert d.va
 
     def test_parse_artist_sort_name(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.artist_sort, "ARTIST SORT NAME")
+        assert d.artist_sort == "ARTIST SORT NAME"
 
     def test_parse_releasegroupid(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.releasegroup_id, "RELEASE GROUP ID")
+        assert d.releasegroup_id == "RELEASE GROUP ID"
 
     def test_parse_asin(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.asin, "ALBUM ASIN")
+        assert d.asin == "ALBUM ASIN"
 
     def test_parse_catalognum(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.catalognum, "CATALOG NUMBER")
+        assert d.catalognum == "CATALOG NUMBER"
 
     def test_parse_textrepr(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.script, "SCRIPT")
-        self.assertEqual(d.language, "LANGUAGE")
+        assert d.script == "SCRIPT"
+        assert d.language == "LANGUAGE"
 
     def test_parse_country(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.country, "COUNTRY")
+        assert d.country == "COUNTRY"
 
     def test_parse_status(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.albumstatus, "STATUS")
+        assert d.albumstatus == "STATUS"
 
     def test_parse_barcode(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.barcode, "BARCODE")
+        assert d.barcode == "BARCODE"
 
     def test_parse_media(self):
         tracks = [
@@ -392,13 +390,13 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(None, tracks=tracks)
         d = mb.album_info(release)
-        self.assertEqual(d.media, "FORMAT")
+        assert d.media == "FORMAT"
 
     def test_parse_disambig(self):
         release = self._make_release(None)
         d = mb.album_info(release)
-        self.assertEqual(d.albumdisambig, "R_DISAMBIGUATION")
-        self.assertEqual(d.releasegroupdisambig, "RG_DISAMBIGUATION")
+        assert d.albumdisambig == "R_DISAMBIGUATION"
+        assert d.releasegroupdisambig == "RG_DISAMBIGUATION"
 
     def test_parse_disctitle(self):
         tracks = [
@@ -408,64 +406,64 @@ class MBAlbumInfoTest(_common.TestCase):
         release = self._make_release(None, tracks=tracks)
         d = mb.album_info(release)
         t = d.tracks
-        self.assertEqual(t[0].disctitle, "MEDIUM TITLE")
-        self.assertEqual(t[1].disctitle, "MEDIUM TITLE")
+        assert t[0].disctitle == "MEDIUM TITLE"
+        assert t[1].disctitle == "MEDIUM TITLE"
 
     def test_missing_language(self):
         release = self._make_release(None)
         del release["text-representation"]["language"]
         d = mb.album_info(release)
-        self.assertIsNone(d.language)
+        assert d.language is None
 
     def test_parse_recording_artist(self):
         tracks = [self._make_track("a", "b", 1, True)]
         release = self._make_release(None, tracks=tracks)
         track = mb.album_info(release).tracks[0]
-        self.assertEqual(track.artist, "RECORDING ARTIST NAME")
-        self.assertEqual(track.artist_id, "RECORDING ARTIST ID")
-        self.assertEqual(track.artist_sort, "RECORDING ARTIST SORT NAME")
-        self.assertEqual(track.artist_credit, "RECORDING ARTIST CREDIT")
+        assert track.artist == "RECORDING ARTIST NAME"
+        assert track.artist_id == "RECORDING ARTIST ID"
+        assert track.artist_sort == "RECORDING ARTIST SORT NAME"
+        assert track.artist_credit == "RECORDING ARTIST CREDIT"
 
     def test_parse_recording_artist_multi(self):
         tracks = [self._make_track("a", "b", 1, True, multi_artist_credit=True)]
         release = self._make_release(None, tracks=tracks)
         track = mb.album_info(release).tracks[0]
-        self.assertEqual(
-            track.artist, "RECORDING ARTIST NAME & RECORDING ARTIST 2 NAME"
+        assert track.artist == "RECORDING ARTIST NAME & RECORDING ARTIST 2 NAME"
+        assert track.artist_id == "RECORDING ARTIST ID"
+        assert (
+            track.artist_sort
+            == "RECORDING ARTIST SORT NAME & RECORDING ARTIST 2 SORT NAME"
         )
-        self.assertEqual(track.artist_id, "RECORDING ARTIST ID")
-        self.assertEqual(
-            track.artist_sort,
-            "RECORDING ARTIST SORT NAME & RECORDING ARTIST 2 SORT NAME",
-        )
-        self.assertEqual(
-            track.artist_credit,
-            "RECORDING ARTIST CREDIT & RECORDING ARTIST 2 CREDIT",
+        assert (
+            track.artist_credit
+            == "RECORDING ARTIST CREDIT & RECORDING ARTIST 2 CREDIT"
         )
 
-        self.assertEqual(
-            track.artists, ["RECORDING ARTIST NAME", "RECORDING ARTIST 2 NAME"]
-        )
-        self.assertEqual(
-            track.artists_ids, ["RECORDING ARTIST ID", "RECORDING ARTIST 2 ID"]
-        )
-        self.assertEqual(
-            track.artists_sort,
-            ["RECORDING ARTIST SORT NAME", "RECORDING ARTIST 2 SORT NAME"],
-        )
-        self.assertEqual(
-            track.artists_credit,
-            ["RECORDING ARTIST CREDIT", "RECORDING ARTIST 2 CREDIT"],
-        )
+        assert track.artists == [
+            "RECORDING ARTIST NAME",
+            "RECORDING ARTIST 2 NAME",
+        ]
+        assert track.artists_ids == [
+            "RECORDING ARTIST ID",
+            "RECORDING ARTIST 2 ID",
+        ]
+        assert track.artists_sort == [
+            "RECORDING ARTIST SORT NAME",
+            "RECORDING ARTIST 2 SORT NAME",
+        ]
+        assert track.artists_credit == [
+            "RECORDING ARTIST CREDIT",
+            "RECORDING ARTIST 2 CREDIT",
+        ]
 
     def test_track_artist_overrides_recording_artist(self):
         tracks = [self._make_track("a", "b", 1, True)]
         release = self._make_release(None, tracks=tracks, track_artist=True)
         track = mb.album_info(release).tracks[0]
-        self.assertEqual(track.artist, "TRACK ARTIST NAME")
-        self.assertEqual(track.artist_id, "TRACK ARTIST ID")
-        self.assertEqual(track.artist_sort, "TRACK ARTIST SORT NAME")
-        self.assertEqual(track.artist_credit, "TRACK ARTIST CREDIT")
+        assert track.artist == "TRACK ARTIST NAME"
+        assert track.artist_id == "TRACK ARTIST ID"
+        assert track.artist_sort == "TRACK ARTIST SORT NAME"
+        assert track.artist_credit == "TRACK ARTIST CREDIT"
 
     def test_track_artist_overrides_recording_artist_multi(self):
         tracks = [self._make_track("a", "b", 1, True, multi_artist_credit=True)]
@@ -473,43 +471,37 @@ class MBAlbumInfoTest(_common.TestCase):
             None, tracks=tracks, track_artist=True, multi_artist_credit=True
         )
         track = mb.album_info(release).tracks[0]
-        self.assertEqual(
-            track.artist, "TRACK ARTIST NAME & TRACK ARTIST 2 NAME"
+        assert track.artist == "TRACK ARTIST NAME & TRACK ARTIST 2 NAME"
+        assert track.artist_id == "TRACK ARTIST ID"
+        assert (
+            track.artist_sort
+            == "TRACK ARTIST SORT NAME & TRACK ARTIST 2 SORT NAME"
         )
-        self.assertEqual(track.artist_id, "TRACK ARTIST ID")
-        self.assertEqual(
-            track.artist_sort,
-            "TRACK ARTIST SORT NAME & TRACK ARTIST 2 SORT NAME",
-        )
-        self.assertEqual(
-            track.artist_credit, "TRACK ARTIST CREDIT & TRACK ARTIST 2 CREDIT"
+        assert (
+            track.artist_credit == "TRACK ARTIST CREDIT & TRACK ARTIST 2 CREDIT"
         )
 
-        self.assertEqual(
-            track.artists, ["TRACK ARTIST NAME", "TRACK ARTIST 2 NAME"]
-        )
-        self.assertEqual(
-            track.artists_ids, ["TRACK ARTIST ID", "TRACK ARTIST 2 ID"]
-        )
-        self.assertEqual(
-            track.artists_sort,
-            ["TRACK ARTIST SORT NAME", "TRACK ARTIST 2 SORT NAME"],
-        )
-        self.assertEqual(
-            track.artists_credit,
-            ["TRACK ARTIST CREDIT", "TRACK ARTIST 2 CREDIT"],
-        )
+        assert track.artists == ["TRACK ARTIST NAME", "TRACK ARTIST 2 NAME"]
+        assert track.artists_ids == ["TRACK ARTIST ID", "TRACK ARTIST 2 ID"]
+        assert track.artists_sort == [
+            "TRACK ARTIST SORT NAME",
+            "TRACK ARTIST 2 SORT NAME",
+        ]
+        assert track.artists_credit == [
+            "TRACK ARTIST CREDIT",
+            "TRACK ARTIST 2 CREDIT",
+        ]
 
     def test_parse_recording_remixer(self):
         tracks = [self._make_track("a", "b", 1, remixer=True)]
         release = self._make_release(None, tracks=tracks)
         track = mb.album_info(release).tracks[0]
-        self.assertEqual(track.remixer, "RECORDING REMIXER ARTIST NAME")
+        assert track.remixer == "RECORDING REMIXER ARTIST NAME"
 
     def test_data_source(self):
         release = self._make_release()
         d = mb.album_info(release)
-        self.assertEqual(d.data_source, "MusicBrainz")
+        assert d.data_source == "MusicBrainz"
 
     def test_ignored_media(self):
         config["match"]["ignored_media"] = ["IGNORED1", "IGNORED2"]
@@ -519,7 +511,7 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks, medium_format="IGNORED1")
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 0)
+        assert len(d.tracks) == 0
 
     def test_no_ignored_media(self):
         config["match"]["ignored_media"] = ["IGNORED1", "IGNORED2"]
@@ -529,7 +521,7 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks, medium_format="NON-IGNORED")
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 2)
+        assert len(d.tracks) == 2
 
     def test_skip_data_track(self):
         tracks = [
@@ -539,9 +531,9 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks)
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 2)
-        self.assertEqual(d.tracks[0].title, "TITLE ONE")
-        self.assertEqual(d.tracks[1].title, "TITLE TWO")
+        assert len(d.tracks) == 2
+        assert d.tracks[0].title == "TITLE ONE"
+        assert d.tracks[1].title == "TITLE TWO"
 
     def test_skip_audio_data_tracks_by_default(self):
         tracks = [
@@ -555,9 +547,9 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks, data_tracks=data_tracks)
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 2)
-        self.assertEqual(d.tracks[0].title, "TITLE ONE")
-        self.assertEqual(d.tracks[1].title, "TITLE TWO")
+        assert len(d.tracks) == 2
+        assert d.tracks[0].title == "TITLE ONE"
+        assert d.tracks[1].title == "TITLE TWO"
 
     def test_no_skip_audio_data_tracks_if_configured(self):
         config["match"]["ignore_data_tracks"] = False
@@ -572,10 +564,10 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks, data_tracks=data_tracks)
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 3)
-        self.assertEqual(d.tracks[0].title, "TITLE ONE")
-        self.assertEqual(d.tracks[1].title, "TITLE TWO")
-        self.assertEqual(d.tracks[2].title, "TITLE AUDIO DATA")
+        assert len(d.tracks) == 3
+        assert d.tracks[0].title == "TITLE ONE"
+        assert d.tracks[1].title == "TITLE TWO"
+        assert d.tracks[2].title == "TITLE AUDIO DATA"
 
     def test_skip_video_tracks_by_default(self):
         tracks = [
@@ -587,9 +579,9 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks)
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 2)
-        self.assertEqual(d.tracks[0].title, "TITLE ONE")
-        self.assertEqual(d.tracks[1].title, "TITLE TWO")
+        assert len(d.tracks) == 2
+        assert d.tracks[0].title == "TITLE ONE"
+        assert d.tracks[1].title == "TITLE TWO"
 
     def test_skip_video_data_tracks_by_default(self):
         tracks = [
@@ -603,9 +595,9 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks, data_tracks=data_tracks)
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 2)
-        self.assertEqual(d.tracks[0].title, "TITLE ONE")
-        self.assertEqual(d.tracks[1].title, "TITLE TWO")
+        assert len(d.tracks) == 2
+        assert d.tracks[0].title == "TITLE ONE"
+        assert d.tracks[1].title == "TITLE TWO"
 
     def test_no_skip_video_tracks_if_configured(self):
         config["match"]["ignore_data_tracks"] = False
@@ -619,10 +611,10 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks)
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 3)
-        self.assertEqual(d.tracks[0].title, "TITLE ONE")
-        self.assertEqual(d.tracks[1].title, "TITLE VIDEO")
-        self.assertEqual(d.tracks[2].title, "TITLE TWO")
+        assert len(d.tracks) == 3
+        assert d.tracks[0].title == "TITLE ONE"
+        assert d.tracks[1].title == "TITLE VIDEO"
+        assert d.tracks[2].title == "TITLE TWO"
 
     def test_no_skip_video_data_tracks_if_configured(self):
         config["match"]["ignore_data_tracks"] = False
@@ -638,10 +630,10 @@ class MBAlbumInfoTest(_common.TestCase):
         ]
         release = self._make_release(tracks=tracks, data_tracks=data_tracks)
         d = mb.album_info(release)
-        self.assertEqual(len(d.tracks), 3)
-        self.assertEqual(d.tracks[0].title, "TITLE ONE")
-        self.assertEqual(d.tracks[1].title, "TITLE TWO")
-        self.assertEqual(d.tracks[2].title, "TITLE VIDEO")
+        assert len(d.tracks) == 3
+        assert d.tracks[0].title == "TITLE ONE"
+        assert d.tracks[1].title == "TITLE TWO"
+        assert d.tracks[2].title == "TITLE VIDEO"
 
     def test_track_disambiguation(self):
         tracks = [
@@ -657,30 +649,30 @@ class MBAlbumInfoTest(_common.TestCase):
 
         d = mb.album_info(release)
         t = d.tracks
-        self.assertEqual(len(t), 2)
-        self.assertIsNone(t[0].trackdisambig)
-        self.assertEqual(t[1].trackdisambig, "SECOND TRACK")
+        assert len(t) == 2
+        assert t[0].trackdisambig is None
+        assert t[1].trackdisambig == "SECOND TRACK"
 
 
-class ParseIDTest(_common.TestCase):
+class ParseIDTest(BeetsTestCase):
     def test_parse_id_correct(self):
         id_string = "28e32c71-1450-463e-92bf-e0a46446fc11"
         out = mb._parse_id(id_string)
-        self.assertEqual(out, id_string)
+        assert out == id_string
 
     def test_parse_id_non_id_returns_none(self):
         id_string = "blah blah"
         out = mb._parse_id(id_string)
-        self.assertIsNone(out)
+        assert out is None
 
     def test_parse_id_url_finds_id(self):
         id_string = "28e32c71-1450-463e-92bf-e0a46446fc11"
         id_url = "https://musicbrainz.org/entity/%s" % id_string
         out = mb._parse_id(id_url)
-        self.assertEqual(out, id_string)
+        assert out == id_string
 
 
-class ArtistFlatteningTest(_common.TestCase):
+class ArtistFlatteningTest(BeetsTestCase):
     def _credit_dict(self, suffix=""):
         return {
             "artist": {
@@ -705,26 +697,26 @@ class ArtistFlatteningTest(_common.TestCase):
     def test_single_artist(self):
         credit = [self._credit_dict()]
         a, s, c = mb._flatten_artist_credit(credit)
-        self.assertEqual(a, "NAME")
-        self.assertEqual(s, "SORT")
-        self.assertEqual(c, "CREDIT")
+        assert a == "NAME"
+        assert s == "SORT"
+        assert c == "CREDIT"
 
         a, s, c = mb._multi_artist_credit(credit, include_join_phrase=False)
-        self.assertEqual(a, ["NAME"])
-        self.assertEqual(s, ["SORT"])
-        self.assertEqual(c, ["CREDIT"])
+        assert a == ["NAME"]
+        assert s == ["SORT"]
+        assert c == ["CREDIT"]
 
     def test_two_artists(self):
         credit = [self._credit_dict("a"), " AND ", self._credit_dict("b")]
         a, s, c = mb._flatten_artist_credit(credit)
-        self.assertEqual(a, "NAMEa AND NAMEb")
-        self.assertEqual(s, "SORTa AND SORTb")
-        self.assertEqual(c, "CREDITa AND CREDITb")
+        assert a == "NAMEa AND NAMEb"
+        assert s == "SORTa AND SORTb"
+        assert c == "CREDITa AND CREDITb"
 
         a, s, c = mb._multi_artist_credit(credit, include_join_phrase=False)
-        self.assertEqual(a, ["NAMEa", "NAMEb"])
-        self.assertEqual(s, ["SORTa", "SORTb"])
-        self.assertEqual(c, ["CREDITa", "CREDITb"])
+        assert a == ["NAMEa", "NAMEb"]
+        assert s == ["SORTa", "SORTb"]
+        assert c == ["CREDITa", "CREDITb"]
 
     def test_alias(self):
         credit_dict = self._credit_dict()
@@ -739,35 +731,35 @@ class ArtistFlatteningTest(_common.TestCase):
         # test no alias
         config["import"]["languages"] = [""]
         flat = mb._flatten_artist_credit([credit_dict])
-        self.assertEqual(flat, ("NAME", "SORT", "CREDIT"))
+        assert flat == ("NAME", "SORT", "CREDIT")
 
         # test en primary
         config["import"]["languages"] = ["en"]
         flat = mb._flatten_artist_credit([credit_dict])
-        self.assertEqual(flat, ("ALIASen", "ALIASSORTen", "CREDIT"))
+        assert flat == ("ALIASen", "ALIASSORTen", "CREDIT")
 
         # test en_GB en primary
         config["import"]["languages"] = ["en_GB", "en"]
         flat = mb._flatten_artist_credit([credit_dict])
-        self.assertEqual(flat, ("ALIASen_GB", "ALIASSORTen_GB", "CREDIT"))
+        assert flat == ("ALIASen_GB", "ALIASSORTen_GB", "CREDIT")
 
         # test en en_GB primary
         config["import"]["languages"] = ["en", "en_GB"]
         flat = mb._flatten_artist_credit([credit_dict])
-        self.assertEqual(flat, ("ALIASen", "ALIASSORTen", "CREDIT"))
+        assert flat == ("ALIASen", "ALIASSORTen", "CREDIT")
 
         # test fr primary
         config["import"]["languages"] = ["fr"]
         flat = mb._flatten_artist_credit([credit_dict])
-        self.assertEqual(flat, ("ALIASfr_P", "ALIASSORTfr_P", "CREDIT"))
+        assert flat == ("ALIASfr_P", "ALIASSORTfr_P", "CREDIT")
 
         # test for not matching non-primary
         config["import"]["languages"] = ["pt_BR", "fr"]
         flat = mb._flatten_artist_credit([credit_dict])
-        self.assertEqual(flat, ("ALIASfr_P", "ALIASSORTfr_P", "CREDIT"))
+        assert flat == ("ALIASfr_P", "ALIASSORTfr_P", "CREDIT")
 
 
-class MBLibraryTest(unittest.TestCase):
+class MBLibraryTest(BeetsTestCase):
     def test_match_track(self):
         with mock.patch("musicbrainzngs.search_recordings") as p:
             p.return_value = {
@@ -782,8 +774,8 @@ class MBLibraryTest(unittest.TestCase):
             ti = list(mb.match_track("hello", "there"))[0]
 
             p.assert_called_with(artist="hello", recording="there", limit=5)
-            self.assertEqual(ti.title, "foo")
-            self.assertEqual(ti.track_id, "bar")
+            assert ti.title == "foo"
+            assert ti.track_id == "bar"
 
     def test_match_album(self):
         mbid = "d2a6f856-b553-40a0-ac54-a321e8e2da99"
@@ -836,20 +828,20 @@ class MBLibraryTest(unittest.TestCase):
 
                 sp.assert_called_with(artist="hello", release="there", limit=5)
                 gp.assert_called_with(mbid, mock.ANY)
-                self.assertEqual(ai.tracks[0].title, "foo")
-                self.assertEqual(ai.album, "hi")
+                assert ai.tracks[0].title == "foo"
+                assert ai.album == "hi"
 
     def test_match_track_empty(self):
         with mock.patch("musicbrainzngs.search_recordings") as p:
             til = list(mb.match_track(" ", " "))
-            self.assertFalse(p.called)
-            self.assertEqual(til, [])
+            assert not p.called
+            assert til == []
 
     def test_match_album_empty(self):
         with mock.patch("musicbrainzngs.search_releases") as p:
             ail = list(mb.match_album(" ", " "))
-            self.assertFalse(p.called)
-            self.assertEqual(ail, [])
+            assert not p.called
+            assert ail == []
 
     def test_follow_pseudo_releases(self):
         side_effect = [
@@ -936,7 +928,7 @@ class MBLibraryTest(unittest.TestCase):
         with mock.patch("musicbrainzngs.get_release_by_id") as gp:
             gp.side_effect = side_effect
             album = mb.album_for_id("d2a6f856-b553-40a0-ac54-a321e8e2da02")
-            self.assertEqual(album.country, "COUNTRY")
+            assert album.country == "COUNTRY"
 
     def test_pseudo_releases_with_empty_links(self):
         side_effect = [
@@ -981,7 +973,7 @@ class MBLibraryTest(unittest.TestCase):
         with mock.patch("musicbrainzngs.get_release_by_id") as gp:
             gp.side_effect = side_effect
             album = mb.album_for_id("d2a6f856-b553-40a0-ac54-a321e8e2da02")
-            self.assertIsNone(album.country)
+            assert album.country is None
 
     def test_pseudo_releases_without_links(self):
         side_effect = [
@@ -1025,7 +1017,7 @@ class MBLibraryTest(unittest.TestCase):
         with mock.patch("musicbrainzngs.get_release_by_id") as gp:
             gp.side_effect = side_effect
             album = mb.album_for_id("d2a6f856-b553-40a0-ac54-a321e8e2da02")
-            self.assertIsNone(album.country)
+            assert album.country is None
 
     def test_pseudo_releases_with_unsupported_links(self):
         side_effect = [
@@ -1076,12 +1068,4 @@ class MBLibraryTest(unittest.TestCase):
         with mock.patch("musicbrainzngs.get_release_by_id") as gp:
             gp.side_effect = side_effect
             album = mb.album_for_id("d2a6f856-b553-40a0-ac54-a321e8e2da02")
-            self.assertIsNone(album.country)
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+            assert album.country is None

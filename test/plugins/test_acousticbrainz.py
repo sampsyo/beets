@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Tests for the 'acousticbrainz' plugin.
-"""
-
+"""Tests for the 'acousticbrainz' plugin."""
 
 import json
 import os.path
@@ -30,9 +28,10 @@ class MapDataToSchemeTest(unittest.TestCase):
         data = {"key 1": "value 1", "key 2": "value 2"}
         scheme = {"key 1": "attribute 1", "key 2": "attribute 2"}
         mapping = set(ab._map_data_to_scheme(data, scheme))
-        self.assertEqual(
-            mapping, {("attribute 1", "value 1"), ("attribute 2", "value 2")}
-        )
+        assert mapping == {
+            ("attribute 1", "value 1"),
+            ("attribute 2", "value 2"),
+        }
 
     def test_recurse(self):
         ab = AcousticPlugin()
@@ -51,21 +50,18 @@ class MapDataToSchemeTest(unittest.TestCase):
             },
         }
         mapping = set(ab._map_data_to_scheme(data, scheme))
-        self.assertEqual(
-            mapping,
-            {
-                ("attribute 1", "value"),
-                ("attribute 2", "subvalue"),
-                ("attribute 3", "subsubvalue"),
-            },
-        )
+        assert mapping == {
+            ("attribute 1", "value"),
+            ("attribute 2", "subvalue"),
+            ("attribute 3", "subsubvalue"),
+        }
 
     def test_composite(self):
         ab = AcousticPlugin()
         data = {"key 1": "part 1", "key 2": "part 2"}
         scheme = {"key 1": ("attribute", 0), "key 2": ("attribute", 1)}
         mapping = set(ab._map_data_to_scheme(data, scheme))
-        self.assertEqual(mapping, {("attribute", "part 1 part 2")})
+        assert mapping == {("attribute", "part 1 part 2")}
 
     def test_realistic(self):
         ab = AcousticPlugin()
@@ -98,12 +94,4 @@ class MapDataToSchemeTest(unittest.TestCase):
             ("moods_mirex", "Cluster3"),
             ("timbre", "bright"),
         }
-        self.assertEqual(mapping, expected)
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert mapping == expected

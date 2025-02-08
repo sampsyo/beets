@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Synchronize information from music player libraries
-"""
-
+"""Synchronize information from music player libraries"""
 
 from abc import ABCMeta, abstractmethod
 from importlib import import_module
@@ -126,8 +124,7 @@ class MetaSyncPlugin(BeetsPlugin):
                 meta_source_instances[player] = cls(self.config, self._log)
             except (ImportError, ConfigValueError) as e:
                 self._log.error(
-                    "Failed to instantiate metadata source "
-                    "'{}': {}".format(player, e)
+                    f"Failed to instantiate metadata source {player!r}: {e}"
                 )
 
         # Avoid needlessly iterating over items

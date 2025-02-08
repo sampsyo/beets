@@ -11,9 +11,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Adds support for ipfs. Requires go-ipfs and a running ipfs daemon
-"""
-
+"""Adds support for ipfs. Requires go-ipfs and a running ipfs daemon"""
 
 import os
 import shutil

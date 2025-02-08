@@ -10,10 +10,11 @@ on:
 env:
   PYTHON_VERSION: 3.8
   NEW_VERSION: ${{ inputs.version }}
+  NEW_TAG: v${{ inputs.version }}
 
 jobs:
   increment-version:
-    name: Bump project version and commit it
+    name: Bump version, commit and create tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,20 +29,26 @@ jobs:
         run: poetry install --only=release
 
       - name: Bump project version
-        id: script
         run: poe bump "${{ env.NEW_VERSION }}"
 
       - uses: EndBug/add-and-commit@v9
-        name: Commit the changes
+        id: commit_and_tag
+        name: Commit the changes and create tag
         with:
           message: "Increment version to ${{ env.NEW_VERSION }}"
+          tag: "${{ env.NEW_TAG }} --force"
 
   build:
     name: Get changelog and build the distribution package
     runs-on: ubuntu-latest
     needs: increment-version
+    outputs:
+      changelog: ${{ steps.generate_changelog.outputs.changelog }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.NEW_TAG }}
+
       - name: Install Python tools
         uses: BrandonLWhite/pipx-install-action@v0.1.1
       - uses: actions/setup-python@v5
@@ -50,16 +57,23 @@ jobs:
           cache: poetry
 
       - name: Install dependencies
-        run: poetry install --only=release
+        run: poetry install --with=release --extras=docs
 
       - name: Install pandoc
         run: sudo apt update && sudo apt install pandoc -y
 
       - name: Obtain the changelog
-        run: echo "changelog=$(poe changelog)" >> $GITHUB_OUTPUT
+        id: generate_changelog
+        run: |
+          poe docs
+          {
+            echo 'changelog<<EOF'
+            poe --quiet changelog
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build a binary wheel and a source tarball
-        run: poetry build
+        run: poe build
 
       - name: Store the distribution packages
         uses: actions/upload-artifact@v4
@@ -88,19 +102,12 @@ jobs:
   make-github-release:
     name: Create GitHub release
     runs-on: ubuntu-latest
-    needs: publish-to-pypi
+    needs: [build, publish-to-pypi]
     env:
       CHANGELOG: ${{ needs.build.outputs.changelog }}
     steps:
-      - name: Tag the commit
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          custom_tag: ${{ env.NEW_VERSION }}
-
       - name: Download all the dists
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
           path: dist/
@@ -108,8 +115,6 @@ jobs:
       - name: Create a GitHub release
         id: make_release
         uses: ncipollo/release-action@v1
-        env:
-          NEW_TAG: ${{ steps.tag_version.outputs.new_tag }}
         with:
           tag: ${{ env.NEW_TAG }}
           name: Release ${{ env.NEW_TAG }}
@@ -117,7 +122,8 @@ jobs:
           artifacts: dist/*
       - name: Send release toot to Fosstodon
         uses: cbrgm/mastodon-github-action@v2
+        continue-on-error: true
         with:
           access-token: ${{ secrets.MASTODON_ACCESS_TOKEN }}
           url: ${{ secrets.MASTODON_URL }}
-          message: "Version ${{ steps.tag_version.outputs.new_tag }} of beets has been released! Check out all of the new changes at ${{ steps.create_release.outputs.html_url }}"
+          message: "Version ${{ env.NEW_TAG }} of beets has been released! Check out all of the new changes at ${{ steps.make_release.outputs.html_url }}"

@@ -12,33 +12,21 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Test module for file ui/commands.py
-"""
-
+"""Test module for file ui/commands.py"""
 
 import os
 import shutil
-import unittest
+
+import pytest
 
 from beets import library, ui
 from beets.test import _common
+from beets.test.helper import BeetsTestCase, ItemInDBTestCase
 from beets.ui import commands
 from beets.util import syspath
 
 
-class QueryTest(_common.TestCase):
-    def setUp(self):
-        super().setUp()
-
-        self.libdir = os.path.join(self.temp_dir, b"testlibdir")
-        os.mkdir(syspath(self.libdir))
-
-        # Add a file to the library but don't copy it in yet.
-        self.lib = library.Library(":memory:", self.libdir)
-
-        # Alternate destination directory.
-        # self.otherdir = os.path.join(self.temp_dir, b"testotherdir")
-
+class QueryTest(BeetsTestCase):
     def add_item(self, filename=b"srcfile", templatefile=b"full.mp3"):
         itempath = os.path.join(self.libdir, filename)
         shutil.copy(
@@ -57,15 +45,15 @@ class QueryTest(_common.TestCase):
         self, num_items, num_albums, q=(), album=False, also_items=True
     ):
         items, albums = commands._do_query(self.lib, q, album, also_items)
-        self.assertEqual(len(items), num_items)
-        self.assertEqual(len(albums), num_albums)
+        assert len(items) == num_items
+        assert len(albums) == num_albums
 
     def test_query_empty(self):
-        with self.assertRaises(ui.UserError):
+        with pytest.raises(ui.UserError):
             commands._do_query(self.lib, (), False)
 
     def test_query_empty_album(self):
-        with self.assertRaises(ui.UserError):
+        with pytest.raises(ui.UserError):
             commands._do_query(self.lib, (), True)
 
     def test_query_item(self):
@@ -87,19 +75,20 @@ class QueryTest(_common.TestCase):
         self.check_do_query(0, 2, album=True, also_items=False)
 
 
-class FieldsTest(_common.LibTestCase):
+class FieldsTest(ItemInDBTestCase):
     def setUp(self):
         super().setUp()
 
         self.io.install()
 
     def tearDown(self):
+        super().tearDown()
         self.io.restore()
 
-    def remove_keys(self, l, text):
+    def remove_keys(self, keys, text):
         for i in text:
             try:
-                l.remove(i)
+                keys.remove(i)
             except ValueError:
                 pass
 
@@ -112,13 +101,5 @@ class FieldsTest(_common.LibTestCase):
         self.remove_keys(items, output)
         self.remove_keys(albums, output)
 
-        self.assertEqual(len(items), 0)
-        self.assertEqual(len(albums), 0)
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert len(items) == 0
+        assert len(albums) == 0

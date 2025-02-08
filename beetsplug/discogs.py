@@ -16,6 +16,8 @@
 python3-discogs-client library.
 """
 
+from __future__ import annotations
+
 import http.client
 import json
 import os
@@ -30,6 +32,7 @@ from discogs_client import Client, Master, Release
 from discogs_client import __version__ as dc_string
 from discogs_client.exceptions import DiscogsAPIError
 from requests.exceptions import ConnectionError
+from typing_extensions import TypedDict
 
 import beets
 import beets.ui
@@ -50,6 +53,12 @@ CONNECTION_ERRORS = (
     ValueError,  # JSON decoding raises a ValueError.
     DiscogsAPIError,
 )
+
+
+class ReleaseFormat(TypedDict):
+    name: str
+    qty: int
+    descriptions: list[str] | None
 
 
 class DiscogsPlugin(BeetsPlugin):
@@ -363,6 +372,18 @@ class DiscogsPlugin(BeetsPlugin):
             )
             return None
 
+    @staticmethod
+    def get_media_and_albumtype(
+        formats: list[ReleaseFormat] | None,
+    ) -> tuple[str | None, str | None]:
+        media = albumtype = None
+        if formats and (first_format := formats[0]):
+            if descriptions := first_format["descriptions"]:
+                albumtype = ", ".join(descriptions)
+            media = first_format["name"]
+
+        return media, albumtype
+
     def get_album_info(self, result):
         """Returns an AlbumInfo object for a discogs Release object."""
         # Explicitly reload the `Release` fields, as they might not be yet
@@ -413,13 +434,11 @@ class DiscogsPlugin(BeetsPlugin):
 
         # Extract information for the optional AlbumInfo fields that are
         # contained on nested discogs fields.
-        albumtype = media = label = catalogno = labelid = None
-        if result.data.get("formats"):
-            albumtype = (
-                ", ".join(result.data["formats"][0].get("descriptions", []))
-                or None
-            )
-            media = result.data["formats"][0]["name"]
+        media, albumtype = self.get_media_and_albumtype(
+            result.data.get("formats")
+        )
+
+        label = catalogno = labelid = None
         if result.data.get("labels"):
             label = result.data["labels"][0].get("name")
             catalogno = result.data["labels"][0].get("catno")

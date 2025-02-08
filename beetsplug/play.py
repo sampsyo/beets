@@ -12,18 +12,17 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Send the results of a query to the configured music player as a playlist.
-"""
+"""Send the results of a query to the configured music player as a playlist."""
 
 import shlex
 import subprocess
 from os.path import relpath
-from tempfile import NamedTemporaryFile
 
 from beets import config, ui, util
 from beets.plugins import BeetsPlugin
 from beets.ui import Subcommand
 from beets.ui.commands import PromptChoice
+from beets.util import get_temp_filename
 
 # Indicate where arguments should be inserted into the command string.
 # If this is missing, they're placed at the end.
@@ -194,15 +193,15 @@ class PlayPlugin(BeetsPlugin):
     def _create_tmp_playlist(self, paths_list):
         """Create a temporary .m3u file. Return the filename."""
         utf8_bom = config["play"]["bom"].get(bool)
-        m3u = NamedTemporaryFile("wb", suffix=".m3u", delete=False)
+        filename = get_temp_filename(__name__, suffix=".m3u")
+        with open(filename, "wb") as m3u:
+            if utf8_bom:
+                m3u.write(b"\xef\xbb\xbf")
 
-        if utf8_bom:
-            m3u.write(b"\xEF\xBB\xBF")
+            for item in paths_list:
+                m3u.write(item + b"\n")
 
-        for item in paths_list:
-            m3u.write(item + b"\n")
-        m3u.close()
-        return m3u.name
+        return filename
 
     def before_choose_candidate_listener(self, session, task):
         """Append a "Play" choice to the interactive importer prompt."""

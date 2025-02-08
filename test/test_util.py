@@ -11,8 +11,7 @@
 #
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
-"""Tests for base utils from the beets.util package.
-"""
+"""Tests for base utils from the beets.util package."""
 
 import os
 import platform
@@ -22,20 +21,23 @@ import sys
 import unittest
 from unittest.mock import Mock, patch
 
+import pytest
+
 from beets import util
 from beets.test import _common
+from beets.test.helper import BeetsTestCase
 
 
 class UtilTest(unittest.TestCase):
     def test_open_anything(self):
         with _common.system_mock("Windows"):
-            self.assertEqual(util.open_anything(), "start")
+            assert util.open_anything() == "start"
 
         with _common.system_mock("Darwin"):
-            self.assertEqual(util.open_anything(), "open")
+            assert util.open_anything() == "open"
 
         with _common.system_mock("Tagada"):
-            self.assertEqual(util.open_anything(), "xdg-open")
+            assert util.open_anything() == "xdg-open"
 
     @patch("os.execlp")
     @patch("beets.util.open_anything")
@@ -51,73 +53,56 @@ class UtilTest(unittest.TestCase):
     def test_sanitize_unix_replaces_leading_dot(self):
         with _common.platform_posix():
             p = util.sanitize_path("one/.two/three")
-        self.assertNotIn(".", p)
+        assert "." not in p
 
     def test_sanitize_windows_replaces_trailing_dot(self):
         with _common.platform_windows():
             p = util.sanitize_path("one/two./three")
-        self.assertNotIn(".", p)
+        assert "." not in p
 
     def test_sanitize_windows_replaces_illegal_chars(self):
         with _common.platform_windows():
             p = util.sanitize_path(':*?"<>|')
-        self.assertNotIn(":", p)
-        self.assertNotIn("*", p)
-        self.assertNotIn("?", p)
-        self.assertNotIn('"', p)
-        self.assertNotIn("<", p)
-        self.assertNotIn(">", p)
-        self.assertNotIn("|", p)
+        assert ":" not in p
+        assert "*" not in p
+        assert "?" not in p
+        assert '"' not in p
+        assert "<" not in p
+        assert ">" not in p
+        assert "|" not in p
 
     def test_sanitize_windows_replaces_trailing_space(self):
         with _common.platform_windows():
             p = util.sanitize_path("one/two /three")
-        self.assertNotIn(" ", p)
+        assert " " not in p
 
     def test_sanitize_path_works_on_empty_string(self):
         with _common.platform_posix():
             p = util.sanitize_path("")
-        self.assertEqual(p, "")
+        assert p == ""
 
     def test_sanitize_with_custom_replace_overrides_built_in_sub(self):
         with _common.platform_posix():
-            p = util.sanitize_path(
-                "a/.?/b",
-                [
-                    (re.compile(r"foo"), "bar"),
-                ],
-            )
-        self.assertEqual(p, "a/.?/b")
+            p = util.sanitize_path("a/.?/b", [(re.compile(r"foo"), "bar")])
+        assert p == "a/.?/b"
 
     def test_sanitize_with_custom_replace_adds_replacements(self):
         with _common.platform_posix():
-            p = util.sanitize_path(
-                "foo/bar",
-                [
-                    (re.compile(r"foo"), "bar"),
-                ],
-            )
-        self.assertEqual(p, "bar/bar")
+            p = util.sanitize_path("foo/bar", [(re.compile(r"foo"), "bar")])
+        assert p == "bar/bar"
 
     @unittest.skip("unimplemented: #359")
     def test_sanitize_empty_component(self):
         with _common.platform_posix():
-            p = util.sanitize_path(
-                "foo//bar",
-                [
-                    (re.compile(r"^$"), "_"),
-                ],
-            )
-        self.assertEqual(p, "foo/_/bar")
+            p = util.sanitize_path("foo//bar", [(re.compile(r"^$"), "_")])
+        assert p == "foo/_/bar"
 
     @unittest.skipIf(sys.platform == "win32", "win32")
     def test_convert_command_args_keeps_undecodeable_bytes(self):
         arg = b"\x82"  # non-ascii bytes
         cmd_args = util.convert_command_args([arg])
 
-        self.assertEqual(
-            cmd_args[0], arg.decode(util.arg_encoding(), "surrogateescape")
-        )
+        assert cmd_args[0] == arg.decode(util.arg_encoding(), "surrogateescape")
 
     @patch("beets.util.subprocess.Popen")
     def test_command_output(self, mock_popen):
@@ -127,10 +112,10 @@ class UtilTest(unittest.TestCase):
             return m
 
         mock_popen.side_effect = popen_fail
-        with self.assertRaises(subprocess.CalledProcessError) as exc_context:
+        with pytest.raises(subprocess.CalledProcessError) as exc_info:
             util.command_output(["taga", "\xc3\xa9"])
-        self.assertEqual(exc_context.exception.returncode, 1)
-        self.assertEqual(exc_context.exception.cmd, "taga \xc3\xa9")
+        assert exc_info.value.returncode == 1
+        assert exc_info.value.cmd == "taga \xc3\xa9"
 
     def test_case_sensitive_default(self):
         path = util.bytestring_path(
@@ -139,10 +124,7 @@ class UtilTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(
-            util.case_sensitive(path),
-            platform.system() != "Windows",
-        )
+        assert util.case_sensitive(path) == (platform.system() != "Windows")
 
     @unittest.skipIf(sys.platform == "win32", "fs is not case sensitive")
     def test_case_sensitive_detects_sensitive(self):
@@ -157,13 +139,13 @@ class UtilTest(unittest.TestCase):
         pass
 
 
-class PathConversionTest(_common.TestCase):
+class PathConversionTest(BeetsTestCase):
     def test_syspath_windows_format(self):
         with _common.platform_windows():
             path = os.path.join("a", "b", "c")
             outpath = util.syspath(path)
-        self.assertTrue(isinstance(outpath, str))
-        self.assertTrue(outpath.startswith("\\\\?\\"))
+        assert isinstance(outpath, str)
+        assert outpath.startswith("\\\\?\\")
 
     def test_syspath_windows_format_unc_path(self):
         # The \\?\ prefix on Windows behaves differently with UNC
@@ -171,14 +153,14 @@ class PathConversionTest(_common.TestCase):
         path = "\\\\server\\share\\file.mp3"
         with _common.platform_windows():
             outpath = util.syspath(path)
-        self.assertTrue(isinstance(outpath, str))
-        self.assertEqual(outpath, "\\\\?\\UNC\\server\\share\\file.mp3")
+        assert isinstance(outpath, str)
+        assert outpath == "\\\\?\\UNC\\server\\share\\file.mp3"
 
     def test_syspath_posix_unchanged(self):
         with _common.platform_posix():
             path = os.path.join("a", "b", "c")
             outpath = util.syspath(path)
-        self.assertEqual(path, outpath)
+        assert path == outpath
 
     def _windows_bytestring_path(self, path):
         old_gfse = sys.getfilesystemencoding
@@ -192,49 +174,26 @@ class PathConversionTest(_common.TestCase):
     def test_bytestring_path_windows_encodes_utf8(self):
         path = "caf\xe9"
         outpath = self._windows_bytestring_path(path)
-        self.assertEqual(path, outpath.decode("utf-8"))
+        assert path == outpath.decode("utf-8")
 
     def test_bytesting_path_windows_removes_magic_prefix(self):
         path = "\\\\?\\C:\\caf\xe9"
         outpath = self._windows_bytestring_path(path)
-        self.assertEqual(outpath, "C:\\caf\xe9".encode())
+        assert outpath == "C:\\caf\xe9".encode()
 
 
-class PathTruncationTest(_common.TestCase):
+class PathTruncationTest(BeetsTestCase):
     def test_truncate_bytestring(self):
         with _common.platform_posix():
             p = util.truncate_path(b"abcde/fgh", 4)
-        self.assertEqual(p, b"abcd/fgh")
+        assert p == b"abcd/fgh"
 
     def test_truncate_unicode(self):
         with _common.platform_posix():
             p = util.truncate_path("abcde/fgh", 4)
-        self.assertEqual(p, "abcd/fgh")
+        assert p == "abcd/fgh"
 
     def test_truncate_preserves_extension(self):
         with _common.platform_posix():
             p = util.truncate_path("abcde/fgh.ext", 5)
-        self.assertEqual(p, "abcde/f.ext")
-
-
-class ConfitDeprecationTest(_common.TestCase):
-    def test_confit_deprecattion_warning_origin(self):
-        """Test that importing `confit` raises a warning.
-
-        In addition, ensure that the warning originates from the actual
-        import statement, not the `confit` module.
-        """
-        # See https://github.com/beetbox/beets/discussions/4024
-        with self.assertWarns(UserWarning) as w:
-            import beets.util.confit  # noqa: F401
-
-        self.assertIn(__file__, w.filename)
-        self.assertNotIn("confit.py", w.filename)
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert p == "abcde/f.ext"

@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ubuntu-latest, windows-latest]
-        python-version: ["3.8", "3.9"]
+        python-version: ["3.9"]
     runs-on: ${{ matrix.platform }}
     env:
-      IS_MAIN_PYTHON: ${{ matrix.python-version == '3.8' && matrix.platform == 'ubuntu-latest' }}
+      IS_MAIN_PYTHON: ${{ matrix.python-version == '3.9' && matrix.platform == 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Python tools
@@ -29,26 +29,40 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: poetry
 
-      - name: Install PyGobject dependencies on Ubuntu
+      - name: Install PyGobject and release script dependencies on Ubuntu
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt update
-          sudo apt install ffmpeg gobject-introspection libgirepository1.0-dev
-          poetry install --extras replaygain
+          sudo apt install ffmpeg gobject-introspection libcairo2-dev libgirepository1.0-dev pandoc
 
-      - name: Install Python dependencies
-        run: poetry install --only=main,test
+      - name: Get changed lyrics files
+        id: lyrics-update
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            beetsplug/lyrics.py
+            test/plugins/test_lyrics.py
 
-      - if: ${{ env.IS_MAIN_PYTHON != 'true' }}
-        name: Test without coverage
-        run: poe test
-
-      - if: ${{ env.IS_MAIN_PYTHON == 'true' }}
-        name: Test with coverage
+      - name: Add pytest annotator
         uses: liskin/gh-problem-matcher-wrap@v3
         with:
           linters: pytest
-          run: poe test-with-coverage
+          action: add
+
+      - if: ${{ env.IS_MAIN_PYTHON != 'true' }}
+        name: Test without coverage
+        run: |
+          poetry install --extras=autobpm --extras=lyrics
+          poe test
+
+      - if: ${{ env.IS_MAIN_PYTHON == 'true' }}
+        name: Test with coverage
+        env:
+          LYRICS_UPDATED: ${{ steps.lyrics-update.outputs.any_changed }}
+        run: |
+          poetry install --extras=autobpm --extras=lyrics --extras=docs --extras=replaygain --extras=reflink
+          poe docs
+          poe test-with-coverage
 
       - if: ${{ env.IS_MAIN_PYTHON == 'true' }}
         name: Store the coverage report
@@ -75,4 +89,4 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
-          use_oidc: true
+          use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}

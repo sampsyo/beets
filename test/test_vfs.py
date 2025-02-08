@@ -14,40 +14,28 @@
 
 """Tests for the virtual filesystem builder.."""
 
-import unittest
-
-from beets import library, vfs
+from beets import vfs
 from beets.test import _common
+from beets.test.helper import BeetsTestCase
 
 
-class VFSTest(_common.TestCase):
+class VFSTest(BeetsTestCase):
     def setUp(self):
         super().setUp()
-        self.lib = library.Library(
-            ":memory:",
-            path_formats=[
-                ("default", "albums/$album/$title"),
-                ("singleton:true", "tracks/$artist/$title"),
-            ],
-        )
+        self.lib.path_formats = [
+            ("default", "albums/$album/$title"),
+            ("singleton:true", "tracks/$artist/$title"),
+        ]
         self.lib.add(_common.item())
         self.lib.add_album([_common.item()])
         self.tree = vfs.libtree(self.lib)
 
     def test_singleton_item(self):
-        self.assertEqual(
-            self.tree.dirs["tracks"].dirs["the artist"].files["the title"], 1
+        assert (
+            self.tree.dirs["tracks"].dirs["the artist"].files["the title"] == 1
         )
 
     def test_album_item(self):
-        self.assertEqual(
-            self.tree.dirs["albums"].dirs["the album"].files["the title"], 2
+        assert (
+            self.tree.dirs["albums"].dirs["the album"].files["the title"] == 2
         )
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

@@ -16,7 +16,6 @@
 music and items' embedded album art.
 """
 
-
 import os
 from tempfile import NamedTemporaryFile
 

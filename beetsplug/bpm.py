@@ -14,7 +14,6 @@
 
 """Determine BPM by pressing a key to the rhythm."""
 
-
 import time
 
 from beets import ui
