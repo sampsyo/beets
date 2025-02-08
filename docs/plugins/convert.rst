@@ -62,11 +62,16 @@ absolute or relative to the ``dest`` directory. The contents will always be
 relative paths to media files, which tries to ensure compatibility when read
 from external drives or on computers other than the one used for the
 conversion. There is one caveat though: A list generated on Unix/macOS can't be
-read on Windows and vice versa.
+read on Windows and vice versa. Depending on the beets user's settings a
+generated playlist potentially could contain unicode characters. This is
+supported, playlists are written in `M3U8 format`_.
 
-Depending on the beets user's settings a generated playlist potentially could
-contain unicode characters. This is supported, playlists are written in `M3U8
-format`_.
+The ``-r`` (or ``--refresh``) option allows to refresh the converted files if
+the originals ones are modified. It instructs the plugin to compare the
+timestamps of the latest modification for both the originals and the converted
+files. If an original file is newer than a converted file, the converted file
+will be removed from the filesystem, and the original file will be converted
+once again.
 
 Configuration
 -------------
@@ -143,6 +148,10 @@ file. The available options are:
   to the destination path (``dest``, ``--dest``, ``-d``). This configuration is
   overridden by the ``-m`` (``--playlist``) command line option.
   Default: none.
+- **refresh**: Refresh the converted files if needed by re-converting modified
+  original files. This configuration is overridden by the ``-r``
+  (``--refresh``) command line option.
+  Default: ``false``.
 
 You can also configure the format to use for transcoding (see the next
 section):
