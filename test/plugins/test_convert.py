@@ -308,8 +308,8 @@ class ConvertCliTest(ConvertTestCase, ConvertCommand):
             # Check playlist content.
             m3u_created = os.path.join(self.convert_dest, b"playlist.m3u8")
             with open(m3u_created, "r") as m3u_file:
-                self.assertTrue(m3u_file.readline() == "#EXTM3U\n")
-                self.assertTrue(m3u_file.readline() == "converted.mp3\n")
+                assert m3u_file.readline() == "#EXTM3U\n"
+                assert m3u_file.readline() == "converted.mp3\n"
 
 
 @_common.slow_test()
