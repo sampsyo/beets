@@ -389,7 +389,7 @@ class ConvertPlugin(BeetsPlugin):
             # --keep-new option because I'm not sure what to do in this case.
             if ((refresh and not keep_new)
                 and (os.path.exists(util.syspath(dest)))
-                and (os.path.getmtime(util.syspath(item.path)) 
+                and (os.path.getmtime(util.syspath(item.path))
                      > os.path.getmtime(util.syspath(dest)))):
                 if pretend:
                     self._log.info(
