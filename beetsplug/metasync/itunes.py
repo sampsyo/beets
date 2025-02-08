@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Synchronize information from iTunes's library
-"""
-
+"""Synchronize information from iTunes's library"""
 
 import os
 import plistlib

@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Use command-line tools to check for audio file corruption.
-"""
-
+"""Use command-line tools to check for audio file corruption."""
 
 import errno
 import os
@@ -30,7 +28,7 @@ from beets.ui import Subcommand
 from beets.util import displayable_path, par_map
 
 
-class CheckerCommandException(Exception):
+class CheckerCommandError(Exception):
     """Raised when running a checker failed.
 
     Attributes:
@@ -70,7 +68,7 @@ class BadFiles(BeetsPlugin):
             errors = 1
             status = e.returncode
         except OSError as e:
-            raise CheckerCommandException(cmd, e)
+            raise CheckerCommandError(cmd, e)
         output = output.decode(sys.getdefaultencoding(), "replace")
         return status, errors, [line for line in output.split("\n") if line]
 
@@ -128,7 +126,7 @@ class BadFiles(BeetsPlugin):
             path = item.path.decode(sys.getfilesystemencoding())
         try:
             status, errors, output = checker(path)
-        except CheckerCommandException as e:
+        except CheckerCommandError as e:
             if e.errno == errno.ENOENT:
                 self._log.error(
                     "command not found: {} when validating file: {}",
@@ -200,7 +198,7 @@ class BadFiles(BeetsPlugin):
             elif sel == "c":
                 return None
             elif sel == "b":
-                raise importer.ImportAbort()
+                raise importer.ImportAbortError()
             else:
                 raise Exception(f"Unexpected selection: {sel}")
 

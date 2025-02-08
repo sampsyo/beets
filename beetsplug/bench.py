@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Some simple performance benchmarks for beets.
-"""
-
+"""Some simple performance benchmarks for beets."""
 
 import cProfile
 import timeit

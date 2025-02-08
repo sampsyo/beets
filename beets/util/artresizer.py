@@ -22,11 +22,10 @@ import platform
 import re
 import subprocess
 from itertools import chain
-from tempfile import NamedTemporaryFile
 from urllib.parse import urlencode
 
 from beets import logging, util
-from beets.util import bytestring_path, displayable_path, syspath
+from beets.util import displayable_path, get_temp_filename, syspath
 
 PROXY_URL = "https://images.weserv.nl/"
 
@@ -46,15 +45,6 @@ def resize_url(url, maxwidth, quality=0):
         params["q"] = quality
 
     return "{}?{}".format(PROXY_URL, urlencode(params))
-
-
-def temp_file_for(path):
-    """Return an unused filename with the same extension as the
-    specified path.
-    """
-    ext = os.path.splitext(path)[1]
-    with NamedTemporaryFile(suffix=os.fsdecode(ext), delete=False) as f:
-        return bytestring_path(f.name)
 
 
 class LocalBackendNotAvailableError(Exception):
@@ -141,7 +131,9 @@ class IMBackend(LocalBackend):
         Use the ``magick`` program or ``convert`` on older versions. Return
         the output path of resized image.
         """
-        path_out = path_out or temp_file_for(path_in)
+        if not path_out:
+            path_out = get_temp_filename(__name__, "resize_IM_", path_in)
+
         log.debug(
             "artresizer: ImageMagick resizing {0} to {1}",
             displayable_path(path_in),
@@ -208,7 +200,8 @@ class IMBackend(LocalBackend):
             return None
 
     def deinterlace(self, path_in, path_out=None):
-        path_out = path_out or temp_file_for(path_in)
+        if not path_out:
+            path_out = get_temp_filename(__name__, "deinterlace_IM_", path_in)
 
         cmd = self.convert_cmd + [
             syspath(path_in, prefix=False),
@@ -366,7 +359,9 @@ class PILBackend(LocalBackend):
         """Resize using Python Imaging Library (PIL).  Return the output path
         of resized image.
         """
-        path_out = path_out or temp_file_for(path_in)
+        if not path_out:
+            path_out = get_temp_filename(__name__, "resize_PIL_", path_in)
+
         from PIL import Image
 
         log.debug(
@@ -442,7 +437,9 @@ class PILBackend(LocalBackend):
             return None
 
     def deinterlace(self, path_in, path_out=None):
-        path_out = path_out or temp_file_for(path_in)
+        if not path_out:
+            path_out = get_temp_filename(__name__, "deinterlace_PIL_", path_in)
+
         from PIL import Image
 
         try:

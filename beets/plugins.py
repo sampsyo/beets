@@ -14,7 +14,6 @@
 
 """Support for beets plugins."""
 
-
 import abc
 import inspect
 import re
@@ -36,7 +35,7 @@ LASTFM_KEY = "2dc3914abf35f0d9c92d97d8f8e42b43"
 log = logging.getLogger("beets")
 
 
-class PluginConflictException(Exception):
+class PluginConflictError(Exception):
     """Indicates that the services provided by one plugin conflict with
     those of another.
 
@@ -343,7 +342,7 @@ def types(model_cls):
         plugin_types = getattr(plugin, attr_name, {})
         for field in plugin_types:
             if field in types and plugin_types[field] != types[field]:
-                raise PluginConflictException(
+                raise PluginConflictError(
                     "Plugin {} defines flexible field {} "
                     "which has already been defined with "
                     "another type.".format(plugin.name, field)
@@ -447,13 +446,13 @@ def import_stages():
 def _check_conflicts_and_merge(plugin, plugin_funcs, funcs):
     """Check the provided template functions for conflicts and merge into funcs.
 
-    Raises a `PluginConflictException` if a plugin defines template functions
+    Raises a `PluginConflictError` if a plugin defines template functions
     for fields that another plugin has already defined template functions for.
     """
     if plugin_funcs:
         if not plugin_funcs.keys().isdisjoint(funcs.keys()):
             conflicted_fields = ", ".join(plugin_funcs.keys() & funcs.keys())
-            raise PluginConflictException(
+            raise PluginConflictError(
                 f"Plugin {plugin.name} defines template functions for "
                 f"{conflicted_fields} that conflict with another plugin."
             )
@@ -519,7 +518,7 @@ def feat_tokens(for_artist=True):
     feat_words = ["ft", "featuring", "feat", "feat.", "ft."]
     if for_artist:
         feat_words += ["with", "vs", "and", "con", "&"]
-    return r"(?<=\s)(?:{})(?=\s)".format(
+    return r"(?<=[\s(\[])(?:{})(?=\s)".format(
         "|".join(re.escape(x) for x in feat_words)
     )
 

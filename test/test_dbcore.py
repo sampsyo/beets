@@ -20,7 +20,10 @@ import sqlite3
 import unittest
 from tempfile import mkstemp
 
+import pytest
+
 from beets import dbcore
+from beets.library import LibModel
 from beets.test import _common
 
 # Fixture: concrete database and model classes. For migration tests, we
@@ -42,7 +45,7 @@ class QueryFixture(dbcore.query.FieldQuery):
         return True
 
 
-class ModelFixture1(dbcore.Model):
+class ModelFixture1(LibModel):
     _table = "test"
     _flex_table = "testflex"
     _fields = {
@@ -190,7 +193,7 @@ class MigrationTest(unittest.TestCase):
         c.execute("select * from test")
         row = c.fetchone()
         c.connection.close()
-        self.assertEqual(len(row.keys()), len(ModelFixture2._fields))
+        assert len(row.keys()) == len(ModelFixture2._fields)
 
     def test_open_with_new_field_adds_column(self):
         new_lib = DatabaseFixture3(self.libfile)
@@ -198,7 +201,7 @@ class MigrationTest(unittest.TestCase):
         c.execute("select * from test")
         row = c.fetchone()
         c.connection.close()
-        self.assertEqual(len(row.keys()), len(ModelFixture3._fields))
+        assert len(row.keys()) == len(ModelFixture3._fields)
 
     def test_open_with_fewer_fields_leaves_untouched(self):
         new_lib = DatabaseFixture1(self.libfile)
@@ -206,7 +209,7 @@ class MigrationTest(unittest.TestCase):
         c.execute("select * from test")
         row = c.fetchone()
         c.connection.close()
-        self.assertEqual(len(row.keys()), len(ModelFixture2._fields))
+        assert len(row.keys()) == len(ModelFixture2._fields)
 
     def test_open_with_multiple_new_fields(self):
         new_lib = DatabaseFixture4(self.libfile)
@@ -214,7 +217,7 @@ class MigrationTest(unittest.TestCase):
         c.execute("select * from test")
         row = c.fetchone()
         c.connection.close()
-        self.assertEqual(len(row.keys()), len(ModelFixture4._fields))
+        assert len(row.keys()) == len(ModelFixture4._fields)
 
     def test_extra_model_adds_table(self):
         new_lib = DatabaseFixtureTwoModels(self.libfile)
@@ -237,18 +240,16 @@ class TransactionTest(unittest.TestCase):
         old_rev = self.db.revision
         with self.db.transaction() as tx:
             tx.mutate(
-                "INSERT INTO {} "
-                "(field_one) "
-                "VALUES (?);".format(ModelFixture1._table),
+                f"INSERT INTO {ModelFixture1._table} (field_one) VALUES (?);",
                 (111,),
             )
-        self.assertGreater(self.db.revision, old_rev)
+        assert self.db.revision > old_rev
 
     def test_query_no_increase_revision(self):
         old_rev = self.db.revision
         with self.db.transaction() as tx:
             tx.query("PRAGMA table_info(%s)" % ModelFixture1._table)
-        self.assertEqual(self.db.revision, old_rev)
+        assert self.db.revision == old_rev
 
 
 class ModelTest(unittest.TestCase):
@@ -262,7 +263,7 @@ class ModelTest(unittest.TestCase):
         model = ModelFixture1()
         model.add(self.db)
         rows = self.db._connection().execute("select * from test").fetchall()
-        self.assertEqual(len(rows), 1)
+        assert len(rows) == 1
 
     def test_store_fixed_field(self):
         model = ModelFixture1()
@@ -270,37 +271,37 @@ class ModelTest(unittest.TestCase):
         model.field_one = 123
         model.store()
         row = self.db._connection().execute("select * from test").fetchone()
-        self.assertEqual(row["field_one"], 123)
+        assert row["field_one"] == 123
 
     def test_revision(self):
         old_rev = self.db.revision
         model = ModelFixture1()
         model.add(self.db)
         model.store()
-        self.assertEqual(model._revision, self.db.revision)
-        self.assertGreater(self.db.revision, old_rev)
+        assert model._revision == self.db.revision
+        assert self.db.revision > old_rev
 
         mid_rev = self.db.revision
         model2 = ModelFixture1()
         model2.add(self.db)
         model2.store()
-        self.assertGreater(model2._revision, mid_rev)
-        self.assertGreater(self.db.revision, model._revision)
+        assert model2._revision > mid_rev
+        assert self.db.revision > model._revision
 
         # revision changed, so the model should be re-loaded
         model.load()
-        self.assertEqual(model._revision, self.db.revision)
+        assert model._revision == self.db.revision
 
         # revision did not change, so no reload
         mod2_old_rev = model2._revision
         model2.load()
-        self.assertEqual(model2._revision, mod2_old_rev)
+        assert model2._revision == mod2_old_rev
 
     def test_retrieve_by_id(self):
         model = ModelFixture1()
         model.add(self.db)
         other_model = self.db._get(ModelFixture1, model.id)
-        self.assertEqual(model.id, other_model.id)
+        assert model.id == other_model.id
 
     def test_store_and_retrieve_flexattr(self):
         model = ModelFixture1()
@@ -309,21 +310,21 @@ class ModelTest(unittest.TestCase):
         model.store()
 
         other_model = self.db._get(ModelFixture1, model.id)
-        self.assertEqual(other_model.foo, "bar")
+        assert other_model.foo == "bar"
 
     def test_delete_flexattr(self):
         model = ModelFixture1()
         model["foo"] = "bar"
-        self.assertIn("foo", model)
+        assert "foo" in model
         del model["foo"]
-        self.assertNotIn("foo", model)
+        assert "foo" not in model
 
     def test_delete_flexattr_via_dot(self):
         model = ModelFixture1()
         model["foo"] = "bar"
-        self.assertIn("foo", model)
+        assert "foo" in model
         del model.foo
-        self.assertNotIn("foo", model)
+        assert "foo" not in model
 
     def test_delete_flexattr_persists(self):
         model = ModelFixture1()
@@ -336,11 +337,11 @@ class ModelTest(unittest.TestCase):
         model.store()
 
         model = self.db._get(ModelFixture1, model.id)
-        self.assertNotIn("foo", model)
+        assert "foo" not in model
 
     def test_delete_non_existent_attribute(self):
         model = ModelFixture1()
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             del model["foo"]
 
     def test_delete_fixed_attribute(self):
@@ -350,26 +351,26 @@ class ModelTest(unittest.TestCase):
         model.some_boolean_field = True
 
         for field, type_ in model._fields.items():
-            self.assertNotEqual(model[field], type_.null)
+            assert model[field] != type_.null
 
         for field, type_ in model._fields.items():
             del model[field]
-            self.assertEqual(model[field], type_.null)
+            assert model[field] == type_.null
 
     def test_null_value_normalization_by_type(self):
         model = ModelFixture1()
         model.field_one = None
-        self.assertEqual(model.field_one, 0)
+        assert model.field_one == 0
 
     def test_null_value_stays_none_for_untyped_field(self):
         model = ModelFixture1()
         model.foo = None
-        self.assertIsNone(model.foo)
+        assert model.foo is None
 
     def test_normalization_for_typed_flex_fields(self):
         model = ModelFixture1()
         model.some_float_field = None
-        self.assertEqual(model.some_float_field, 0.0)
+        assert model.some_float_field == 0.0
 
     def test_load_deleted_flex_field(self):
         model1 = ModelFixture1()
@@ -377,47 +378,47 @@ class ModelTest(unittest.TestCase):
         model1.add(self.db)
 
         model2 = self.db._get(ModelFixture1, model1.id)
-        self.assertIn("flex_field", model2)
+        assert "flex_field" in model2
 
         del model1["flex_field"]
         model1.store()
 
         model2.load()
-        self.assertNotIn("flex_field", model2)
+        assert "flex_field" not in model2
 
     def test_check_db_fails(self):
-        with self.assertRaisesRegex(ValueError, "no database"):
+        with pytest.raises(ValueError, match="no database"):
             dbcore.Model()._check_db()
-        with self.assertRaisesRegex(ValueError, "no id"):
+        with pytest.raises(ValueError, match="no id"):
             ModelFixture1(self.db)._check_db()
 
         dbcore.Model(self.db)._check_db(need_id=False)
 
     def test_missing_field(self):
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             ModelFixture1(self.db).nonExistingKey
 
     def test_computed_field(self):
         model = ModelFixtureWithGetters()
-        self.assertEqual(model.aComputedField, "thing")
-        with self.assertRaisesRegex(KeyError, "computed field .+ deleted"):
+        assert model.aComputedField == "thing"
+        with pytest.raises(KeyError, match="computed field .+ deleted"):
             del model.aComputedField
 
     def test_items(self):
         model = ModelFixture1(self.db)
         model.id = 5
-        self.assertEqual(
-            {("id", 5), ("field_one", 0), ("field_two", "")}, set(model.items())
+        assert {("id", 5), ("field_one", 0), ("field_two", "")} == set(
+            model.items()
         )
 
     def test_delete_internal_field(self):
         model = dbcore.Model()
         del model._db
-        with self.assertRaises(AttributeError):
+        with pytest.raises(AttributeError):
             model._db
 
     def test_parse_nonstring(self):
-        with self.assertRaisesRegex(TypeError, "must be a string"):
+        with pytest.raises(TypeError, match="must be a string"):
             dbcore.Model._parse(None, 42)
 
 
@@ -426,87 +427,87 @@ class FormatTest(unittest.TestCase):
         model = ModelFixture1()
         model.field_one = 155
         value = model.formatted().get("field_one")
-        self.assertEqual(value, "155")
+        assert value == "155"
 
     def test_format_fixed_field_integer_normalized(self):
         """The normalize method of the Integer class rounds floats"""
         model = ModelFixture1()
         model.field_one = 142.432
         value = model.formatted().get("field_one")
-        self.assertEqual(value, "142")
+        assert value == "142"
 
         model.field_one = 142.863
         value = model.formatted().get("field_one")
-        self.assertEqual(value, "143")
+        assert value == "143"
 
     def test_format_fixed_field_string(self):
         model = ModelFixture1()
         model.field_two = "caf\xe9"
         value = model.formatted().get("field_two")
-        self.assertEqual(value, "caf\xe9")
+        assert value == "caf\xe9"
 
     def test_format_flex_field(self):
         model = ModelFixture1()
         model.other_field = "caf\xe9"
         value = model.formatted().get("other_field")
-        self.assertEqual(value, "caf\xe9")
+        assert value == "caf\xe9"
 
     def test_format_flex_field_bytes(self):
         model = ModelFixture1()
         model.other_field = "caf\xe9".encode()
         value = model.formatted().get("other_field")
-        self.assertTrue(isinstance(value, str))
-        self.assertEqual(value, "caf\xe9")
+        assert isinstance(value, str)
+        assert value == "caf\xe9"
 
     def test_format_unset_field(self):
         model = ModelFixture1()
         value = model.formatted().get("other_field")
-        self.assertEqual(value, "")
+        assert value == ""
 
     def test_format_typed_flex_field(self):
         model = ModelFixture1()
         model.some_float_field = 3.14159265358979
         value = model.formatted().get("some_float_field")
-        self.assertEqual(value, "3.1")
+        assert value == "3.1"
 
 
 class FormattedMappingTest(unittest.TestCase):
     def test_keys_equal_model_keys(self):
         model = ModelFixture1()
         formatted = model.formatted()
-        self.assertEqual(set(model.keys(True)), set(formatted.keys()))
+        assert set(model.keys(True)) == set(formatted.keys())
 
     def test_get_unset_field(self):
         model = ModelFixture1()
         formatted = model.formatted()
-        with self.assertRaises(KeyError):
+        with pytest.raises(KeyError):
             formatted["other_field"]
 
     def test_get_method_with_default(self):
         model = ModelFixture1()
         formatted = model.formatted()
-        self.assertEqual(formatted.get("other_field"), "")
+        assert formatted.get("other_field") == ""
 
     def test_get_method_with_specified_default(self):
         model = ModelFixture1()
         formatted = model.formatted()
-        self.assertEqual(formatted.get("other_field", "default"), "default")
+        assert formatted.get("other_field", "default") == "default"
 
 
 class ParseTest(unittest.TestCase):
     def test_parse_fixed_field(self):
         value = ModelFixture1._parse("field_one", "2")
-        self.assertIsInstance(value, int)
-        self.assertEqual(value, 2)
+        assert isinstance(value, int)
+        assert value == 2
 
     def test_parse_flex_field(self):
         value = ModelFixture1._parse("some_float_field", "2")
-        self.assertIsInstance(value, float)
-        self.assertEqual(value, 2.0)
+        assert isinstance(value, float)
+        assert value == 2.0
 
     def test_parse_untyped_field(self):
         value = ModelFixture1._parse("field_nine", "2")
-        self.assertEqual(value, "2")
+        assert value == "2"
 
 
 class QueryParseTest(unittest.TestCase):
@@ -515,59 +516,57 @@ class QueryParseTest(unittest.TestCase):
             part,
             {"year": dbcore.query.NumericQuery},
             {":": dbcore.query.RegexpQuery},
-        )[
-            :-1
-        ]  # remove the negate flag
+        )[:-1]  # remove the negate flag
 
     def test_one_basic_term(self):
         q = "test"
         r = (None, "test", dbcore.query.SubstringQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_one_keyed_term(self):
         q = "test:val"
         r = ("test", "val", dbcore.query.SubstringQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_colon_at_end(self):
         q = "test:"
         r = ("test", "", dbcore.query.SubstringQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_one_basic_regexp(self):
         q = r":regexp"
         r = (None, "regexp", dbcore.query.RegexpQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_keyed_regexp(self):
         q = r"test::regexp"
         r = ("test", "regexp", dbcore.query.RegexpQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_escaped_colon(self):
         q = r"test\:val"
         r = (None, "test:val", dbcore.query.SubstringQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_escaped_colon_in_regexp(self):
         q = r":test\:regexp"
         r = (None, "test:regexp", dbcore.query.RegexpQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_single_year(self):
         q = "year:1999"
         r = ("year", "1999", dbcore.query.NumericQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_multiple_years(self):
         q = "year:1999..2010"
         r = ("year", "1999..2010", dbcore.query.NumericQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
     def test_empty_query_part(self):
         q = ""
         r = (None, "", dbcore.query.SubstringQuery)
-        self.assertEqual(self.pqp(q), r)
+        assert self.pqp(q) == r
 
 
 class QueryFromStringsTest(unittest.TestCase):
@@ -581,28 +580,28 @@ class QueryFromStringsTest(unittest.TestCase):
 
     def test_zero_parts(self):
         q = self.qfs([])
-        self.assertIsInstance(q, dbcore.query.AndQuery)
-        self.assertEqual(len(q.subqueries), 1)
-        self.assertIsInstance(q.subqueries[0], dbcore.query.TrueQuery)
+        assert isinstance(q, dbcore.query.AndQuery)
+        assert len(q.subqueries) == 1
+        assert isinstance(q.subqueries[0], dbcore.query.TrueQuery)
 
     def test_two_parts(self):
         q = self.qfs(["foo", "bar:baz"])
-        self.assertIsInstance(q, dbcore.query.AndQuery)
-        self.assertEqual(len(q.subqueries), 2)
-        self.assertIsInstance(q.subqueries[0], dbcore.query.AnyFieldQuery)
-        self.assertIsInstance(q.subqueries[1], dbcore.query.SubstringQuery)
+        assert isinstance(q, dbcore.query.AndQuery)
+        assert len(q.subqueries) == 2
+        assert isinstance(q.subqueries[0], dbcore.query.OrQuery)
+        assert isinstance(q.subqueries[1], dbcore.query.SubstringQuery)
 
     def test_parse_fixed_type_query(self):
         q = self.qfs(["field_one:2..3"])
-        self.assertIsInstance(q.subqueries[0], dbcore.query.NumericQuery)
+        assert isinstance(q.subqueries[0], dbcore.query.NumericQuery)
 
     def test_parse_flex_type_query(self):
         q = self.qfs(["some_float_field:2..3"])
-        self.assertIsInstance(q.subqueries[0], dbcore.query.NumericQuery)
+        assert isinstance(q.subqueries[0], dbcore.query.NumericQuery)
 
     def test_empty_query_part(self):
         q = self.qfs([""])
-        self.assertIsInstance(q.subqueries[0], dbcore.query.TrueQuery)
+        assert isinstance(q.subqueries[0], dbcore.query.TrueQuery)
 
 
 class SortFromStringsTest(unittest.TestCase):
@@ -614,31 +613,31 @@ class SortFromStringsTest(unittest.TestCase):
 
     def test_zero_parts(self):
         s = self.sfs([])
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(s, dbcore.query.NullSort())
+        assert isinstance(s, dbcore.query.NullSort)
+        assert s == dbcore.query.NullSort()
 
     def test_one_parts(self):
         s = self.sfs(["field+"])
-        self.assertIsInstance(s, dbcore.query.Sort)
+        assert isinstance(s, dbcore.query.Sort)
 
     def test_two_parts(self):
         s = self.sfs(["field+", "another_field-"])
-        self.assertIsInstance(s, dbcore.query.MultipleSort)
-        self.assertEqual(len(s.sorts), 2)
+        assert isinstance(s, dbcore.query.MultipleSort)
+        assert len(s.sorts) == 2
 
     def test_fixed_field_sort(self):
         s = self.sfs(["field_one+"])
-        self.assertIsInstance(s, dbcore.query.FixedFieldSort)
-        self.assertEqual(s, dbcore.query.FixedFieldSort("field_one"))
+        assert isinstance(s, dbcore.query.FixedFieldSort)
+        assert s == dbcore.query.FixedFieldSort("field_one")
 
     def test_flex_field_sort(self):
         s = self.sfs(["flex_field+"])
-        self.assertIsInstance(s, dbcore.query.SlowFieldSort)
-        self.assertEqual(s, dbcore.query.SlowFieldSort("flex_field"))
+        assert isinstance(s, dbcore.query.SlowFieldSort)
+        assert s == dbcore.query.SlowFieldSort("flex_field")
 
     def test_special_sort(self):
         s = self.sfs(["some_sort+"])
-        self.assertIsInstance(s, SortFixture)
+        assert isinstance(s, SortFixture)
 
 
 class ParseSortedQueryTest(unittest.TestCase):
@@ -650,45 +649,45 @@ class ParseSortedQueryTest(unittest.TestCase):
 
     def test_and_query(self):
         q, s = self.psq("foo bar")
-        self.assertIsInstance(q, dbcore.query.AndQuery)
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(len(q.subqueries), 2)
+        assert isinstance(q, dbcore.query.AndQuery)
+        assert isinstance(s, dbcore.query.NullSort)
+        assert len(q.subqueries) == 2
 
     def test_or_query(self):
         q, s = self.psq("foo , bar")
-        self.assertIsInstance(q, dbcore.query.OrQuery)
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(len(q.subqueries), 2)
+        assert isinstance(q, dbcore.query.OrQuery)
+        assert isinstance(s, dbcore.query.NullSort)
+        assert len(q.subqueries) == 2
 
     def test_no_space_before_comma_or_query(self):
         q, s = self.psq("foo, bar")
-        self.assertIsInstance(q, dbcore.query.OrQuery)
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(len(q.subqueries), 2)
+        assert isinstance(q, dbcore.query.OrQuery)
+        assert isinstance(s, dbcore.query.NullSort)
+        assert len(q.subqueries) == 2
 
     def test_no_spaces_or_query(self):
         q, s = self.psq("foo,bar")
-        self.assertIsInstance(q, dbcore.query.AndQuery)
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(len(q.subqueries), 1)
+        assert isinstance(q, dbcore.query.AndQuery)
+        assert isinstance(s, dbcore.query.NullSort)
+        assert len(q.subqueries) == 1
 
     def test_trailing_comma_or_query(self):
         q, s = self.psq("foo , bar ,")
-        self.assertIsInstance(q, dbcore.query.OrQuery)
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(len(q.subqueries), 3)
+        assert isinstance(q, dbcore.query.OrQuery)
+        assert isinstance(s, dbcore.query.NullSort)
+        assert len(q.subqueries) == 3
 
     def test_leading_comma_or_query(self):
         q, s = self.psq(", foo , bar")
-        self.assertIsInstance(q, dbcore.query.OrQuery)
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(len(q.subqueries), 3)
+        assert isinstance(q, dbcore.query.OrQuery)
+        assert isinstance(s, dbcore.query.NullSort)
+        assert len(q.subqueries) == 3
 
     def test_only_direction(self):
         q, s = self.psq("-")
-        self.assertIsInstance(q, dbcore.query.AndQuery)
-        self.assertIsInstance(s, dbcore.query.NullSort)
-        self.assertEqual(len(q.subqueries), 1)
+        assert isinstance(q, dbcore.query.AndQuery)
+        assert isinstance(s, dbcore.query.NullSort)
+        assert len(q.subqueries) == 1
 
 
 class ResultsIteratorTest(unittest.TestCase):
@@ -706,12 +705,12 @@ class ResultsIteratorTest(unittest.TestCase):
 
     def test_iterate_once(self):
         objs = self.db._fetch(ModelFixture1)
-        self.assertEqual(len(list(objs)), 2)
+        assert len(list(objs)) == 2
 
     def test_iterate_twice(self):
         objs = self.db._fetch(ModelFixture1)
         list(objs)
-        self.assertEqual(len(list(objs)), 2)
+        assert len(list(objs)) == 2
 
     def test_concurrent_iterators(self):
         results = self.db._fetch(ModelFixture1)
@@ -719,54 +718,47 @@ class ResultsIteratorTest(unittest.TestCase):
         it2 = iter(results)
         next(it1)
         list(it2)
-        self.assertEqual(len(list(it1)), 1)
+        assert len(list(it1)) == 1
 
     def test_slow_query(self):
         q = dbcore.query.SubstringQuery("foo", "ba", False)
         objs = self.db._fetch(ModelFixture1, q)
-        self.assertEqual(len(list(objs)), 2)
+        assert len(list(objs)) == 2
 
     def test_slow_query_negative(self):
         q = dbcore.query.SubstringQuery("foo", "qux", False)
         objs = self.db._fetch(ModelFixture1, q)
-        self.assertEqual(len(list(objs)), 0)
+        assert len(list(objs)) == 0
 
     def test_iterate_slow_sort(self):
         s = dbcore.query.SlowFieldSort("foo")
         res = self.db._fetch(ModelFixture1, sort=s)
         objs = list(res)
-        self.assertEqual(objs[0].foo, "bar")
-        self.assertEqual(objs[1].foo, "baz")
+        assert objs[0].foo == "bar"
+        assert objs[1].foo == "baz"
 
     def test_unsorted_subscript(self):
         objs = self.db._fetch(ModelFixture1)
-        self.assertEqual(objs[0].foo, "baz")
-        self.assertEqual(objs[1].foo, "bar")
+        assert objs[0].foo == "baz"
+        assert objs[1].foo == "bar"
 
     def test_slow_sort_subscript(self):
         s = dbcore.query.SlowFieldSort("foo")
         objs = self.db._fetch(ModelFixture1, sort=s)
-        self.assertEqual(objs[0].foo, "bar")
-        self.assertEqual(objs[1].foo, "baz")
+        assert objs[0].foo == "bar"
+        assert objs[1].foo == "baz"
 
     def test_length(self):
         objs = self.db._fetch(ModelFixture1)
-        self.assertEqual(len(objs), 2)
+        assert len(objs) == 2
 
     def test_out_of_range(self):
         objs = self.db._fetch(ModelFixture1)
-        with self.assertRaises(IndexError):
+        with pytest.raises(IndexError):
             objs[100]
 
     def test_no_results(self):
-        self.assertIsNone(
+        assert (
             self.db._fetch(ModelFixture1, dbcore.query.FalseQuery()).get()
+            is None
         )
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

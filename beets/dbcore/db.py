@@ -24,28 +24,9 @@ import threading
 import time
 from abc import ABC
 from collections import defaultdict
+from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
 from sqlite3 import Connection
-from types import TracebackType
-from typing import (
-    Any,
-    AnyStr,
-    Callable,
-    DefaultDict,
-    Dict,
-    Generator,
-    Generic,
-    Iterable,
-    Iterator,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, AnyStr, Callable, Generic, TypeVar, cast
 
 from unidecode import unidecode
 
@@ -54,14 +35,26 @@ import beets
 from ..util import cached_classproperty, functemplate
 from . import types
 from .query import (
-    AndQuery,
-    FieldQuery,
+    FieldQueryType,
+    FieldSort,
     MatchQuery,
     NullSort,
     Query,
     Sort,
     TrueQuery,
 )
+
+if TYPE_CHECKING:
+    from types import TracebackType
+
+    from .query import SQLiteType
+
+    D = TypeVar("D", bound="Database", default=Any)
+else:
+    D = TypeVar("D", bound="Database")
+
+
+FlexAttrs = dict[str, str]
 
 
 class DBAccessError(Exception):
@@ -120,7 +113,7 @@ class FormattedMapping(Mapping[str, str]):
     def get(  # type: ignore
         self,
         key: str,
-        default: Optional[str] = None,
+        default: str | None = None,
     ) -> str:
         """Similar to Mapping.get(key, default), but always formats to str."""
         if default is None:
@@ -158,14 +151,14 @@ class FormattedMapping(Mapping[str, str]):
 class LazyConvertDict:
     """Lazily convert types for attributes fetched from the database"""
 
-    def __init__(self, model_cls: "Model"):
+    def __init__(self, model_cls: Model):
         """Initialize the object empty"""
         # FIXME: Dict[str, SQLiteType]
-        self._data: Dict[str, Any] = {}
+        self._data: dict[str, Any] = {}
         self.model_cls = model_cls
-        self._converted: Dict[str, Any] = {}
+        self._converted: dict[str, Any] = {}
 
-    def init(self, data: Dict[str, Any]):
+    def init(self, data: dict[str, Any]):
         """Set the base data that should be lazily converted"""
         self._data = data
 
@@ -195,7 +188,7 @@ class LazyConvertDict:
         if key in self._data:
             del self._data[key]
 
-    def keys(self) -> List[str]:
+    def keys(self) -> list[str]:
         """Get a list of available field names for this object."""
         return list(self._converted.keys()) + list(self._data.keys())
 
@@ -213,14 +206,14 @@ class LazyConvertDict:
         for key, value in values.items():
             self[key] = value
 
-    def items(self) -> Iterable[Tuple[str, Any]]:
+    def items(self) -> Iterable[tuple[str, Any]]:
         """Iterate over (key, value) pairs that this object contains.
         Computed fields are not included.
         """
         for key in self:
             yield key, self[key]
 
-    def get(self, key: str, default: Optional[Any] = None):
+    def get(self, key: str, default: Any | None = None):
         """Get the value for a given key or `default` if it does not
         exist.
         """
@@ -252,7 +245,7 @@ class LazyConvertDict:
 # Abstract base for model classes.
 
 
-class Model(ABC):
+class Model(ABC, Generic[D]):
     """An abstract object representing an object in the database. Model
     objects act like dictionaries (i.e., they allow subscript access like
     ``obj['field']``). The same field set is available via attribute
@@ -286,7 +279,7 @@ class Model(ABC):
     """The flex field SQLite table name.
     """
 
-    _fields: Dict[str, types.Type] = {}
+    _fields: dict[str, types.Type] = {}
     """A mapping indicating available "fixed" fields on this type. The
     keys are field names and the values are `Type` objects.
     """
@@ -296,16 +289,16 @@ class Model(ABC):
     terms.
     """
 
-    _types: Dict[str, types.Type] = {}
+    _types: dict[str, types.Type] = {}
     """Optional Types for non-fixed (i.e., flexible and computed) fields.
     """
 
-    _sorts: Dict[str, Type[Sort]] = {}
+    _sorts: dict[str, type[FieldSort]] = {}
     """Optional named sort criteria. The keys are strings and the values
     are subclasses of `Sort`.
     """
 
-    _queries: Dict[str, Type[FieldQuery]] = {}
+    _queries: dict[str, FieldQueryType] = {}
     """Named queries that use a field-like `name:value` syntax but which
     do not relate to any specific field.
     """
@@ -322,7 +315,7 @@ class Model(ABC):
     """
 
     @cached_classproperty
-    def _relation(cls) -> type[Model]:
+    def _relation(cls):
         """The model that this model is closely related to."""
         return cls
 
@@ -348,7 +341,7 @@ class Model(ABC):
         return cls._relation._fields.keys() - cls.shared_db_fields
 
     @classmethod
-    def _getters(cls: Type["Model"]):
+    def _getters(cls: type[Model]):
         """Return a mapping from field names to getter functions."""
         # We could cache this if it becomes a performance problem to
         # gather the getter mapping every time.
@@ -363,7 +356,7 @@ class Model(ABC):
 
     # Basic operation.
 
-    def __init__(self, db: Optional[Database] = None, **values):
+    def __init__(self, db: D | None = None, **values):
         """Create a new object with an optional Database association and
         initial field values.
         """
@@ -378,10 +371,10 @@ class Model(ABC):
 
     @classmethod
     def _awaken(
-        cls: Type[AnyModel],
-        db: Optional[Database] = None,
-        fixed_values: Dict[str, Any] = {},
-        flex_values: Dict[str, Any] = {},
+        cls: type[AnyModel],
+        db: D | None = None,
+        fixed_values: dict[str, Any] = {},
+        flex_values: dict[str, Any] = {},
     ) -> AnyModel:
         """Create an object with values drawn from the database.
 
@@ -409,7 +402,7 @@ class Model(ABC):
         if self._db:
             self._revision = self._db.revision
 
-    def _check_db(self, need_id: bool = True) -> Database:
+    def _check_db(self, need_id: bool = True) -> D:
         """Ensure that this object is associated with a database row: it
         has a reference to a database (`_db`) and an id. A ValueError
         exception is raised otherwise.
@@ -421,7 +414,7 @@ class Model(ABC):
 
         return self._db
 
-    def copy(self) -> "Model":
+    def copy(self) -> Model:
         """Create a copy of the model object.
 
         The field values and other state is duplicated, but the new copy
@@ -537,7 +530,7 @@ class Model(ABC):
         for key, value in values.items():
             self[key] = value
 
-    def items(self) -> Iterator[Tuple[str, Any]]:
+    def items(self) -> Iterator[tuple[str, Any]]:
         """Iterate over (key, value) pairs that this object contains.
         Computed fields are not included.
         """
@@ -579,7 +572,7 @@ class Model(ABC):
 
     # Database interaction (CRUD methods).
 
-    def store(self, fields: Optional[Iterable[str]] = None):
+    def store(self, fields: Iterable[str] | None = None):
         """Save the object's metadata into the library database.
         :param fields: the fields to be stored. If not specified, all fields
         will be.
@@ -590,7 +583,7 @@ class Model(ABC):
 
         # Build assignments for query.
         assignments = []
-        subvars = []
+        subvars: list[SQLiteType] = []
         for key in fields:
             if key != "id" and key in self._dirty:
                 self._dirty.remove(key)
@@ -653,7 +646,7 @@ class Model(ABC):
                 f"DELETE FROM {self._flex_table} WHERE entity_id=?", (self.id,)
             )
 
-    def add(self, db: Optional["Database"] = None):
+    def add(self, db: D | None = None):
         """Add the object to the library database. This object must be
         associated with a database; you can provide one via the `db`
         parameter or use the currently associated database.
@@ -692,7 +685,7 @@ class Model(ABC):
 
     def evaluate_template(
         self,
-        template: Union[str, functemplate.Template],
+        template: str | functemplate.Template,
         for_path: bool = False,
     ) -> str:
         """Evaluate a template (a string or a `Template` object) using
@@ -723,33 +716,6 @@ class Model(ABC):
         """Set the object's key to a value represented by a string."""
         self[key] = self._parse(key, string)
 
-    # Convenient queries.
-
-    @classmethod
-    def field_query(
-        cls,
-        field,
-        pattern,
-        query_cls: Type[FieldQuery] = MatchQuery,
-    ) -> FieldQuery:
-        """Get a `FieldQuery` for this model."""
-        return query_cls(field, pattern, field in cls._fields)
-
-    @classmethod
-    def all_fields_query(
-        cls: Type["Model"],
-        pats: Mapping,
-        query_cls: Type[FieldQuery] = MatchQuery,
-    ):
-        """Get a query that matches many fields with different patterns.
-
-        `pats` should be a mapping from field names to patterns. The
-        resulting query is a conjunction ("and") of per-field queries
-        for all of these field/pattern pairs.
-        """
-        subqueries = [cls.field_query(k, v, query_cls) for k, v in pats.items()]
-        return AndQuery(subqueries)
-
 
 # Database controller and supporting interfaces.
 
@@ -764,11 +730,11 @@ class Results(Generic[AnyModel]):
 
     def __init__(
         self,
-        model_class: Type[AnyModel],
-        rows: List[Mapping],
-        db: "Database",
+        model_class: type[AnyModel],
+        rows: list[sqlite3.Row],
+        db: D,
         flex_rows,
-        query: Optional[Query] = None,
+        query: Query | None = None,
         sort=None,
     ):
         """Create a result set that will construct objects of type
@@ -800,7 +766,7 @@ class Results(Generic[AnyModel]):
 
         # The materialized objects corresponding to rows that have been
         # consumed.
-        self._objects: List[AnyModel] = []
+        self._objects: list[AnyModel] = []
 
     def _get_objects(self) -> Iterator[AnyModel]:
         """Construct and generate Model objects for they query. The
@@ -850,9 +816,9 @@ class Results(Generic[AnyModel]):
             # Objects are pre-sorted (i.e., by the database).
             return self._get_objects()
 
-    def _get_indexed_flex_attrs(self) -> Mapping:
+    def _get_indexed_flex_attrs(self) -> dict[int, FlexAttrs]:
         """Index flexible attributes by the entity id they belong to"""
-        flex_values: Dict[int, Dict[str, Any]] = {}
+        flex_values: dict[int, FlexAttrs] = {}
         for row in self.flex_rows:
             if row["entity_id"] not in flex_values:
                 flex_values[row["entity_id"]] = {}
@@ -861,7 +827,9 @@ class Results(Generic[AnyModel]):
 
         return flex_values
 
-    def _make_model(self, row, flex_values: Dict = {}) -> AnyModel:
+    def _make_model(
+        self, row: sqlite3.Row, flex_values: FlexAttrs = {}
+    ) -> AnyModel:
         """Create a Model object for the given row"""
         cols = dict(row)
         values = {k: v for (k, v) in cols.items() if not k[:4] == "flex"}
@@ -912,7 +880,7 @@ class Results(Generic[AnyModel]):
         except StopIteration:
             raise IndexError(f"result index {n} out of range")
 
-    def get(self) -> Optional[AnyModel]:
+    def get(self) -> AnyModel | None:
         """Return the first matching object, or None if no objects
         match.
         """
@@ -933,10 +901,10 @@ class Transaction:
     current transaction.
     """
 
-    def __init__(self, db: "Database"):
+    def __init__(self, db: Database):
         self.db = db
 
-    def __enter__(self) -> "Transaction":
+    def __enter__(self) -> Transaction:
         """Begin a transaction. This transaction may be created while
         another is active in a different thread.
         """
@@ -951,7 +919,7 @@ class Transaction:
 
     def __exit__(
         self,
-        exc_type: Type[Exception],
+        exc_type: type[Exception],
         exc_value: Exception,
         traceback: TracebackType,
     ):
@@ -970,14 +938,16 @@ class Transaction:
             self._mutated = False
             self.db._db_lock.release()
 
-    def query(self, statement: str, subvals: Sequence = ()) -> List:
+    def query(
+        self, statement: str, subvals: Sequence[SQLiteType] = ()
+    ) -> list[sqlite3.Row]:
         """Execute an SQL statement with substitution values and return
         a list of rows from the database.
         """
         cursor = self.db._connection().execute(statement, subvals)
         return cursor.fetchall()
 
-    def mutate(self, statement: str, subvals: Sequence = ()) -> Any:
+    def mutate(self, statement: str, subvals: Sequence[SQLiteType] = ()) -> Any:
         """Execute an SQL statement with substitution values and return
         the row ID of the last affected row.
         """
@@ -1010,7 +980,7 @@ class Database:
     the backend.
     """
 
-    _models: Sequence[Type[Model]] = ()
+    _models: Sequence[type[Model]] = ()
     """The Model subclasses representing tables in this database.
     """
 
@@ -1031,9 +1001,9 @@ class Database:
         self.path = path
         self.timeout = timeout
 
-        self._connections: Dict[int, sqlite3.Connection] = {}
-        self._tx_stacks: DefaultDict[int, List[Transaction]] = defaultdict(list)
-        self._extensions: List[str] = []
+        self._connections: dict[int, sqlite3.Connection] = {}
+        self._tx_stacks: defaultdict[int, list[Transaction]] = defaultdict(list)
+        self._extensions: list[str] = []
 
         # A lock to protect the _connections and _tx_stacks maps, which
         # both map thread IDs to private resources.
@@ -1110,7 +1080,7 @@ class Database:
                 value = value.decode()
             return re.search(pattern, str(value)) is not None
 
-        def bytelower(bytestring: Optional[AnyStr]) -> Optional[AnyStr]:
+        def bytelower(bytestring: AnyStr | None) -> AnyStr | None:
             """A custom ``bytelower`` sqlite function so we can compare
             bytestrings in a semi case insensitive fashion.
 
@@ -1138,7 +1108,7 @@ class Database:
                 conn.close()
 
     @contextlib.contextmanager
-    def _tx_stack(self) -> Generator[List, None, None]:
+    def _tx_stack(self) -> Generator[list[Transaction]]:
         """A context manager providing access to the current thread's
         transaction stack. The context manager synchronizes access to
         the stack map. Transactions should never migrate across threads.
@@ -1224,18 +1194,16 @@ class Database:
                     UNIQUE(entity_id, key) ON CONFLICT REPLACE);
                 CREATE INDEX IF NOT EXISTS {0}_by_entity
                     ON {0} (entity_id);
-                """.format(
-                    flex_table
-                )
+                """.format(flex_table)
             )
 
     # Querying.
 
     def _fetch(
         self,
-        model_cls: Type[AnyModel],
-        query: Optional[Query] = None,
-        sort: Optional[Sort] = None,
+        model_cls: type[AnyModel],
+        query: Query | None = None,
+        sort: Sort | None = None,
     ) -> Results[AnyModel]:
         """Fetch the objects of type `model_cls` matching the given
         query. The query may be given as a string, string sequence, a
@@ -1291,9 +1259,9 @@ class Database:
 
     def _get(
         self,
-        model_cls: Type[AnyModel],
+        model_cls: type[AnyModel],
         id,
-    ) -> Optional[AnyModel]:
+    ) -> AnyModel | None:
         """Get a Model object by its id or None if the id does not
         exist.
         """

@@ -15,7 +15,7 @@
 import fnmatch
 import os
 import tempfile
-from typing import Sequence
+from collections.abc import Sequence
 
 import beets
 from beets.dbcore.query import InQuery

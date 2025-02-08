@@ -1,13 +1,11 @@
-"""Tests for the 'permissions' plugin.
-"""
+"""Tests for the 'permissions' plugin."""
 
 import os
 import platform
-import unittest
 from unittest.mock import Mock, patch
 
 from beets.test._common import touch
-from beets.test.helper import TestHelper
+from beets.test.helper import AsIsImporterMixin, ImportTestCase, PluginMixin
 from beets.util import displayable_path
 from beetsplug.permissions import (
     check_permissions,
@@ -16,16 +14,13 @@ from beetsplug.permissions import (
 )
 
 
-class PermissionsPluginTest(unittest.TestCase, TestHelper):
+class PermissionsPluginTest(AsIsImporterMixin, PluginMixin, ImportTestCase):
+    plugin = "permissions"
+
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("permissions")
+        super().setUp()
 
         self.config["permissions"] = {"file": "777", "dir": "777"}
-
-    def tearDown(self):
-        self.teardown_beets()
-        self.unload_plugins()
 
     def test_permissions_on_album_imported(self):
         self.do_thing(True)
@@ -48,10 +43,9 @@ class PermissionsPluginTest(unittest.TestCase, TestHelper):
                 & 0o777
             )
 
-        self.importer = self.create_importer()
         typs = ["file", "dir"]
 
-        track_file = (b"album 0", b"track 0.mp3")
+        track_file = (b"album", b"track_1.mp3")
         self.exp_perms = {
             True: {
                 k: convert_perm(self.config["permissions"][k].get())
@@ -60,7 +54,7 @@ class PermissionsPluginTest(unittest.TestCase, TestHelper):
             False: {k: get_stat(v) for (k, v) in zip(typs, (track_file, ()))},
         }
 
-        self.importer.run()
+        self.run_asis_importer()
         item = self.lib.items().get()
 
         self.assertPerms(item.path, "file", expect_success)
@@ -68,7 +62,7 @@ class PermissionsPluginTest(unittest.TestCase, TestHelper):
         for path in dirs_in_library(self.lib.directory, item.path):
             self.assertPerms(path, "dir", expect_success)
 
-    def assertPerms(self, path, typ, expect_success):  # noqa
+    def assertPerms(self, path, typ, expect_success):
         for x in [
             (True, self.exp_perms[expect_success][typ], "!="),
             (False, self.exp_perms[not expect_success][typ], "=="),
@@ -79,13 +73,13 @@ class PermissionsPluginTest(unittest.TestCase, TestHelper):
                 x[2],
                 oct(x[1]),
             )
-            self.assertEqual(x[0], check_permissions(path, x[1]), msg=msg)
+            assert x[0] == check_permissions(path, x[1]), msg
 
     def test_convert_perm_from_string(self):
-        self.assertEqual(convert_perm("10"), 8)
+        assert convert_perm("10") == 8
 
     def test_convert_perm_from_int(self):
-        self.assertEqual(convert_perm(10), 8)
+        assert convert_perm(10) == 8
 
     def test_permissions_on_set_art(self):
         self.do_set_art(True)
@@ -97,20 +91,9 @@ class PermissionsPluginTest(unittest.TestCase, TestHelper):
     def do_set_art(self, expect_success):
         if platform.system() == "Windows":
             self.skipTest("permissions not available on Windows")
-        self.importer = self.create_importer()
-        self.importer.run()
+        self.run_asis_importer()
         album = self.lib.albums().get()
         artpath = os.path.join(self.temp_dir, b"cover.jpg")
         touch(artpath)
         album.set_art(artpath)
-        self.assertEqual(
-            expect_success, check_permissions(album.artpath, 0o777)
-        )
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert expect_success == check_permissions(album.artpath, 0o777)

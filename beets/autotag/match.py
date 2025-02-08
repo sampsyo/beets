@@ -16,24 +16,17 @@
 releases and tracks.
 """
 
+from __future__ import annotations
 
 import datetime
 import re
-from collections import namedtuple
-from typing import (
-    Any,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    TypeVar,
-    Union,
-    cast,
-)
+from collections.abc import Iterable, Sequence
+from enum import IntEnum
+from functools import cache
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar, cast
 
-from munkres import Munkres
+import lap
+import numpy as np
 
 from beets import config, logging, plugins
 from beets.autotag import (
@@ -44,9 +37,10 @@ from beets.autotag import (
     TrackMatch,
     hooks,
 )
-from beets.library import Item
 from beets.util import plurality
-from beets.util.enumeration import OrderedEnum
+
+if TYPE_CHECKING:
+    from beets.library import Item
 
 # Artist signals that indicate "various artists". These are used at the
 # album level to determine whether a given release is likely a VA
@@ -61,7 +55,7 @@ log = logging.getLogger("beets")
 # Recommendation enumeration.
 
 
-class Recommendation(OrderedEnum):
+class Recommendation(IntEnum):
     """Indicates a qualitative suggestion to the user about what should
     be done with a given match.
     """
@@ -76,7 +70,10 @@ class Recommendation(OrderedEnum):
 # consists of a list of possible candidates (i.e., AlbumInfo or TrackInfo
 # objects) and a recommendation value.
 
-Proposal = namedtuple("Proposal", ("candidates", "recommendation"))
+
+class Proposal(NamedTuple):
+    candidates: Sequence[AlbumMatch | TrackMatch]
+    recommendation: Recommendation
 
 
 # Primary matching functionality.
@@ -84,7 +81,7 @@ Proposal = namedtuple("Proposal", ("candidates", "recommendation"))
 
 def current_metadata(
     items: Iterable[Item],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Extract the likely current metadata for an album given a list of its
     items. Return two dictionaries:
      - The most common value for each field.
@@ -123,29 +120,29 @@ def current_metadata(
 def assign_items(
     items: Sequence[Item],
     tracks: Sequence[TrackInfo],
-) -> Tuple[Dict[Item, TrackInfo], List[Item], List[TrackInfo]]:
+) -> tuple[dict[Item, TrackInfo], list[Item], list[TrackInfo]]:
     """Given a list of Items and a list of TrackInfo objects, find the
     best mapping between them. Returns a mapping from Items to TrackInfo
     objects, a set of extra Items, and a set of extra TrackInfo
     objects. These "extra" objects occur when there is an unequal number
     of objects of the two types.
     """
-    # Construct the cost matrix.
-    costs: List[List[Distance]] = []
-    for item in items:
-        row = []
-        for track in tracks:
-            row.append(track_distance(item, track))
-        costs.append(row)
-
-    # Find a minimum-cost bipartite matching.
     log.debug("Computing track assignment...")
-    matching = Munkres().compute(costs)
+    # Construct the cost matrix.
+    costs = [[float(track_distance(i, t)) for t in tracks] for i in items]
+    # Assign items to tracks
+    _, _, assigned_item_idxs = lap.lapjv(np.array(costs), extend_cost=True)
     log.debug("...done.")
 
-    # Produce the output matching.
-    mapping = {items[i]: tracks[j] for (i, j) in matching}
-    extra_items = list(set(items) - set(mapping.keys()))
+    # Each item in `assigned_item_idxs` list corresponds to a track in the
+    # `tracks` list. Each value is either an index into the assigned item in
+    # `items` list, or -1 if that track has no match.
+    mapping = {
+        items[iidx]: t
+        for iidx, t in zip(assigned_item_idxs, tracks)
+        if iidx != -1
+    }
+    extra_items = list(set(items) - mapping.keys())
     extra_items.sort(key=lambda i: (i.disc, i.track, i.title))
     extra_tracks = list(set(tracks) - set(mapping.values()))
     extra_tracks.sort(key=lambda t: (t.index, t.title))
@@ -159,6 +156,18 @@ def track_index_changed(item: Item, track_info: TrackInfo) -> bool:
     return item.track not in (track_info.medium_index, track_info.index)
 
 
+@cache
+def get_track_length_grace() -> float:
+    """Get cached grace period for track length matching."""
+    return config["match"]["track_length_grace"].as_number()
+
+
+@cache
+def get_track_length_max() -> float:
+    """Get cached maximum track length for track length matching."""
+    return config["match"]["track_length_max"].as_number()
+
+
 def track_distance(
     item: Item,
     track_info: TrackInfo,
@@ -167,23 +176,17 @@ def track_distance(
     """Determines the significance of a track metadata change. Returns a
     Distance object. `incl_artist` indicates that a distance component should
     be included for the track artist (i.e., for various-artist releases).
+
+    ``track_length_grace`` and ``track_length_max`` configuration options are
+    cached because this function is called many times during the matching
+    process and their access comes with a performance overhead.
     """
     dist = hooks.Distance()
 
     # Length.
-    if track_info.length:
-        item_length = cast(float, item.length)
-        track_length_grace = cast(
-            Union[float, int],
-            config["match"]["track_length_grace"].as_number(),
-        )
-        track_length_max = cast(
-            Union[float, int],
-            config["match"]["track_length_max"].as_number(),
-        )
-
-        diff = abs(item_length - track_info.length) - track_length_grace
-        dist.add_ratio("track_length", diff, track_length_max)
+    if info_length := track_info.length:
+        diff = abs(item.length - info_length) - get_track_length_grace()
+        dist.add_ratio("track_length", diff, get_track_length_max())
 
     # Title.
     dist.add_string("track_title", item.title, track_info.title)
@@ -204,6 +207,10 @@ def track_distance(
     if item.mb_trackid:
         dist.add_expr("track_id", item.mb_trackid != track_info.track_id)
 
+    # Penalize mismatching disc numbers.
+    if track_info.medium and item.disc:
+        dist.add_expr("medium", item.disc != track_info.medium)
+
     # Plugins.
     dist.update(plugins.track_distance(item, track_info))
 
@@ -213,7 +220,7 @@ def track_distance(
 def distance(
     items: Sequence[Item],
     album_info: AlbumInfo,
-    mapping: Dict[Item, TrackInfo],
+    mapping: dict[Item, TrackInfo],
 ) -> Distance:
     """Determines how "significant" an album metadata change would be.
     Returns a Distance object. `album_info` is an AlbumInfo object
@@ -351,7 +358,7 @@ def match_by_id(items: Iterable[Item]):
 
 
 def _recommendation(
-    results: Sequence[Union[AlbumMatch, TrackMatch]],
+    results: Sequence[AlbumMatch | TrackMatch],
 ) -> Recommendation:
     """Given a sorted list of AlbumMatch or TrackMatch objects, return a
     recommendation based on the results' distances.
@@ -417,7 +424,7 @@ def _sort_candidates(candidates: Iterable[AnyMatch]) -> Sequence[AnyMatch]:
 
 def _add_candidate(
     items: Sequence[Item],
-    results: Dict[Any, AlbumMatch],
+    results: dict[Any, AlbumMatch],
     info: AlbumInfo,
 ):
     """Given a candidate AlbumInfo object, attempt to add the candidate
@@ -469,10 +476,10 @@ def _add_candidate(
 
 def tag_album(
     items,
-    search_artist: Optional[str] = None,
-    search_album: Optional[str] = None,
-    search_ids: List[str] = [],
-) -> Tuple[str, str, Proposal]:
+    search_artist: str | None = None,
+    search_album: str | None = None,
+    search_ids: list[str] = [],
+) -> tuple[str, str, Proposal]:
     """Return a tuple of the current artist name, the current album
     name, and a `Proposal` containing `AlbumMatch` candidates.
 
@@ -497,7 +504,7 @@ def tag_album(
     log.debug("Tagging {0} - {1}", cur_artist, cur_album)
 
     # The output result, keys are the MB album ID.
-    candidates: Dict[Any, AlbumMatch] = {}
+    candidates: dict[Any, AlbumMatch] = {}
 
     # Search by explicit ID.
     if search_ids:
@@ -561,9 +568,9 @@ def tag_album(
 
 def tag_item(
     item,
-    search_artist: Optional[str] = None,
-    search_title: Optional[str] = None,
-    search_ids: Optional[List[str]] = None,
+    search_artist: str | None = None,
+    search_title: str | None = None,
+    search_ids: list[str] | None = None,
 ) -> Proposal:
     """Find metadata for a single track. Return a `Proposal` consisting
     of `TrackMatch` objects.
@@ -576,7 +583,7 @@ def tag_item(
     # Holds candidates found so far: keys are MBIDs; values are
     # (distance, TrackInfo) pairs.
     candidates = {}
-    rec: Optional[Recommendation] = None
+    rec: Recommendation | None = None
 
     # First, try matching by MusicBrainz ID.
     trackids = search_ids or [t for t in [item.mb_trackid] if t]

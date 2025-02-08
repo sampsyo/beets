@@ -14,27 +14,17 @@
 
 """Tests for the 'albumtypes' plugin."""
 
-
-import unittest
-from typing import Sequence, Tuple
+from collections.abc import Sequence
 
 from beets.autotag.mb import VARIOUS_ARTISTS_ID
-from beets.test.helper import TestHelper
+from beets.test.helper import PluginTestCase
 from beetsplug.albumtypes import AlbumTypesPlugin
 
 
-class AlbumTypesPluginTest(unittest.TestCase, TestHelper):
+class AlbumTypesPluginTest(PluginTestCase):
     """Tests for albumtypes plugin."""
 
-    def setUp(self):
-        """Set up tests."""
-        self.setup_beets()
-        self.load_plugins("albumtypes")
-
-    def tearDown(self):
-        """Tear down tests."""
-        self.unload_plugins()
-        self.teardown_beets()
+    plugin = "albumtypes"
 
     def test_renames_types(self):
         """Tests if the plugin correctly renames the specified types."""
@@ -44,7 +34,7 @@ class AlbumTypesPluginTest(unittest.TestCase, TestHelper):
         album = self._create_album(album_types=["ep", "remix"])
         subject = AlbumTypesPlugin()
         result = subject._atypes(album)
-        self.assertEqual("(EP)(Remix)", result)
+        assert "(EP)(Remix)" == result
         return
 
     def test_returns_only_specified_types(self):
@@ -55,7 +45,7 @@ class AlbumTypesPluginTest(unittest.TestCase, TestHelper):
         album = self._create_album(album_types=["ep", "remix", "soundtrack"])
         subject = AlbumTypesPlugin()
         result = subject._atypes(album)
-        self.assertEqual("(EP)", result)
+        assert "(EP)" == result
 
     def test_respects_type_order(self):
         """Tests if the types are returned in the same order as config."""
@@ -65,7 +55,7 @@ class AlbumTypesPluginTest(unittest.TestCase, TestHelper):
         album = self._create_album(album_types=["ep", "remix"])
         subject = AlbumTypesPlugin()
         result = subject._atypes(album)
-        self.assertEqual("(Remix)(EP)", result)
+        assert "(Remix)(EP)" == result
         return
 
     def test_ignores_va(self):
@@ -80,7 +70,7 @@ class AlbumTypesPluginTest(unittest.TestCase, TestHelper):
         )
         subject = AlbumTypesPlugin()
         result = subject._atypes(album)
-        self.assertEqual("(OST)", result)
+        assert "(OST)" == result
 
     def test_respects_defaults(self):
         """Tests if the plugin uses the default values if config not given."""
@@ -97,11 +87,11 @@ class AlbumTypesPluginTest(unittest.TestCase, TestHelper):
         )
         subject = AlbumTypesPlugin()
         result = subject._atypes(album)
-        self.assertEqual("[EP][Single][OST][Live][Remix]", result)
+        assert "[EP][Single][OST][Live][Remix]" == result
 
     def _set_config(
         self,
-        types: Sequence[Tuple[str, str]],
+        types: Sequence[tuple[str, str]],
         ignore_va: Sequence[str],
         bracket: str,
     ):

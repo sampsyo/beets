@@ -22,7 +22,6 @@ by default but can be added via the `-e` / `--extravalues` flag. For example:
 `beet fish -e genre -e albumartist`
 """
 
-
 import os
 from operator import attrgetter
 

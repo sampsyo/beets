@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-""" Clears tag fields in media files."""
-
+"""Clears tag fields in media files."""
 
 import re
 

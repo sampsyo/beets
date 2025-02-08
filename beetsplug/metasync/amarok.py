@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Synchronize information from amarok's library via dbus
-"""
-
+"""Synchronize information from amarok's library via dbus"""
 
 from datetime import datetime
 from os.path import basename

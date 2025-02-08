@@ -7,7 +7,7 @@ on:
       - master
 
 env:
-  PYTHON_VERSION: 3.8
+  PYTHON_VERSION: 3.9
 
 jobs:
   changed-files:
@@ -60,7 +60,7 @@ jobs:
           cache: poetry
 
       - name: Install dependencies
-        run: poetry install --only=format
+        run: poetry install --only=lint
 
       - name: Check code formatting
         # the job output will contain colored diffs with what needs adjusting
@@ -84,10 +84,7 @@ jobs:
         run: poetry install --only=lint
 
       - name: Lint code
-        uses: liskin/gh-problem-matcher-wrap@v3
-        with:
-          linters: flake8
-          run: poe lint ${{ needs.changed-files.outputs.changed_python_files }}
+        run: poe lint --output-format=github ${{ needs.changed-files.outputs.changed_python_files }}
 
   mypy:
     if: needs.changed-files.outputs.any_python_changed == 'true'
@@ -128,13 +125,13 @@ jobs:
           cache: poetry
 
       - name: Install dependencies
-        run: poetry install --only=docs
+        run: poetry install --extras=docs
 
       - name: Add Sphinx problem matcher
         run: echo "::add-matcher::.github/sphinx-problem-matcher.json"
 
       - name: Build docs
-        run: |
+        run: |-
           poe docs |& tee /tmp/output
           # fail the job if there are issues
           grep -q " WARNING:" /tmp/output && exit 1 || exit 0

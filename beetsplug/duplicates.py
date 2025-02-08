@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""List duplicate tracks or albums.
-"""
+"""List duplicate tracks or albums."""
 
 import os
 import shlex
@@ -304,7 +303,9 @@ class DuplicatesPlugin(BeetsPlugin):
         kind = "items" if all(isinstance(o, Item) for o in objs) else "albums"
 
         if tiebreak and kind in tiebreak.keys():
-            key = lambda x: tuple(getattr(x, k) for k in tiebreak[kind])
+
+            def key(x):
+                return tuple(getattr(x, k) for k in tiebreak[kind])
         else:
             if kind == "items":
 
@@ -317,9 +318,13 @@ class DuplicatesPlugin(BeetsPlugin):
                     )
 
                 fields = Item.all_keys()
-                key = lambda x: sum(1 for f in fields if truthy(getattr(x, f)))
+
+                def key(x):
+                    return sum(1 for f in fields if truthy(getattr(x, f)))
             else:
-                key = lambda x: len(x.items())
+
+                def key(x):
+                    return len(x.items())
 
         return sorted(objs, key=key, reverse=True)
 

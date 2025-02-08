@@ -20,36 +20,46 @@ information or mock the environment.
 
 - `has_program` checks the presence of a command on the system.
 
-- The `generate_album_info` and `generate_track_info` functions return
-  fixtures to be used when mocking the autotagger.
-
 - The `ImportSessionFixture` allows one to run importer code while
   controlling the interactions through code.
 
 - The `TestHelper` class encapsulates various fixtures that can be set up.
 """
 
+from __future__ import annotations
 
 import os
 import os.path
 import shutil
 import subprocess
 import sys
+import unittest
 from contextlib import contextmanager
 from enum import Enum
+from functools import cached_property
 from io import StringIO
-from tempfile import mkdtemp, mkstemp
+from pathlib import Path
+from tempfile import gettempdir, mkdtemp, mkstemp
+from typing import Any, ClassVar
+from unittest.mock import patch
 
+import responses
 from mediafile import Image, MediaFile
 
 import beets
 import beets.plugins
-from beets import autotag, config, importer, logging, util
+from beets import autotag, importer, logging, util
 from beets.autotag.hooks import AlbumInfo, TrackInfo
+from beets.importer import ImportSession
 from beets.library import Album, Item, Library
 from beets.test import _common
 from beets.ui.commands import TerminalImportSession
-from beets.util import MoveOperation, bytestring_path, syspath
+from beets.util import (
+    MoveOperation,
+    bytestring_path,
+    clean_module_tempdir,
+    syspath,
+)
 
 
 class LogCapture(logging.Handler):
@@ -134,16 +144,47 @@ def has_program(cmd, args=["--version"]):
         return True
 
 
-class TestHelper:
+def check_reflink_support(path: str) -> bool:
+    try:
+        import reflink
+    except ImportError:
+        return False
+
+    return reflink.supported_at(path)
+
+
+class ConfigMixin:
+    @cached_property
+    def config(self) -> beets.IncludeLazyConfig:
+        """Base beets configuration for tests."""
+        config = beets.config
+        config.sources = []
+        config.read(user=False, defaults=True)
+
+        config["plugins"] = []
+        config["verbose"] = 1
+        config["ui"]["color"] = False
+        config["threaded"] = False
+        return config
+
+
+NEEDS_REFLINK = unittest.skipUnless(
+    check_reflink_support(gettempdir()), "no reflink support for libdir"
+)
+
+
+class TestHelper(_common.Assertions, ConfigMixin):
     """Helper mixin for high-level cli and plugin tests.
 
     This mixin provides methods to isolate beets' global state provide
     fixtures.
     """
 
+    db_on_disk: ClassVar[bool] = False
+
     # TODO automate teardown through hook registration
 
-    def setup_beets(self, disk=False):
+    def setup_beets(self):
         """Setup pristine global configuration and library for testing.
 
         Sets ``beets.config`` so we can safely use any functionality
@@ -158,129 +199,40 @@ class TestHelper:
         - ``libdir`` Path to a subfolder of ``temp_dir``, containing the
           library's media files. Same as ``config['directory']``.
 
-        - ``config`` The global configuration used by beets.
-
         - ``lib`` Library instance created with the settings from
           ``config``.
 
         Make sure you call ``teardown_beets()`` afterwards.
         """
         self.create_temp_dir()
-        os.environ["BEETSDIR"] = os.fsdecode(self.temp_dir)
-
-        self.config = beets.config
-        self.config.clear()
-        self.config.read()
-
-        self.config["plugins"] = []
-        self.config["verbose"] = 1
-        self.config["ui"]["color"] = False
-        self.config["threaded"] = False
+        temp_dir_str = os.fsdecode(self.temp_dir)
+        self.env_patcher = patch.dict(
+            "os.environ",
+            {
+                "BEETSDIR": temp_dir_str,
+                "HOME": temp_dir_str,  # used by Confuse to create directories.
+            },
+        )
+        self.env_patcher.start()
 
         self.libdir = os.path.join(self.temp_dir, b"libdir")
         os.mkdir(syspath(self.libdir))
         self.config["directory"] = os.fsdecode(self.libdir)
 
-        if disk:
+        if self.db_on_disk:
             dbpath = util.bytestring_path(self.config["library"].as_filename())
         else:
             dbpath = ":memory:"
         self.lib = Library(dbpath, self.libdir)
 
+        # Initialize, but don't install, a DummyIO.
+        self.io = _common.DummyIO()
+
     def teardown_beets(self):
+        self.env_patcher.stop()
+        self.io.restore()
         self.lib._close()
-        if "BEETSDIR" in os.environ:
-            del os.environ["BEETSDIR"]
         self.remove_temp_dir()
-        self.config.clear()
-        beets.config.read(user=False, defaults=True)
-
-    def load_plugins(self, *plugins):
-        """Load and initialize plugins by names.
-
-        Similar setting a list of plugins in the configuration. Make
-        sure you call ``unload_plugins()`` afterwards.
-        """
-        # FIXME this should eventually be handled by a plugin manager
-        beets.config["plugins"] = plugins
-        beets.plugins.load_plugins(plugins)
-        beets.plugins.find_plugins()
-
-        # Take a backup of the original _types and _queries to restore
-        # when unloading.
-        Item._original_types = dict(Item._types)
-        Album._original_types = dict(Album._types)
-        Item._types.update(beets.plugins.types(Item))
-        Album._types.update(beets.plugins.types(Album))
-
-        Item._original_queries = dict(Item._queries)
-        Album._original_queries = dict(Album._queries)
-        Item._queries.update(beets.plugins.named_queries(Item))
-        Album._queries.update(beets.plugins.named_queries(Album))
-
-    def unload_plugins(self):
-        """Unload all plugins and remove the from the configuration."""
-        # FIXME this should eventually be handled by a plugin manager
-        beets.config["plugins"] = []
-        beets.plugins._classes = set()
-        beets.plugins._instances = {}
-        Item._types = Item._original_types
-        Album._types = Album._original_types
-        Item._queries = Item._original_queries
-        Album._queries = Album._original_queries
-
-    def create_importer(self, item_count=1, album_count=1):
-        """Create files to import and return corresponding session.
-
-        Copies the specified number of files to a subdirectory of
-        `self.temp_dir` and creates a `ImportSessionFixture` for this path.
-        """
-        import_dir = os.path.join(self.temp_dir, b"import")
-        if not os.path.isdir(syspath(import_dir)):
-            os.mkdir(syspath(import_dir))
-
-        album_no = 0
-        while album_count:
-            album = util.bytestring_path(f"album {album_no}")
-            album_dir = os.path.join(import_dir, album)
-            if os.path.exists(syspath(album_dir)):
-                album_no += 1
-                continue
-            os.mkdir(syspath(album_dir))
-            album_count -= 1
-
-            track_no = 0
-            album_item_count = item_count
-            while album_item_count:
-                title = f"track {track_no}"
-                src = os.path.join(_common.RSRC, b"full.mp3")
-                title_file = util.bytestring_path(f"{title}.mp3")
-                dest = os.path.join(album_dir, title_file)
-                if os.path.exists(syspath(dest)):
-                    track_no += 1
-                    continue
-                album_item_count -= 1
-                shutil.copy(syspath(src), syspath(dest))
-                mediafile = MediaFile(dest)
-                mediafile.update(
-                    {
-                        "artist": "artist",
-                        "albumartist": "album artist",
-                        "title": title,
-                        "album": album,
-                        "mb_albumid": None,
-                        "mb_trackid": None,
-                    }
-                )
-                mediafile.save()
-
-        config["import"]["quiet"] = True
-        config["import"]["autotag"] = False
-        config["import"]["resume"] = False
-
-        return ImportSessionFixture(
-            self.lib, loghandler=None, query=None, paths=[import_dir]
-        )
 
     # Library fixtures methods
 
@@ -296,16 +248,15 @@ class TestHelper:
 
         The item is attached to the database from `self.lib`.
         """
-        item_count = self._get_item_count()
         values_ = {
             "title": "t\u00eftle {0}",
             "artist": "the \u00e4rtist",
             "album": "the \u00e4lbum",
-            "track": item_count,
+            "track": 1,
             "format": "MP3",
         }
         values_.update(values)
-        values_["title"] = values_["title"].format(item_count)
+        values_["title"] = values_["title"].format(1)
         values_["db"] = self.lib
         item = Item(**values_)
         if "path" not in values:
@@ -397,18 +348,14 @@ class TestHelper:
         return self.lib.add_album(items)
 
     def create_mediafile_fixture(self, ext="mp3", images=[]):
-        """Copies a fixture mediafile with the extension to a temporary
-        location and returns the path.
-
-        It keeps track of the created locations and will delete the with
-        `remove_mediafile_fixtures()`
+        """Copy a fixture mediafile with the extension to `temp_dir`.
 
         `images` is a subset of 'png', 'jpg', and 'tiff'. For each
         specified extension a cover art image is added to the media
         file.
         """
         src = os.path.join(_common.RSRC, util.bytestring_path("full." + ext))
-        handle, path = mkstemp()
+        handle, path = mkstemp(dir=self.temp_dir)
         path = bytestring_path(path)
         os.close(handle)
         shutil.copyfile(syspath(src), syspath(path))
@@ -424,22 +371,7 @@ class TestHelper:
             mediafile.images = imgs
             mediafile.save()
 
-        if not hasattr(self, "_mediafile_fixtures"):
-            self._mediafile_fixtures = []
-        self._mediafile_fixtures.append(path)
-
         return path
-
-    def remove_mediafile_fixtures(self):
-        if hasattr(self, "_mediafile_fixtures"):
-            for path in self._mediafile_fixtures:
-                os.remove(syspath(path))
-
-    def _get_item_count(self):
-        if not hasattr(self, "__item_count"):
-            count = 0
-        self.__item_count = count + 1
-        return count
 
     # Running beets commands
 
@@ -462,11 +394,11 @@ class TestHelper:
 
     # Safe file operations
 
-    def create_temp_dir(self):
+    def create_temp_dir(self, **kwargs):
         """Create a temporary directory and assign it into
         `self.temp_dir`. Call `remove_temp_dir` later to delete it.
         """
-        temp_dir = mkdtemp()
+        temp_dir = mkdtemp(**kwargs)
         self.temp_dir = util.bytestring_path(temp_dir)
 
     def remove_temp_dir(self):
@@ -495,98 +427,211 @@ class TestHelper:
         return path
 
 
+# A test harness for all beets tests.
+# Provides temporary, isolated configuration.
+class BeetsTestCase(unittest.TestCase, TestHelper):
+    """A unittest.TestCase subclass that saves and restores beets'
+    global configuration. This allows tests to make temporary
+    modifications that will then be automatically removed when the test
+    completes. Also provides some additional assertion methods, a
+    temporary directory, and a DummyIO.
+    """
+
+    def setUp(self):
+        self.setup_beets()
+
+    def tearDown(self):
+        self.teardown_beets()
+
+
+class ItemInDBTestCase(BeetsTestCase):
+    """A test case that includes an in-memory library object (`lib`) and
+    an item added to the library (`i`).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.i = _common.item(self.lib)
+
+
+class PluginMixin(ConfigMixin):
+    plugin: ClassVar[str]
+    preload_plugin: ClassVar[bool] = True
+
+    def setup_beets(self):
+        super().setup_beets()
+        if self.preload_plugin:
+            self.load_plugins()
+
+    def teardown_beets(self):
+        super().teardown_beets()
+        self.unload_plugins()
+
+    def load_plugins(self, *plugins: str) -> None:
+        """Load and initialize plugins by names.
+
+        Similar setting a list of plugins in the configuration. Make
+        sure you call ``unload_plugins()`` afterwards.
+        """
+        # FIXME this should eventually be handled by a plugin manager
+        plugins = (self.plugin,) if hasattr(self, "plugin") else plugins
+        self.config["plugins"] = plugins
+        beets.plugins.load_plugins(plugins)
+        beets.plugins.find_plugins()
+
+        # Take a backup of the original _types and _queries to restore
+        # when unloading.
+        Item._original_types = dict(Item._types)
+        Album._original_types = dict(Album._types)
+        Item._types.update(beets.plugins.types(Item))
+        Album._types.update(beets.plugins.types(Album))
+
+        Item._original_queries = dict(Item._queries)
+        Album._original_queries = dict(Album._queries)
+        Item._queries.update(beets.plugins.named_queries(Item))
+        Album._queries.update(beets.plugins.named_queries(Album))
+
+    def unload_plugins(self) -> None:
+        """Unload all plugins and remove them from the configuration."""
+        # FIXME this should eventually be handled by a plugin manager
+        for plugin_class in beets.plugins._instances:
+            plugin_class.listeners = None
+        self.config["plugins"] = []
+        beets.plugins._classes = set()
+        beets.plugins._instances = {}
+        Item._types = getattr(Item, "_original_types", {})
+        Album._types = getattr(Album, "_original_types", {})
+        Item._queries = getattr(Item, "_original_queries", {})
+        Album._queries = getattr(Album, "_original_queries", {})
+
+    @contextmanager
+    def configure_plugin(self, config: Any):
+        self.config[self.plugin].set(config)
+        self.load_plugins(self.plugin)
+
+        yield
+
+        self.unload_plugins()
+
+
+class PluginTestCase(PluginMixin, BeetsTestCase):
+    pass
+
+
 class ImportHelper(TestHelper):
     """Provides tools to setup a library, a directory containing files that are
     to be imported and an import session. The class also provides stubs for the
     autotagging library and several assertions for the library.
     """
 
-    def setup_beets(self, disk=False):
-        super().setup_beets(disk)
+    resource_path = syspath(os.path.join(_common.RSRC, b"full.mp3"))
+    default_import_config = {
+        "autotag": True,
+        "copy": True,
+        "hardlink": False,
+        "link": False,
+        "move": False,
+        "resume": False,
+        "singletons": False,
+        "timid": True,
+    }
+
+    lib: Library
+    importer: ImportSession
+
+    @cached_property
+    def import_path(self) -> Path:
+        import_path = Path(os.fsdecode(self.temp_dir)) / "import"
+        import_path.mkdir(exist_ok=True)
+        return import_path
+
+    @cached_property
+    def import_dir(self) -> bytes:
+        return bytestring_path(self.import_path)
+
+    def setUp(self):
+        super().setUp()
+        self.import_media = []
         self.lib.path_formats = [
             ("default", os.path.join("$artist", "$album", "$title")),
             ("singleton:true", os.path.join("singletons", "$title")),
             ("comp:true", os.path.join("compilations", "$album", "$title")),
         ]
 
-    def _create_import_dir(self, count=3):
-        """Creates a directory with media files to import.
-        Sets ``self.import_dir`` to the path of the directory. Also sets
-        ``self.import_media`` to a list :class:`MediaFile` for all the files in
-        the directory.
+    def prepare_track_for_import(
+        self,
+        track_id: int,
+        album_path: Path,
+        album_id: int | None = None,
+    ) -> Path:
+        track_path = album_path / f"track_{track_id}.mp3"
+        shutil.copy(self.resource_path, track_path)
+        medium = MediaFile(track_path)
+        medium.update(
+            {
+                "album": "Tag Album" + (f" {album_id}" if album_id else ""),
+                "albumartist": None,
+                "mb_albumid": None,
+                "comp": None,
+                "artist": "Tag Artist",
+                "title": f"Tag Track {track_id}",
+                "track": track_id,
+                "mb_trackid": None,
+            }
+        )
+        medium.save()
+        self.import_media.append(medium)
+        return track_path
+
+    def prepare_album_for_import(
+        self,
+        item_count: int,
+        album_id: int | None = None,
+        album_path: Path | None = None,
+    ) -> list[Path]:
+        """Create an album directory with media files to import.
 
         The directory has following layout
-          the_album/
+          album/
             track_1.mp3
             track_2.mp3
             track_3.mp3
-
-        :param count:  Number of files to create
         """
-        self.import_dir = os.path.join(self.temp_dir, b"testsrcdir")
-        if os.path.isdir(syspath(self.import_dir)):
-            shutil.rmtree(syspath(self.import_dir))
+        if not album_path:
+            album_dir = f"album_{album_id}" if album_id else "album"
+            album_path = self.import_path / album_dir
 
-        album_path = os.path.join(self.import_dir, b"the_album")
-        os.makedirs(syspath(album_path))
+        album_path.mkdir(exist_ok=True)
 
-        resource_path = os.path.join(_common.RSRC, b"full.mp3")
+        return [
+            self.prepare_track_for_import(tid, album_path, album_id=album_id)
+            for tid in range(1, item_count + 1)
+        ]
 
-        metadata = {
-            "artist": "Tag Artist",
-            "album": "Tag Album",
-            "albumartist": None,
-            "mb_trackid": None,
-            "mb_albumid": None,
-            "comp": None,
-        }
-        self.media_files = []
-        for i in range(count):
-            # Copy files
-            medium_path = os.path.join(
-                album_path, bytestring_path("track_%d.mp3" % (i + 1))
-            )
-            shutil.copy(syspath(resource_path), syspath(medium_path))
-            medium = MediaFile(medium_path)
+    def prepare_albums_for_import(self, count: int = 1) -> None:
+        album_dirs = Path(os.fsdecode(self.import_dir)).glob("album_*")
+        base_idx = int(str(max(album_dirs, default="0")).split("_")[-1]) + 1
 
-            # Set metadata
-            metadata["track"] = i + 1
-            metadata["title"] = "Tag Title %d" % (i + 1)
-            for attr in metadata:
-                setattr(medium, attr, metadata[attr])
-            medium.save()
-            self.media_files.append(medium)
-        self.import_media = self.media_files
+        for album_id in range(base_idx, count + base_idx):
+            self.prepare_album_for_import(1, album_id=album_id)
 
-    def _setup_import_session(
-        self,
-        import_dir=None,
-        delete=False,
-        threaded=False,
-        copy=True,
-        singletons=False,
-        move=False,
-        autotag=True,
-        link=False,
-        hardlink=False,
-    ):
-        config["import"]["copy"] = copy
-        config["import"]["delete"] = delete
-        config["import"]["timid"] = True
-        config["threaded"] = False
-        config["import"]["singletons"] = singletons
-        config["import"]["move"] = move
-        config["import"]["autotag"] = autotag
-        config["import"]["resume"] = False
-        config["import"]["link"] = link
-        config["import"]["hardlink"] = hardlink
-
-        self.importer = ImportSessionFixture(
+    def _get_import_session(self, import_dir: bytes) -> ImportSession:
+        return ImportSessionFixture(
             self.lib,
             loghandler=None,
             query=None,
-            paths=[import_dir or self.import_dir],
+            paths=[import_dir],
         )
+
+    def setup_importer(
+        self, import_dir: bytes | None = None, **kwargs
+    ) -> ImportSession:
+        self.config["import"].set_args({**self.default_import_config, **kwargs})
+        self.importer = self._get_import_session(import_dir or self.import_dir)
+        return self.importer
+
+    def setup_singleton_importer(self, **kwargs) -> ImportSession:
+        return self.setup_importer(singletons=True, **kwargs)
 
     def assert_file_in_lib(self, *segments):
         """Join the ``segments`` and assert that this path exists in the
@@ -601,10 +646,25 @@ class ImportHelper(TestHelper):
         self.assertNotExists(os.path.join(self.libdir, *segments))
 
     def assert_lib_dir_empty(self):
-        self.assertEqual(len(os.listdir(syspath(self.libdir))), 0)
+        assert not os.listdir(syspath(self.libdir))
 
 
-class ImportSessionFixture(importer.ImportSession):
+class AsIsImporterMixin:
+    def setUp(self):
+        super().setUp()
+        self.prepare_album_for_import(1)
+
+    def run_asis_importer(self, **kwargs):
+        importer = self.setup_importer(autotag=False, **kwargs)
+        importer.run()
+        return importer
+
+
+class ImportTestCase(ImportHelper, BeetsTestCase):
+    pass
+
+
+class ImportSessionFixture(ImportSession):
     """ImportSession that can be controlled programaticaly.
 
     >>> lib = Library(':memory:')
@@ -615,7 +675,7 @@ class ImportSessionFixture(importer.ImportSession):
     >>> importer.run()
 
     This imports ``/path/to/import`` into `lib`. It skips the first
-    album and imports thesecond one with metadata from the tags. For the
+    album and imports the second one with metadata from the tags. For the
     remaining albums, the metadata from the autotagger will be applied.
     """
 
@@ -650,10 +710,6 @@ class ImportSessionFixture(importer.ImportSession):
     Resolution = Enum("Resolution", "REMOVE SKIP KEEPBOTH MERGE")
 
     default_resolution = "REMOVE"
-
-    def add_resolution(self, resolution):
-        assert isinstance(resolution, self.Resolution)
-        self._resolutions.append(resolution)
 
     def resolve_duplicate(self, task, found_duplicates):
         try:
@@ -707,122 +763,26 @@ class TerminalImportSessionFixture(TerminalImportSession):
             self.io.addinput("T")
         elif choice == importer.action.SKIP:
             self.io.addinput("S")
-        elif isinstance(choice, int):
+        else:
             self.io.addinput("M")
             self.io.addinput(str(choice))
             self._add_choice_input()
-        else:
-            raise Exception("Unknown choice %s" % choice)
 
 
-class TerminalImportSessionSetup:
-    """Overwrites ImportHelper._setup_import_session to provide a terminal importer"""
+class TerminalImportMixin(ImportHelper):
+    """Provides_a terminal importer for the import session."""
 
-    def _setup_import_session(
-        self,
-        import_dir=None,
-        delete=False,
-        threaded=False,
-        copy=True,
-        singletons=False,
-        move=False,
-        autotag=True,
-    ):
-        config["import"]["copy"] = copy
-        config["import"]["delete"] = delete
-        config["import"]["timid"] = True
-        config["threaded"] = False
-        config["import"]["singletons"] = singletons
-        config["import"]["move"] = move
-        config["import"]["autotag"] = autotag
-        config["import"]["resume"] = False
+    io: _common.DummyIO
 
-        if not hasattr(self, "io"):
-            self.io = _common.DummyIO()
+    def _get_import_session(self, import_dir: bytes) -> importer.ImportSession:
         self.io.install()
-        self.importer = TerminalImportSessionFixture(
+        return TerminalImportSessionFixture(
             self.lib,
             loghandler=None,
             query=None,
             io=self.io,
-            paths=[import_dir or self.import_dir],
+            paths=[import_dir],
         )
-
-
-def generate_album_info(album_id, track_values):
-    """Return `AlbumInfo` populated with mock data.
-
-    Sets the album info's `album_id` field is set to the corresponding
-    argument. For each pair (`id`, `values`) in `track_values` the `TrackInfo`
-    from `generate_track_info` is added to the album info's `tracks` field.
-    Most other fields of the album and track info are set to "album
-    info" and "track info", respectively.
-    """
-    tracks = [generate_track_info(id, values) for id, values in track_values]
-    album = AlbumInfo(
-        album_id="album info",
-        album="album info",
-        artist="album info",
-        artist_id="album info",
-        tracks=tracks,
-    )
-    for field in ALBUM_INFO_FIELDS:
-        setattr(album, field, "album info")
-
-    return album
-
-
-ALBUM_INFO_FIELDS = [
-    "album",
-    "album_id",
-    "artist",
-    "artist_id",
-    "asin",
-    "albumtype",
-    "va",
-    "label",
-    "barcode",
-    "artist_sort",
-    "releasegroup_id",
-    "catalognum",
-    "language",
-    "country",
-    "albumstatus",
-    "media",
-    "albumdisambig",
-    "releasegroupdisambig",
-    "artist_credit",
-    "data_source",
-    "data_url",
-]
-
-
-def generate_track_info(track_id="track info", values={}):
-    """Return `TrackInfo` populated with mock data.
-
-    The `track_id` field is set to the corresponding argument. All other
-    string fields are set to "track info".
-    """
-    track = TrackInfo(
-        title="track info",
-        track_id=track_id,
-    )
-    for field in TRACK_INFO_FIELDS:
-        setattr(track, field, "track info")
-    for field, value in values.items():
-        setattr(track, field, value)
-    return track
-
-
-TRACK_INFO_FIELDS = [
-    "artist",
-    "artist_id",
-    "artist_sort",
-    "disctitle",
-    "artist_credit",
-    "data_source",
-    "data_url",
-]
 
 
 class AutotagStub:
@@ -893,7 +853,7 @@ class AutotagStub:
 
     def _make_track_match(self, artist, album, number):
         return TrackInfo(
-            title="Applied Title %d" % number,
+            title="Applied Track %d" % number,
             track_id="match %d" % number,
             artist=artist,
             length=1,
@@ -924,4 +884,41 @@ class AutotagStub:
             artist_id="artistid" + id,
             albumtype="soundtrack",
             data_source="match_source",
+            bandcamp_album_id="bc_url",
         )
+
+
+class FetchImageHelper:
+    """Helper mixin for mocking requests when fetching images
+    with remote art sources.
+    """
+
+    @responses.activate
+    def run(self, *args, **kwargs):
+        super().run(*args, **kwargs)
+
+    IMAGEHEADER = {
+        "image/jpeg": b"\xff\xd8\xff" + b"\x00" * 3 + b"JFIF",
+        "image/png": b"\211PNG\r\n\032\n",
+    }
+
+    def mock_response(self, url, content_type="image/jpeg", file_type=None):
+        if file_type is None:
+            file_type = content_type
+        responses.add(
+            responses.GET,
+            url,
+            content_type=content_type,
+            # imghdr reads 32 bytes
+            body=self.IMAGEHEADER.get(file_type, b"").ljust(32, b"\x00"),
+        )
+
+
+class CleanupModulesMixin:
+    modules: ClassVar[tuple[str, ...]]
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        """Remove files created by the plugin."""
+        for module in cls.modules:
+            clean_module_tempdir(module)

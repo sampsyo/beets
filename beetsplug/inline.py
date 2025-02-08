@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Allows inline path template customization code in the config file.
-"""
+"""Allows inline path template customization code in the config file."""
 
 import itertools
 import traceback

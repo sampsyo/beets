@@ -20,10 +20,34 @@ use {}-style formatting and can interpolate keywords arguments to the logging
 calls (`debug`, `info`, etc).
 """
 
-
-import logging
 import threading
 from copy import copy
+from logging import (
+    DEBUG,
+    INFO,
+    NOTSET,
+    WARNING,
+    FileHandler,
+    Filter,
+    Handler,
+    Logger,
+    NullHandler,
+    StreamHandler,
+)
+
+__all__ = [
+    "DEBUG",
+    "INFO",
+    "NOTSET",
+    "WARNING",
+    "FileHandler",
+    "Filter",
+    "Handler",
+    "Logger",
+    "NullHandler",
+    "StreamHandler",
+    "getLogger",
+]
 
 
 def logsafe(val):
@@ -46,7 +70,7 @@ def logsafe(val):
     return val
 
 
-class StrFormatLogger(logging.Logger):
+class StrFormatLogger(Logger):
     """A version of `Logger` that uses `str.format`-style formatting
     instead of %-style formatting and supports keyword arguments.
 
@@ -96,12 +120,12 @@ class StrFormatLogger(logging.Logger):
         )
 
 
-class ThreadLocalLevelLogger(logging.Logger):
+class ThreadLocalLevelLogger(Logger):
     """A version of `Logger` whose level is thread-local instead of shared."""
 
-    def __init__(self, name, level=logging.NOTSET):
+    def __init__(self, name, level=NOTSET):
         self._thread_level = threading.local()
-        self.default_level = logging.NOTSET
+        self.default_level = NOTSET
         super().__init__(name, level)
 
     @property
@@ -128,12 +152,8 @@ class BeetsLogger(ThreadLocalLevelLogger, StrFormatLogger):
     pass
 
 
-my_manager = copy(logging.Logger.manager)
+my_manager = copy(Logger.manager)
 my_manager.loggerClass = BeetsLogger
-
-
-# Act like the stdlib logging module by re-exporting its namespace.
-from logging import *  # noqa
 
 
 # Override the `getLogger` to use our machinery.
@@ -141,4 +161,4 @@ def getLogger(name=None):  # noqa
     if name:
         return my_manager.getLogger(name)
     else:
-        return logging.Logger.root
+        return Logger.root

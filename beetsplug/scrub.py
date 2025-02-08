@@ -16,7 +16,6 @@
 automatically whenever tags are written.
 """
 
-
 import mediafile
 import mutagen
 

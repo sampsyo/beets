@@ -3,21 +3,20 @@
 
 """Tests for the 'bareasc' plugin."""
 
-import unittest
-
 from beets import logging
-from beets.test.helper import TestHelper, capture_stdout
+from beets.test.helper import PluginTestCase, capture_stdout
 
 
-class BareascPluginTest(unittest.TestCase, TestHelper):
+class BareascPluginTest(PluginTestCase):
     """Test bare ASCII query matching."""
+
+    plugin = "bareasc"
 
     def setUp(self):
         """Set up test environment for bare ASCII query matching."""
-        self.setup_beets()
+        super().setUp()
         self.log = logging.getLogger("beets.web")
         self.config["bareasc"]["prefix"] = "#"
-        self.load_plugins("bareasc")
 
         # Add library elements. Note that self.lib.add overrides any "id=<n>"
         # and assigns the next free id number.
@@ -62,16 +61,14 @@ class BareascPluginTest(unittest.TestCase, TestHelper):
         for query, expected_titles in test_cases:
             with self.subTest(query=query, expected_titles=expected_titles):
                 items = self.lib.items(query)
-                self.assertListEqual(
-                    [item.title for item in items], expected_titles
-                )
+                assert [item.title for item in items] == expected_titles
 
     def test_bareasc_list_output(self):
         """Bare-ASCII version of list command - check output."""
         with capture_stdout() as output:
             self.run_command("bareasc", "with accents")
 
-        self.assertIn("Antonin Dvorak", output.getvalue())
+        assert "Antonin Dvorak" in output.getvalue()
 
     def test_bareasc_format_output(self):
         """Bare-ASCII version of list -f command - check output."""
@@ -80,13 +77,4 @@ class BareascPluginTest(unittest.TestCase, TestHelper):
                 "bareasc", "with accents", "-f", "$artist:: $title"
             )
 
-        self.assertEqual("Antonin Dvorak:: with accents\n", output.getvalue())
-
-
-def suite():
-    """loader."""
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert "Antonin Dvorak:: with accents\n" == output.getvalue()

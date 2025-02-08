@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Generates smart playlists based on beets queries.
-"""
-
+"""Generates smart playlists based on beets queries."""
 
 import json
 import os

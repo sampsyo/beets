@@ -12,23 +12,41 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Facilities for automatically determining files' correct metadata.
-"""
-from typing import Mapping
+"""Facilities for automatically determining files' correct metadata."""
+
+from collections.abc import Mapping, Sequence
+from typing import Union
 
 from beets import config, logging
-from beets.library import Item
+from beets.library import Album, Item, LibModel
 
 # Parts of external interface.
-from .hooks import (  # noqa
-    AlbumInfo,
-    AlbumMatch,
-    Distance,
-    TrackInfo,
-    TrackMatch,
+from beets.util import unique_list
+
+from .hooks import AlbumInfo, AlbumMatch, Distance, TrackInfo, TrackMatch
+from .match import (
+    Proposal,
+    Recommendation,
+    current_metadata,
+    tag_album,
+    tag_item,
 )
-from .match import Recommendation  # noqa
-from .match import Proposal, current_metadata, tag_album, tag_item  # noqa
+
+__all__ = [
+    "AlbumInfo",
+    "AlbumMatch",
+    "Distance",
+    "TrackInfo",
+    "TrackMatch",
+    "Proposal",
+    "Recommendation",
+    "apply_album_metadata",
+    "apply_item_metadata",
+    "apply_metadata",
+    "current_metadata",
+    "tag_album",
+    "tag_item",
+]
 
 # Global logger.
 log = logging.getLogger("beets")
@@ -80,6 +98,71 @@ SPECIAL_FIELDS = {
 # Additional utilities for the main interface.
 
 
+def _apply_metadata(
+    info: Union[AlbumInfo, TrackInfo],
+    db_obj: Union[Album, Item],
+    nullable_fields: Sequence[str] = [],
+):
+    """Set the db_obj's metadata to match the info."""
+    special_fields = SPECIAL_FIELDS[
+        "album" if isinstance(info, AlbumInfo) else "track"
+    ]
+
+    for field, value in info.items():
+        # We only overwrite fields that are not already hardcoded.
+        if field in special_fields:
+            continue
+
+        # Don't overwrite fields with empty values unless the
+        # field is explicitly allowed to be overwritten.
+        if value is None and field not in nullable_fields:
+            continue
+
+        db_obj[field] = value
+
+
+def correct_list_fields(m: LibModel) -> None:
+    """Synchronise single and list values for the list fields that we use.
+
+    That is, ensure the same value in the single field and the first element
+    in the list.
+
+    For context, the value we set as, say, ``mb_artistid`` is simply ignored:
+    Under the current :class:`MediaFile` implementation, fields ``albumtype``,
+    ``mb_artistid`` and ``mb_albumartistid`` are mapped to the first element of
+    ``albumtypes``, ``mb_artistids`` and ``mb_albumartistids`` respectively.
+
+    This means setting ``mb_artistid`` has no effect. However, beets
+    functionality still assumes that ``mb_artistid`` is independent and stores
+    its value in the database. If ``mb_artistid`` != ``mb_artistids[0]``,
+    ``beet write`` command thinks that ``mb_artistid`` is modified and tries to
+    update the field in the file. Of course nothing happens, so the same diff
+    is shown every time the command is run.
+
+    We can avoid this issue by ensuring that ``mb_artistid`` has the same value
+    as ``mb_artistids[0]``, and that's what this function does.
+
+    Note: :class:`Album` model does not have ``mb_artistids`` and
+    ``mb_albumartistids`` fields therefore we need to check for their presence.
+    """
+
+    def ensure_first_value(single_field: str, list_field: str) -> None:
+        """Ensure the first ``list_field`` item is equal to ``single_field``."""
+        single_val, list_val = getattr(m, single_field), getattr(m, list_field)
+        if single_val:
+            setattr(m, list_field, unique_list([single_val, *list_val]))
+        elif list_val:
+            setattr(m, single_field, list_val[0])
+
+    ensure_first_value("albumtype", "albumtypes")
+
+    if hasattr(m, "mb_artistids"):
+        ensure_first_value("mb_artistid", "mb_artistids")
+
+    if hasattr(m, "mb_albumartistids"):
+        ensure_first_value("mb_albumartistid", "mb_albumartistids")
+
+
 def apply_item_metadata(item: Item, track_info: TrackInfo):
     """Set an item's metadata from its matched TrackInfo object."""
     item.artist = track_info.artist
@@ -96,16 +179,17 @@ def apply_item_metadata(item: Item, track_info: TrackInfo):
     if track_info.artists_ids:
         item.mb_artistids = track_info.artists_ids
 
-    for field, value in track_info.items():
-        # We only overwrite fields that are not already hardcoded.
-        if field in SPECIAL_FIELDS["track"]:
-            continue
-        if value is None:
-            continue
-        item[field] = value
+    _apply_metadata(track_info, item)
+    correct_list_fields(item)
 
     # At the moment, the other metadata is left intact (including album
     # and track number). Perhaps these should be emptied?
+
+
+def apply_album_metadata(album_info: AlbumInfo, album: Album):
+    """Set the album's metadata to match the AlbumInfo object."""
+    _apply_metadata(album_info, album)
+    correct_list_fields(album)
 
 
 def apply_metadata(album_info: AlbumInfo, mapping: Mapping[Item, TrackInfo]):
@@ -218,21 +302,16 @@ def apply_metadata(album_info: AlbumInfo, mapping: Mapping[Item, TrackInfo]):
         # Track alt.
         item.track_alt = track_info.track_alt
 
-        # Don't overwrite fields with empty values unless the
-        # field is explicitly allowed to be overwritten
-        for field, value in album_info.items():
-            if field in SPECIAL_FIELDS["album"]:
-                continue
-            clobber = field in config["overwrite_null"]["album"].as_str_seq()
-            if value is None and not clobber:
-                continue
-            item[field] = value
+        _apply_metadata(
+            album_info,
+            item,
+            nullable_fields=config["overwrite_null"]["album"].as_str_seq(),
+        )
 
-        for field, value in track_info.items():
-            if field in SPECIAL_FIELDS["track"]:
-                continue
-            clobber = field in config["overwrite_null"]["track"].as_str_seq()
-            value = getattr(track_info, field)
-            if value is None and not clobber:
-                continue
-            item[field] = value
+        _apply_metadata(
+            track_info,
+            item,
+            nullable_fields=config["overwrite_null"]["track"].as_str_seq(),
+        )
+
+        correct_list_fields(item)

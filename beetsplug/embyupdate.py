@@ -1,11 +1,11 @@
 """Updates the Emby Library whenever the beets library is changed.
 
-    emby:
-        host: localhost
-        port: 8096
-        username: user
-        apikey: apikey
-        password: password
+emby:
+    host: localhost
+    port: 8096
+    username: user
+    apikey: apikey
+    password: password
 """
 
 import hashlib

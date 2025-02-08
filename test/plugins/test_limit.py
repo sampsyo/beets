@@ -13,20 +13,19 @@
 
 """Tests for the 'limit' plugin."""
 
-import unittest
-
-from beets.test.helper import TestHelper
+from beets.test.helper import PluginTestCase
 
 
-class LimitPluginTest(unittest.TestCase, TestHelper):
+class LimitPluginTest(PluginTestCase):
     """Unit tests for LimitPlugin
 
     Note: query prefix tests do not work correctly with `run_with_output`.
     """
 
+    plugin = "limit"
+
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("limit")
+        super().setUp()
 
         # we'll create an even number of tracks in the library
         self.num_test_items = 10
@@ -46,62 +45,50 @@ class LimitPluginTest(unittest.TestCase, TestHelper):
         self.track_head_range = "track:.." + str(self.num_limit)
         self.track_tail_range = "track:" + str(self.num_limit + 1) + ".."
 
-    def tearDown(self):
-        self.unload_plugins()
-        self.teardown_beets()
-
     def test_no_limit(self):
         """Returns all when there is no limit or filter."""
         result = self.run_with_output("lslimit")
-        self.assertEqual(result.count("\n"), self.num_test_items)
+        assert result.count("\n") == self.num_test_items
 
     def test_lslimit_head(self):
         """Returns the expected number with `lslimit --head`."""
         result = self.run_with_output("lslimit", "--head", str(self.num_limit))
-        self.assertEqual(result.count("\n"), self.num_limit)
+        assert result.count("\n") == self.num_limit
 
     def test_lslimit_tail(self):
         """Returns the expected number with `lslimit --tail`."""
         result = self.run_with_output("lslimit", "--tail", str(self.num_limit))
-        self.assertEqual(result.count("\n"), self.num_limit)
+        assert result.count("\n") == self.num_limit
 
     def test_lslimit_head_invariant(self):
         """Returns the expected number with `lslimit --head` and a filter."""
         result = self.run_with_output(
             "lslimit", "--head", str(self.num_limit), self.track_tail_range
         )
-        self.assertEqual(result.count("\n"), self.num_limit)
+        assert result.count("\n") == self.num_limit
 
     def test_lslimit_tail_invariant(self):
         """Returns the expected number with `lslimit --tail` and a filter."""
         result = self.run_with_output(
             "lslimit", "--tail", str(self.num_limit), self.track_head_range
         )
-        self.assertEqual(result.count("\n"), self.num_limit)
+        assert result.count("\n") == self.num_limit
 
     def test_prefix(self):
         """Returns the expected number with the query prefix."""
         result = self.lib.items(self.num_limit_prefix)
-        self.assertEqual(len(result), self.num_limit)
+        assert len(result) == self.num_limit
 
     def test_prefix_when_correctly_ordered(self):
         """Returns the expected number with the query prefix and filter when
         the prefix portion (correctly) appears last."""
         correct_order = self.track_tail_range + " " + self.num_limit_prefix
         result = self.lib.items(correct_order)
-        self.assertEqual(len(result), self.num_limit)
+        assert len(result) == self.num_limit
 
     def test_prefix_when_incorrectly_ordred(self):
         """Returns no results with the query prefix and filter when the prefix
         portion (incorrectly) appears first."""
         incorrect_order = self.num_limit_prefix + " " + self.track_tail_range
         result = self.lib.items(incorrect_order)
-        self.assertEqual(len(result), 0)
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert len(result) == 0

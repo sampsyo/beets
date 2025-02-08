@@ -18,7 +18,6 @@
 
 """Provides a bare-ASCII matching query."""
 
-
 from unidecode import unidecode
 
 from beets import ui

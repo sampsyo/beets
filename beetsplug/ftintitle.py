@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Moves "featured" artists to the title from the artist field.
-"""
+"""Moves "featured" artists to the title from the artist field."""
 
 import re
 
@@ -38,7 +37,13 @@ def split_on_feat(artist):
 
 def contains_feat(title):
     """Determine whether the title contains a "featured" marker."""
-    return bool(re.search(plugins.feat_tokens(), title, flags=re.IGNORECASE))
+    return bool(
+        re.search(
+            plugins.feat_tokens(for_artist=False),
+            title,
+            flags=re.IGNORECASE,
+        )
+    )
 
 
 def find_feat_part(artist, albumartist):
@@ -78,6 +83,7 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
                 "auto": True,
                 "drop": False,
                 "format": "feat. {0}",
+                "keep_in_artist": False,
             }
         )
 
@@ -101,10 +107,11 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
         def func(lib, opts, args):
             self.config.set_args(opts)
             drop_feat = self.config["drop"].get(bool)
+            keep_in_artist_field = self.config["keep_in_artist"].get(bool)
             write = ui.should_write()
 
             for item in lib.items(ui.decargs(args)):
-                self.ft_in_title(item, drop_feat)
+                self.ft_in_title(item, drop_feat, keep_in_artist_field)
                 item.store()
                 if write:
                     item.try_write()
@@ -115,20 +122,27 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
     def imported(self, session, task):
         """Import hook for moving featuring artist automatically."""
         drop_feat = self.config["drop"].get(bool)
+        keep_in_artist_field = self.config["keep_in_artist"].get(bool)
 
         for item in task.imported_items():
-            self.ft_in_title(item, drop_feat)
+            self.ft_in_title(item, drop_feat, keep_in_artist_field)
             item.store()
 
-    def update_metadata(self, item, feat_part, drop_feat):
+    def update_metadata(self, item, feat_part, drop_feat, keep_in_artist_field):
         """Choose how to add new artists to the title and set the new
         metadata. Also, print out messages about any changes that are made.
         If `drop_feat` is set, then do not add the artist to the title; just
         remove it from the artist field.
         """
-        # In all cases, update the artist fields.
-        self._log.info("artist: {0} -> {1}", item.artist, item.albumartist)
-        item.artist = item.albumartist
+        # In case the artist is kept, do not update the artist fields.
+        if keep_in_artist_field:
+            self._log.info(
+                "artist: {0} (Not changing due to keep_in_artist)", item.artist
+            )
+        else:
+            self._log.info("artist: {0} -> {1}", item.artist, item.albumartist)
+            item.artist = item.albumartist
+
         if item.artist_sort:
             # Just strip the featured artist from the sort name.
             item.artist_sort, _ = split_on_feat(item.artist_sort)
@@ -142,7 +156,7 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
             self._log.info("title: {0} -> {1}", item.title, new_title)
             item.title = new_title
 
-    def ft_in_title(self, item, drop_feat):
+    def ft_in_title(self, item, drop_feat, keep_in_artist_field):
         """Look for featured artists in the item's artist fields and move
         them to the title.
         """
@@ -163,6 +177,8 @@ class FtInTitlePlugin(plugins.BeetsPlugin):
 
             # If we have a featuring artist, move it to the title.
             if feat_part:
-                self.update_metadata(item, feat_part, drop_feat)
+                self.update_metadata(
+                    item, feat_part, drop_feat, keep_in_artist_field
+                )
             else:
                 self._log.info("no featuring artists found")

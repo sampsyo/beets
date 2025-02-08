@@ -17,7 +17,6 @@ Beets library. Attempts to implement a compatible protocol to allow
 use of the wide range of MPD clients.
 """
 
-
 import inspect
 import math
 import random
@@ -27,9 +26,7 @@ import sys
 import time
 import traceback
 from string import Template
-from typing import List
-
-from mediafile import MediaFile
+from typing import TYPE_CHECKING
 
 import beets
 import beets.ui
@@ -37,6 +34,9 @@ from beets import dbcore, vfs
 from beets.library import Item
 from beets.plugins import BeetsPlugin
 from beets.util import bluelet
+
+if TYPE_CHECKING:
+    from beets.dbcore.query import Query
 
 PROTOCOL_VERSION = "0.16.0"
 BUFSIZE = 1024
@@ -92,8 +92,6 @@ SUBSYSTEMS = [
     "message",
     "partition",
 ]
-
-ITEM_KEYS_WRITABLE = set(MediaFile.fields()).intersection(Item._fields.keys())
 
 
 # Gstreamer import error.
@@ -168,13 +166,13 @@ def cast_arg(t, val):
             raise ArgumentTypeError()
 
 
-class BPDClose(Exception):
+class BPDCloseError(Exception):
     """Raised by a command invocation to indicate that the connection
     should be closed.
     """
 
 
-class BPDIdle(Exception):
+class BPDIdleError(Exception):
     """Raised by a command to indicate the client wants to enter the idle state
     and should be notified when a relevant event happens.
     """
@@ -349,7 +347,7 @@ class BaseServer:
         for system in subsystems:
             if system not in SUBSYSTEMS:
                 raise BPDError(ERROR_ARG, f"Unrecognised idle event: {system}")
-        raise BPDIdle(subsystems)  # put the connection into idle mode
+        raise BPDIdleError(subsystems)  # put the connection into idle mode
 
     def cmd_kill(self, conn):
         """Exits the server process."""
@@ -357,7 +355,7 @@ class BaseServer:
 
     def cmd_close(self, conn):
         """Closes the connection."""
-        raise BPDClose()
+        raise BPDCloseError()
 
     def cmd_password(self, conn, password):
         """Attempts password authentication."""
@@ -739,13 +737,13 @@ class BaseServer:
 
     # Additions to the MPD protocol.
 
-    def cmd_crash_TypeError(self, conn):  # noqa: N802
+    def cmd_crash(self, conn):
         """Deliberately trigger a TypeError for testing purposes.
         We want to test that the server properly responds with ERROR_SYSTEM
         without crashing, and that this is not treated as ERROR_ARG (since it
         is caused by a programming error, not a protocol error).
         """
-        "a" + 2
+        raise TypeError
 
 
 class Connection:
@@ -773,8 +771,8 @@ class Connection:
         if isinstance(lines, str):
             lines = [lines]
         out = NEWLINE.join(lines) + NEWLINE
-        for l in out.split(NEWLINE)[:-1]:
-            self.debug(l, kind=">")
+        for line in out.split(NEWLINE)[:-1]:
+            self.debug(line, kind=">")
         if isinstance(out, str):
             out = out.encode("utf-8")
         return self.sock.sendall(out)
@@ -853,8 +851,8 @@ class MPDConnection(Connection):
                 self.disconnect()  # Client sent a blank line.
                 break
             line = line.decode("utf8")  # MPD protocol uses UTF-8.
-            for l in line.split(NEWLINE):
-                self.debug(l, kind="<")
+            for line in line.split(NEWLINE):
+                self.debug(line, kind="<")
 
             if self.idle_subscriptions:
                 # The connection is in idle mode.
@@ -888,12 +886,12 @@ class MPDConnection(Connection):
                 # Ordinary command.
                 try:
                     yield bluelet.call(self.do_command(Command(line)))
-                except BPDClose:
+                except BPDCloseError:
                     # Command indicates that the conn should close.
                     self.sock.close()
                     self.disconnect()  # Client explicitly closed.
                     return
-                except BPDIdle as e:
+                except BPDIdleError as e:
                     self.idle_subscriptions = e.subsystems
                     self.debug(
                         "awaiting: {}".format(" ".join(e.subsystems)), kind="z"
@@ -922,8 +920,8 @@ class ControlConnection(Connection):
             if not line:
                 break  # Client sent a blank line.
             line = line.decode("utf8")  # Protocol uses UTF-8.
-            for l in line.split(NEWLINE):
-                self.debug(l, kind="<")
+            for line in line.split(NEWLINE):
+                self.debug(line, kind="<")
             command = Command(line)
             try:
                 func = command.delegate("ctrl_", self)
@@ -1046,12 +1044,12 @@ class Command:
             e.cmd_name = self.name
             raise e
 
-        except BPDClose:
+        except BPDCloseError:
             # An indication that the connection should close. Send
             # it on the Connection.
             raise
 
-        except BPDIdle:
+        except BPDIdleError:
             raise
 
         except Exception:
@@ -1060,7 +1058,7 @@ class Command:
             raise BPDError(ERROR_SYSTEM, "server error", self.name)
 
 
-class CommandList(List[Command]):
+class CommandList(list[Command]):
     """A list of commands issued by the client for processing by the
     server. May be verbose, in which case the response is delimited, or
     not. Should be a list of `Command` objects.
@@ -1401,29 +1399,29 @@ class Server(BaseServer):
                 return test_tag, key
         raise BPDError(ERROR_UNKNOWN, "no such tagtype")
 
-    def _metadata_query(self, query_type, any_query_type, kv):
+    def _metadata_query(self, query_type, kv, allow_any_query: bool = False):
         """Helper function returns a query object that will find items
         according to the library query type provided and the key-value
         pairs specified. The any_query_type is used for queries of
         type "any"; if None, then an error is thrown.
         """
         if kv:  # At least one key-value pair.
-            queries = []
+            queries: list[Query] = []
             # Iterate pairwise over the arguments.
             it = iter(kv)
             for tag, value in zip(it, it):
                 if tag.lower() == "any":
-                    if any_query_type:
+                    if allow_any_query:
                         queries.append(
-                            any_query_type(
-                                value, ITEM_KEYS_WRITABLE, query_type
+                            Item.any_writable_media_field_query(
+                                query_type, value
                             )
                         )
                     else:
                         raise BPDError(ERROR_UNKNOWN, "no such tagtype")
                 else:
                     _, key = self._tagtype_lookup(tag)
-                    queries.append(query_type(key, value))
+                    queries.append(Item.field_query(key, value, query_type))
             return dbcore.query.AndQuery(queries)
         else:  # No key-value pairs.
             return dbcore.query.TrueQuery()
@@ -1431,14 +1429,14 @@ class Server(BaseServer):
     def cmd_search(self, conn, *kv):
         """Perform a substring match for items."""
         query = self._metadata_query(
-            dbcore.query.SubstringQuery, dbcore.query.AnyFieldQuery, kv
+            dbcore.query.SubstringQuery, kv, allow_any_query=True
         )
         for item in self.lib.items(query):
             yield self._item_info(item)
 
     def cmd_find(self, conn, *kv):
         """Perform an exact match for items."""
-        query = self._metadata_query(dbcore.query.MatchQuery, None, kv)
+        query = self._metadata_query(dbcore.query.MatchQuery, kv)
         for item in self.lib.items(query):
             yield self._item_info(item)
 
@@ -1458,7 +1456,7 @@ class Server(BaseServer):
                 raise BPDError(ERROR_ARG, 'should be "Album" for 3 arguments')
         elif len(kv) % 2 != 0:
             raise BPDError(ERROR_ARG, "Incorrect number of filter arguments")
-        query = self._metadata_query(dbcore.query.MatchQuery, None, kv)
+        query = self._metadata_query(dbcore.query.MatchQuery, kv)
 
         clause, subvals = query.clause()
         statement = (
@@ -1486,7 +1484,9 @@ class Server(BaseServer):
         _, key = self._tagtype_lookup(tag)
         songs = 0
         playtime = 0.0
-        for item in self.lib.items(dbcore.query.MatchQuery(key, value)):
+        for item in self.lib.items(
+            Item.field_query(key, value, dbcore.query.MatchQuery)
+        ):
             songs += 1
             playtime += item.length
         yield "songs: " + str(songs)

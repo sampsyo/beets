@@ -12,15 +12,23 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Representation of type information for DBCore model fields.
-"""
+"""Representation of type information for DBCore model fields."""
+
+from __future__ import annotations
+
 import typing
 from abc import ABC
-from typing import Any, Generic, List, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 
 from beets.util import str2bool
 
-from .query import BooleanQuery, FieldQuery, NumericQuery, SubstringQuery
+from .query import (
+    BooleanQuery,
+    FieldQueryType,
+    NumericQuery,
+    SQLiteType,
+    SubstringQuery,
+)
 
 
 class ModelType(typing.Protocol):
@@ -35,8 +43,12 @@ class ModelType(typing.Protocol):
 # Generic type variables, used for the value type T and null type N (if
 # nullable, else T and N are set to the same type for the concrete subclasses
 # of Type).
-N = TypeVar("N")
-T = TypeVar("T", bound=ModelType)
+if TYPE_CHECKING:
+    N = TypeVar("N", default=Any)
+    T = TypeVar("T", bound=ModelType, default=Any)
+else:
+    N = TypeVar("N")
+    T = TypeVar("T", bound=ModelType)
 
 
 class Type(ABC, Generic[T, N]):
@@ -49,11 +61,11 @@ class Type(ABC, Generic[T, N]):
     """The SQLite column type for the value.
     """
 
-    query: typing.Type[FieldQuery] = SubstringQuery
+    query: FieldQueryType = SubstringQuery
     """The `Query` subclass to be used when querying the field.
     """
 
-    model_type: typing.Type[T]
+    model_type: type[T]
     """The Python type that is used to represent the value in the model.
 
     The model is guaranteed to return a value of this type if the field
@@ -69,7 +81,7 @@ class Type(ABC, Generic[T, N]):
         # have a field null_type similar to `model_type` and use that here.
         return cast(N, self.model_type())
 
-    def format(self, value: Union[N, T]) -> str:
+    def format(self, value: N | T) -> str:
         """Given a value of this type, produce a Unicode string
         representing the value. This is used in template evaluation.
         """
@@ -83,7 +95,7 @@ class Type(ABC, Generic[T, N]):
         else:
             return str(value)
 
-    def parse(self, string: str) -> Union[T, N]:
+    def parse(self, string: str) -> T | N:
         """Parse a (possibly human-written) string and return the
         indicated value of this type.
         """
@@ -92,7 +104,7 @@ class Type(ABC, Generic[T, N]):
         except ValueError:
             return self.null
 
-    def normalize(self, value: Any) -> Union[T, N]:
+    def normalize(self, value: Any) -> T | N:
         """Given a value that will be assigned into a field of this
         type, normalize the value to have the appropriate type. This
         base implementation only reinterprets `None`.
@@ -105,10 +117,7 @@ class Type(ABC, Generic[T, N]):
             # `self.model_type(value)`
             return cast(T, value)
 
-    def from_sql(
-        self,
-        sql_value: Union[None, int, float, str, bytes],
-    ) -> Union[T, N]:
+    def from_sql(self, sql_value: SQLiteType) -> T | N:
         """Receives the value stored in the SQL backend and return the
         value to be stored in the model.
 
@@ -129,7 +138,7 @@ class Type(ABC, Generic[T, N]):
         else:
             return self.normalize(sql_value)
 
-    def to_sql(self, model_value: Any) -> Union[None, int, float, str, bytes]:
+    def to_sql(self, model_value: Any) -> SQLiteType:
         """Convert a value as stored in the model object to a value used
         by the database adapter.
         """
@@ -154,7 +163,7 @@ class BaseInteger(Type[int, N]):
     query = NumericQuery
     model_type = int
 
-    def normalize(self, value: Any) -> Union[int, N]:
+    def normalize(self, value: Any) -> int | N:
         try:
             return self.model_type(round(float(value)))
         except ValueError:
@@ -183,7 +192,7 @@ class BasePaddedInt(BaseInteger[N]):
     def __init__(self, digits: int):
         self.digits = digits
 
-    def format(self, value: Union[int, N]) -> str:
+    def format(self, value: int | N) -> str:
         return "{0:0{1}d}".format(value or 0, self.digits)
 
 
@@ -232,13 +241,13 @@ class BaseFloat(Type[float, N]):
     """
 
     sql = "REAL"
-    query: typing.Type[FieldQuery[Any]] = NumericQuery
+    query: FieldQueryType = NumericQuery
     model_type = float
 
     def __init__(self, digits: int = 1):
         self.digits = digits
 
-    def format(self, value: Union[float, N]) -> str:
+    def format(self, value: float | N) -> str:
         return "{0:.{1}f}".format(value or 0, self.digits)
 
 
@@ -264,7 +273,7 @@ class BaseString(Type[T, N]):
     sql = "TEXT"
     query = SubstringQuery
 
-    def normalize(self, value: Any) -> Union[T, N]:
+    def normalize(self, value: Any) -> T | N:
         if value is None:
             return self.null
         else:
@@ -277,7 +286,7 @@ class String(BaseString[str, Any]):
     model_type = str
 
 
-class DelimitedString(BaseString[List[str], List[str]]):
+class DelimitedString(BaseString[list[str], list[str]]):
     """A list of Unicode strings, represented in-database by a single string
     containing delimiter-separated values.
     """
@@ -287,7 +296,7 @@ class DelimitedString(BaseString[List[str], List[str]]):
     def __init__(self, delimiter: str):
         self.delimiter = delimiter
 
-    def format(self, value: List[str]):
+    def format(self, value: list[str]):
         return self.delimiter.join(value)
 
     def parse(self, string: str):
@@ -295,7 +304,7 @@ class DelimitedString(BaseString[List[str], List[str]]):
             return []
         return string.split(self.delimiter)
 
-    def to_sql(self, model_value: List[str]):
+    def to_sql(self, model_value: list[str]):
         return self.delimiter.join(model_value)
 
 

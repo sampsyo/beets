@@ -5,14 +5,14 @@ AUTHOR = "Adrian Sampson"
 extensions = ["sphinx.ext.autodoc", "sphinx.ext.extlinks"]
 
 exclude_patterns = ["_build"]
-source_suffix = ".rst"
+source_suffix = {".rst": "restructuredtext"}
 master_doc = "index"
 
 project = "beets"
 copyright = "2016, Adrian Sampson"
 
-version = "2.0"
-release = "2.0.0"
+version = "2.2"
+release = "2.2.0"
 
 pygments_style = "sphinx"
 
@@ -61,13 +61,7 @@ man_pages = [
 
 # Options for pydata theme
 html_theme = "pydata_sphinx_theme"
-html_theme_options = {
-    "collapse_navigation": True,
-    "logo": {
-        "text": "beets",
-    },
-    "pygment_light_style": "bw",
-}
+html_theme_options = {"collapse_navigation": True, "logo": {"text": "beets"}}
 html_title = "beets"
 html_logo = "_static/beets_logo_nobg.png"
 html_static_path = ["_static"]

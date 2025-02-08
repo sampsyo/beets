@@ -26,7 +26,6 @@ This is sort of like a tiny, horrible degeneration of a real templating
 engine like Jinja2 or Mustache.
 """
 
-
 import ast
 import dis
 import functools

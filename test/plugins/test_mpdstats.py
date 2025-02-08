@@ -13,23 +13,16 @@
 # included in all copies or substantial portions of the Software.
 
 
-import unittest
 from unittest.mock import ANY, Mock, call, patch
 
 from beets import util
 from beets.library import Item
-from beets.test.helper import TestHelper
+from beets.test.helper import PluginTestCase
 from beetsplug.mpdstats import MPDStats
 
 
-class MPDStatsTest(unittest.TestCase, TestHelper):
-    def setUp(self):
-        self.setup_beets()
-        self.load_plugins("mpdstats")
-
-    def tearDown(self):
-        self.teardown_beets()
-        self.unload_plugins()
+class MPDStatsTest(PluginTestCase):
+    plugin = "mpdstats"
 
     def test_update_rating(self):
         item = Item(title="title", path="", id=1)
@@ -38,8 +31,8 @@ class MPDStatsTest(unittest.TestCase, TestHelper):
         log = Mock()
         mpdstats = MPDStats(self.lib, log)
 
-        self.assertFalse(mpdstats.update_rating(item, True))
-        self.assertFalse(mpdstats.update_rating(None, True))
+        assert not mpdstats.update_rating(item, True)
+        assert not mpdstats.update_rating(None, True)
 
     def test_get_item(self):
         item_path = util.normpath("/foo/bar.flac")
@@ -49,9 +42,9 @@ class MPDStatsTest(unittest.TestCase, TestHelper):
         log = Mock()
         mpdstats = MPDStats(self.lib, log)
 
-        self.assertEqual(str(mpdstats.get_item(item_path)), str(item))
-        self.assertIsNone(mpdstats.get_item("/some/non-existing/path"))
-        self.assertIn("item not found:", log.info.call_args[0][0])
+        assert str(mpdstats.get_item(item_path)) == str(item)
+        assert mpdstats.get_item("/some/non-existing/path") is None
+        assert "item not found:" in log.info.call_args[0][0]
 
     FAKE_UNKNOWN_STATE = "some-unknown-one"
     STATUSES = [
@@ -88,11 +81,3 @@ class MPDStatsTest(unittest.TestCase, TestHelper):
         log.info.assert_has_calls(
             [call("pause"), call("playing {0}", ANY), call("stop")]
         )
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

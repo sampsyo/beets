@@ -91,3 +91,6 @@ ENV/
 /.pydevproject
 /.settings
 .vscode
+
+# pyright
+pyrightconfig.json

@@ -13,31 +13,27 @@
 # included in all copies or substantial portions of the Software.
 
 
-import unittest
-
 from beets.test.helper import (
     AutotagStub,
-    ImportHelper,
-    TerminalImportSessionSetup,
-    TestHelper,
+    ImportTestCase,
+    PluginMixin,
+    TerminalImportMixin,
     capture_stdout,
     control_stdin,
 )
 
 
-class MBSubmitPluginTest(
-    TerminalImportSessionSetup, unittest.TestCase, ImportHelper, TestHelper
-):
+class MBSubmitPluginTest(PluginMixin, TerminalImportMixin, ImportTestCase):
+    plugin = "mbsubmit"
+
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("mbsubmit")
-        self._create_import_dir(2)
-        self._setup_import_session()
+        super().setUp()
+        self.prepare_album_for_import(2)
+        self.setup_importer()
         self.matcher = AutotagStub().install()
 
     def tearDown(self):
-        self.unload_plugins()
-        self.teardown_beets()
+        super().tearDown()
         self.matcher.restore()
 
     def test_print_tracks_output(self):
@@ -52,10 +48,10 @@ class MBSubmitPluginTest(
         # Manually build the string for comparing the output.
         tracklist = (
             "Open files with Picard? "
-            "01. Tag Title 1 - Tag Artist (0:01)\n"
-            "02. Tag Title 2 - Tag Artist (0:01)"
+            "01. Tag Track 1 - Tag Artist (0:01)\n"
+            "02. Tag Track 2 - Tag Artist (0:01)"
         )
-        self.assertIn(tracklist, output.getvalue())
+        assert tracklist in output.getvalue()
 
     def test_print_tracks_output_as_tracks(self):
         """Test the output of the "print tracks" choice, as singletons."""
@@ -68,14 +64,6 @@ class MBSubmitPluginTest(
 
         # Manually build the string for comparing the output.
         tracklist = (
-            "Open files with Picard? " "02. Tag Title 2 - Tag Artist (0:01)"
+            "Open files with Picard? " "02. Tag Track 2 - Tag Artist (0:01)"
         )
-        self.assertIn(tracklist, output.getvalue())
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert tracklist in output.getvalue()

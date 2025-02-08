@@ -16,7 +16,6 @@
 music player.
 """
 
-
 import _thread
 import copy
 import os

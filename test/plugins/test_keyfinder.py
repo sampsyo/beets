@@ -13,23 +13,16 @@
 # included in all copies or substantial portions of the Software.
 
 
-import unittest
 from unittest.mock import patch
 
 from beets import util
 from beets.library import Item
-from beets.test.helper import TestHelper
+from beets.test.helper import AsIsImporterMixin, ImportTestCase, PluginMixin
 
 
 @patch("beets.util.command_output")
-class KeyFinderTest(unittest.TestCase, TestHelper):
-    def setUp(self):
-        self.setup_beets()
-        self.load_plugins("keyfinder")
-
-    def tearDown(self):
-        self.teardown_beets()
-        self.unload_plugins()
+class KeyFinderTest(AsIsImporterMixin, PluginMixin, ImportTestCase):
+    plugin = "keyfinder"
 
     def test_add_key(self, command_output):
         item = Item(path="/file")
@@ -39,18 +32,17 @@ class KeyFinderTest(unittest.TestCase, TestHelper):
         self.run_command("keyfinder")
 
         item.load()
-        self.assertEqual(item["initial_key"], "C#m")
+        assert item["initial_key"] == "C#m"
         command_output.assert_called_with(
             ["KeyFinder", "-f", util.syspath(item.path)]
         )
 
     def test_add_key_on_import(self, command_output):
         command_output.return_value = util.CommandOutput(b"dbm", b"")
-        importer = self.create_importer()
-        importer.run()
+        self.run_asis_importer()
 
         item = self.lib.items().get()
-        self.assertEqual(item["initial_key"], "C#m")
+        assert item["initial_key"] == "C#m"
 
     def test_force_overwrite(self, command_output):
         self.config["keyfinder"]["overwrite"] = True
@@ -62,7 +54,7 @@ class KeyFinderTest(unittest.TestCase, TestHelper):
         self.run_command("keyfinder")
 
         item.load()
-        self.assertEqual(item["initial_key"], "C#m")
+        assert item["initial_key"] == "C#m"
 
     def test_do_not_overwrite(self, command_output):
         item = Item(path="/file", initial_key="F")
@@ -72,7 +64,7 @@ class KeyFinderTest(unittest.TestCase, TestHelper):
         self.run_command("keyfinder")
 
         item.load()
-        self.assertEqual(item["initial_key"], "F")
+        assert item["initial_key"] == "F"
 
     def test_no_key(self, command_output):
         item = Item(path="/file")
@@ -82,12 +74,4 @@ class KeyFinderTest(unittest.TestCase, TestHelper):
         self.run_command("keyfinder")
 
         item.load()
-        self.assertIsNone(item["initial_key"])
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert item["initial_key"] is None

@@ -15,6 +15,13 @@ give you an idea of what you can expect from these *knowledge owners*.
 * Testing out new contributions
 * beets as a music discovery tool
 
+@bal-e
+======
+
+* Documentation
+* The Fish plugin
+* Type annotations
+
 @govynnus
 =========
 

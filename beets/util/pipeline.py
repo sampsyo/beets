@@ -31,7 +31,6 @@ To do so, pass an iterable of coroutines to the Pipeline constructor
 in place of any single coroutine.
 """
 
-
 import queue
 import sys
 from threading import Lock, Thread

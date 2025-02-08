@@ -14,9 +14,7 @@
 
 """Moves patterns in path formats (suitable for moving articles)."""
 
-
 import re
-from typing import List
 
 from beets.plugins import BeetsPlugin
 
@@ -29,7 +27,7 @@ FORMAT = "{0}, {1}"
 
 
 class ThePlugin(BeetsPlugin):
-    patterns: List[str] = []
+    patterns: list[str] = []
 
     def __init__(self):
         super().__init__()
