@@ -604,6 +604,8 @@ class ConvertPlugin(BeetsPlugin):
             items,
         )
 
+        # If the user supplied a playlist name, create a playlist containing
+        # all converted titles using this name.
         if playlist:
             # Playlist paths are understood as relative to the dest directory.
             pl_normpath = util.normpath(playlist)
@@ -615,10 +617,15 @@ class ConvertPlugin(BeetsPlugin):
             items_paths = [
                 os.path.relpath(
                     util.bytestring_path(
-                        item.destination(
-                            basedir=dest,
-                            path_formats=path_formats,
-                            fragment=False,
+                        # Substitute the before-conversion file extension by
+                        # the after-conversion extension.
+                        replace_ext(
+                            item.destination(
+                                basedir=dest,
+                                path_formats=path_formats,
+                                fragment=False,
+                            ),
+                            get_format()[1],
                         )
                     ),
                     pl_dir,
