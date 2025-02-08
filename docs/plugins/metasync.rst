@@ -19,8 +19,12 @@ Installation
 Enable the ``metasync`` plugin in your configuration (see
 :ref:`using-plugins`).
 
-To synchronize with Amarok, you'll need the `dbus-python`_ library. There are
-packages for most major Linux distributions.
+To synchronize with Amarok, you'll need the `dbus-python`_ library. In such
+case, install ``beets`` with ``metasync`` extra
+
+.. code-block:: bash
+
+    pip install "beets[metasync]"
 
 .. _dbus-python: https://dbus.freedesktop.org/releases/dbus-python/
 

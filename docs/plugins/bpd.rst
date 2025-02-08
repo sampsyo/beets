@@ -26,6 +26,13 @@ You will also need the various GStreamer plugin packages to make everything
 work. See the :doc:`/plugins/chroma` documentation for more information on
 installing GStreamer plugins.
 
+Once you have system dependencies installed, install ``beets`` with ``bpd``
+extra which installs Python bindings for ``GStreamer``:
+
+.. code-block:: console
+
+    pip install "beets[bpd]"
+
 .. _GStreamer: https://gstreamer.freedesktop.org/download
 .. _Homebrew: https://brew.sh
 

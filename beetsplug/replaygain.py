@@ -13,10 +13,11 @@
 # included in all copies or substantial portions of the Software.
 
 
+from __future__ import annotations
+
 import collections
 import enum
 import math
-import optparse
 import os
 import queue
 import signal
@@ -25,37 +26,23 @@ import sys
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from logging import Logger
 from multiprocessing.pool import ThreadPool
 from threading import Event, Thread
-from typing import (
-    Any,
-    Callable,
-    DefaultDict,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-    cast,
-)
-
-from confuse import ConfigView
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
 
 from beets import ui
-from beets.importer import ImportSession, ImportTask
-from beets.library import Album, Item, Library
 from beets.plugins import BeetsPlugin
-from beets.util import (
-    command_output,
-    cpu_count,
-    displayable_path,
-    py3_path,
-    syspath,
-)
+from beets.util import command_output, displayable_path, syspath
+
+if TYPE_CHECKING:
+    import optparse
+    from collections.abc import Sequence
+    from logging import Logger
+
+    from confuse import ConfigView
+
+    from beets.importer import ImportSession, ImportTask
+    from beets.library import Album, Item, Library
 
 # Utilities.
 
@@ -75,7 +62,7 @@ class FatalGstreamerPluginReplayGainError(FatalReplayGainError):
     loading the required plugins."""
 
 
-def call(args: List[Any], log: Logger, **kwargs: Any):
+def call(args: list[Any], log: Logger, **kwargs: Any):
     """Execute the command and return its output or raise a
     ReplayGainError on failure.
     """
@@ -140,9 +127,9 @@ class RgTask:
     def __init__(
         self,
         items: Sequence[Item],
-        album: Optional[Album],
+        album: Album | None,
         target_level: float,
-        peak_method: Optional[PeakMethod],
+        peak_method: PeakMethod | None,
         backend_name: str,
         log: Logger,
     ):
@@ -152,8 +139,8 @@ class RgTask:
         self.peak_method = peak_method
         self.backend_name = backend_name
         self._log = log
-        self.album_gain: Optional[Gain] = None
-        self.track_gains: Optional[List[Gain]] = None
+        self.album_gain: Gain | None = None
+        self.track_gains: list[Gain] | None = None
 
     def _store_track_gain(self, item: Item, track_gain: Gain):
         """Store track gain for a single item in the database."""
@@ -242,7 +229,7 @@ class R128Task(RgTask):
     def __init__(
         self,
         items: Sequence[Item],
-        album: Optional[Album],
+        album: Album | None,
         target_level: float,
         backend_name: str,
         log: Logger,
@@ -340,9 +327,7 @@ class FfmpegBackend(Backend):
                 task.target_level,
                 task.peak_method,
                 count_blocks=False,
-            )[
-                0
-            ]  # take only the gain, discarding number of gating blocks
+            )[0]  # take only the gain, discarding number of gating blocks
             for item in task.items
         ]
 
@@ -356,7 +341,7 @@ class FfmpegBackend(Backend):
 
         # analyse tracks
         # Gives a list of tuples (track_gain, track_n_blocks)
-        track_results: List[Tuple[Gain, int]] = [
+        track_results: list[tuple[Gain, int]] = [
             self._analyse_item(
                 item,
                 task.target_level,
@@ -366,7 +351,7 @@ class FfmpegBackend(Backend):
             for item in task.items
         ]
 
-        track_gains: List[Gain] = [tg for tg, _nb in track_results]
+        track_gains: list[Gain] = [tg for tg, _nb in track_results]
 
         # Album peak is maximum track peak
         album_peak = max(tg.peak for tg in track_gains)
@@ -417,8 +402,8 @@ class FfmpegBackend(Backend):
         return task
 
     def _construct_cmd(
-        self, item: Item, peak_method: Optional[PeakMethod]
-    ) -> List[Union[str, bytes]]:
+        self, item: Item, peak_method: PeakMethod | None
+    ) -> list[str | bytes]:
         """Construct the shell command to analyse items."""
         return [
             self._ffmpeg_path,
@@ -441,9 +426,9 @@ class FfmpegBackend(Backend):
         self,
         item: Item,
         target_level: float,
-        peak_method: Optional[PeakMethod],
+        peak_method: PeakMethod | None,
         count_blocks: bool = True,
-    ) -> Tuple[Gain, int]:
+    ) -> tuple[Gain, int]:
         """Analyse item. Return a pair of a Gain object and the number
         of gating blocks above the threshold.
 
@@ -655,7 +640,7 @@ class CommandBackend(Backend):
         items: Sequence[Item],
         target_level: float,
         is_album: bool,
-    ) -> List[Gain]:
+    ) -> list[Gain]:
         """Computes the track or album gain of a list of items, returns
         a list of TrackGain objects.
 
@@ -675,7 +660,7 @@ class CommandBackend(Backend):
         # tag-writing; this turns the mp3gain/aacgain tool into a gain
         # calculator rather than a tag manipulator because we take care
         # of changing tags ourselves.
-        cmd: List[Union[bytes, str]] = [self.command, "-o", "-s", "s"]
+        cmd: list[bytes | str] = [self.command, "-o", "-s", "s"]
         if self.noclip:
             # Adjust to avoid clipping.
             cmd = cmd + ["-k"]
@@ -693,7 +678,7 @@ class CommandBackend(Backend):
             output, len(items) + (1 if is_album else 0)
         )
 
-    def parse_tool_output(self, text: bytes, num_lines: int) -> List[Gain]:
+    def parse_tool_output(self, text: bytes, num_lines: int) -> list[Gain]:
         """Given the tab-delimited output from an invocation of mp3gain
         or aacgain, parse the text and return a list of dictionaries
         containing information about each analyzed file.
@@ -779,7 +764,7 @@ class GStreamerBackend(Backend):
 
         self._main_loop = self.GLib.MainLoop()
 
-        self._files: List[bytes] = []
+        self._files: list[bytes] = []
 
     def _import_gst(self):
         """Import the necessary GObject-related modules and assign `Gst`
@@ -819,7 +804,7 @@ class GStreamerBackend(Backend):
         self._files = [i.path for i in items]
 
         # FIXME: Turn this into DefaultDict[bytes, Gain]
-        self._file_tags: DefaultDict[bytes, Dict[str, float]] = (
+        self._file_tags: collections.defaultdict[bytes, dict[str, float]] = (
             collections.defaultdict(dict)
         )
 
@@ -942,7 +927,7 @@ class GStreamerBackend(Backend):
 
         self._file = self._files.pop(0)
         self._pipe.set_state(self.Gst.State.NULL)
-        self._src.set_property("location", py3_path(syspath(self._file)))
+        self._src.set_property("location", os.fsdecode(syspath(self._file)))
         self._pipe.set_state(self.Gst.State.PLAYING)
         return True
 
@@ -972,7 +957,7 @@ class GStreamerBackend(Backend):
         # Set a new file on the filesrc element, can only be done in the
         # READY state
         self._src.set_state(self.Gst.State.READY)
-        self._src.set_property("location", py3_path(syspath(self._file)))
+        self._src.set_property("location", os.fsdecode(syspath(self._file)))
 
         self._decbin.link(self._conv)
         self._pipe.set_state(self.Gst.State.READY)
@@ -1050,7 +1035,9 @@ class AudioToolsBackend(Backend):
         file format is not supported
         """
         try:
-            audiofile = self._mod_audiotools.open(py3_path(syspath(item.path)))
+            audiofile = self._mod_audiotools.open(
+                os.fsdecode(syspath(item.path))
+            )
         except OSError:
             raise ReplayGainError(f"File {item.path} was not found")
         except self._mod_audiotools.UnsupportedFile:
@@ -1198,20 +1185,20 @@ class ExceptionWatcher(Thread):
                 #  whether `_stopevent` is set
                 pass
 
-    def join(self, timeout: Optional[float] = None):
+    def join(self, timeout: float | None = None):
         self._stopevent.set()
         Thread.join(self, timeout)
 
 
 # Main plugin logic.
 
-BACKEND_CLASSES: List[Type[Backend]] = [
+BACKEND_CLASSES: list[type[Backend]] = [
     CommandBackend,
     GStreamerBackend,
     AudioToolsBackend,
     FfmpegBackend,
 ]
-BACKENDS: Dict[str, Type[Backend]] = {b.NAME: b for b in BACKEND_CLASSES}
+BACKENDS: dict[str, type[Backend]] = {b.NAME: b for b in BACKEND_CLASSES}
 
 
 class ReplayGainPlugin(BeetsPlugin):
@@ -1226,7 +1213,7 @@ class ReplayGainPlugin(BeetsPlugin):
                 "overwrite": False,
                 "auto": True,
                 "backend": "command",
-                "threads": cpu_count(),
+                "threads": os.cpu_count(),
                 "parallel_on_import": False,
                 "per_disc": False,
                 "peak": "true",
@@ -1338,7 +1325,7 @@ class ReplayGainPlugin(BeetsPlugin):
         self,
         items: Sequence[Item],
         use_r128: bool,
-        album: Optional[Album] = None,
+        album: Album | None = None,
     ) -> RgTask:
         if use_r128:
             return R128Task(
@@ -1381,7 +1368,7 @@ class ReplayGainPlugin(BeetsPlugin):
 
         self._log.info("analyzing {0}", album)
 
-        discs: Dict[int, List[Item]] = {}
+        discs: dict[int, list[Item]] = {}
         if self.config["per_disc"].get(bool):
             for item in album.items():
                 if discs.get(item.disc) is None:
@@ -1440,7 +1427,7 @@ class ReplayGainPlugin(BeetsPlugin):
         """Open a `ThreadPool` instance in `self.pool`"""
         if self.pool is None and self.backend_instance.do_parallel:
             self.pool = ThreadPool(threads)
-            self.exc_queue: queue.Queue[Exception] = queue.Queue()
+            self.exc_queue: queue.Queue = queue.Queue()
 
             signal.signal(signal.SIGINT, self._interrupt)
 
@@ -1453,8 +1440,8 @@ class ReplayGainPlugin(BeetsPlugin):
     def _apply(
         self,
         func: Callable[..., AnyRgTask],
-        args: List[Any],
-        kwds: Dict[str, Any],
+        args: list[Any],
+        kwds: dict[str, Any],
         callback: Callable[[AnyRgTask], Any],
     ):
         if self.pool is not None:
@@ -1531,7 +1518,7 @@ class ReplayGainPlugin(BeetsPlugin):
         self,
         lib: Library,
         opts: optparse.Values,
-        args: List[str],
+        args: list[str],
     ):
         try:
             write = ui.should_write(opts.write)
@@ -1568,7 +1555,7 @@ class ReplayGainPlugin(BeetsPlugin):
             # Silence interrupt exceptions
             pass
 
-    def commands(self) -> List[ui.Subcommand]:
+    def commands(self) -> list[ui.Subcommand]:
         """Return the "replaygain" ui subcommand."""
         cmd = ui.Subcommand("replaygain", help="analyze for ReplayGain")
         cmd.parser.add_album_option()

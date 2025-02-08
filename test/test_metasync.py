@@ -16,13 +16,11 @@
 import os
 import platform
 import time
-import unittest
 from datetime import datetime
 
 from beets.library import Item
 from beets.test import _common
-from beets.test.helper import TestHelper
-from beets.util import py3_path
+from beets.test.helper import PluginTestCase
 
 
 def _parsetime(s):
@@ -33,24 +31,24 @@ def _is_windows():
     return platform.system() == "Windows"
 
 
-class MetaSyncTest(_common.TestCase, TestHelper):
+class MetaSyncTest(PluginTestCase):
+    plugin = "metasync"
     itunes_library_unix = os.path.join(_common.RSRC, b"itunes_library_unix.xml")
     itunes_library_windows = os.path.join(
         _common.RSRC, b"itunes_library_windows.xml"
     )
 
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("metasync")
+        super().setUp()
 
         self.config["metasync"]["source"] = "itunes"
 
         if _is_windows():
-            self.config["metasync"]["itunes"]["library"] = py3_path(
+            self.config["metasync"]["itunes"]["library"] = os.fsdecode(
                 self.itunes_library_windows
             )
         else:
-            self.config["metasync"]["itunes"]["library"] = py3_path(
+            self.config["metasync"]["itunes"]["library"] = os.fsdecode(
                 self.itunes_library_unix
             )
 
@@ -71,12 +69,12 @@ class MetaSyncTest(_common.TestCase, TestHelper):
         items[1].album = "An Awesome Wave"
 
         if _is_windows():
-            items[0].path = (
-                "G:\\Music\\Alt-J\\An Awesome Wave\\03 Tessellate.mp3"
-            )
-            items[1].path = (
-                "G:\\Music\\Alt-J\\An Awesome Wave\\04 Breezeblocks.mp3"
-            )
+            items[
+                0
+            ].path = "G:\\Music\\Alt-J\\An Awesome Wave\\03 Tessellate.mp3"
+            items[
+                1
+            ].path = "G:\\Music\\Alt-J\\An Awesome Wave\\04 Breezeblocks.mp3"
         else:
             items[0].path = "/Music/Alt-J/An Awesome Wave/03 Tessellate.mp3"
             items[1].path = "/Music/Alt-J/An Awesome Wave/04 Breezeblocks.mp3"
@@ -84,60 +82,44 @@ class MetaSyncTest(_common.TestCase, TestHelper):
         for item in items:
             self.lib.add(item)
 
-    def tearDown(self):
-        self.unload_plugins()
-        self.teardown_beets()
-
     def test_load_item_types(self):
         # This test also verifies that the MetaSources have loaded correctly
-        self.assertIn("amarok_score", Item._types)
-        self.assertIn("itunes_rating", Item._types)
+        assert "amarok_score" in Item._types
+        assert "itunes_rating" in Item._types
 
     def test_pretend_sync_from_itunes(self):
         out = self.run_with_output("metasync", "-p")
 
-        self.assertIn("itunes_rating: 60 -> 80", out)
-        self.assertIn("itunes_rating: 100", out)
-        self.assertIn("itunes_playcount: 31", out)
-        self.assertIn("itunes_skipcount: 3", out)
-        self.assertIn("itunes_lastplayed: 2015-05-04 12:20:51", out)
-        self.assertIn("itunes_lastskipped: 2015-02-05 15:41:04", out)
-        self.assertIn("itunes_dateadded: 2014-04-24 09:28:38", out)
-        self.assertEqual(self.lib.items()[0].itunes_rating, 60)
+        assert "itunes_rating: 60 -> 80" in out
+        assert "itunes_rating: 100" in out
+        assert "itunes_playcount: 31" in out
+        assert "itunes_skipcount: 3" in out
+        assert "itunes_lastplayed: 2015-05-04 12:20:51" in out
+        assert "itunes_lastskipped: 2015-02-05 15:41:04" in out
+        assert "itunes_dateadded: 2014-04-24 09:28:38" in out
+        assert self.lib.items()[0].itunes_rating == 60
 
     def test_sync_from_itunes(self):
         self.run_command("metasync")
 
-        self.assertEqual(self.lib.items()[0].itunes_rating, 80)
-        self.assertEqual(self.lib.items()[0].itunes_playcount, 0)
-        self.assertEqual(self.lib.items()[0].itunes_skipcount, 3)
-        self.assertFalse(hasattr(self.lib.items()[0], "itunes_lastplayed"))
-        self.assertEqual(
-            self.lib.items()[0].itunes_lastskipped,
-            _parsetime("2015-02-05 15:41:04"),
+        assert self.lib.items()[0].itunes_rating == 80
+        assert self.lib.items()[0].itunes_playcount == 0
+        assert self.lib.items()[0].itunes_skipcount == 3
+        assert not hasattr(self.lib.items()[0], "itunes_lastplayed")
+        assert self.lib.items()[0].itunes_lastskipped == _parsetime(
+            "2015-02-05 15:41:04"
         )
-        self.assertEqual(
-            self.lib.items()[0].itunes_dateadded,
-            _parsetime("2014-04-24 09:28:38"),
+        assert self.lib.items()[0].itunes_dateadded == _parsetime(
+            "2014-04-24 09:28:38"
         )
 
-        self.assertEqual(self.lib.items()[1].itunes_rating, 100)
-        self.assertEqual(self.lib.items()[1].itunes_playcount, 31)
-        self.assertEqual(self.lib.items()[1].itunes_skipcount, 0)
-        self.assertEqual(
-            self.lib.items()[1].itunes_lastplayed,
-            _parsetime("2015-05-04 12:20:51"),
+        assert self.lib.items()[1].itunes_rating == 100
+        assert self.lib.items()[1].itunes_playcount == 31
+        assert self.lib.items()[1].itunes_skipcount == 0
+        assert self.lib.items()[1].itunes_lastplayed == _parsetime(
+            "2015-05-04 12:20:51"
         )
-        self.assertEqual(
-            self.lib.items()[1].itunes_dateadded,
-            _parsetime("2014-04-24 09:28:38"),
+        assert self.lib.items()[1].itunes_dateadded == _parsetime(
+            "2014-04-24 09:28:38"
         )
-        self.assertFalse(hasattr(self.lib.items()[1], "itunes_lastskipped"))
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert not hasattr(self.lib.items()[1], "itunes_lastskipped")

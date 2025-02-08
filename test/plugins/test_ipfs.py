@@ -13,33 +13,24 @@
 
 
 import os
-import unittest
 from unittest.mock import Mock, patch
 
-from beets import library
 from beets.test import _common
-from beets.test.helper import TestHelper
+from beets.test.helper import PluginTestCase
 from beets.util import _fsencoding, bytestring_path
 from beetsplug.ipfs import IPFSPlugin
 
 
 @patch("beets.util.command_output", Mock())
-class IPFSPluginTest(unittest.TestCase, TestHelper):
-    def setUp(self):
-        self.setup_beets()
-        self.load_plugins("ipfs")
-        self.lib = library.Library(":memory:")
-
-    def tearDown(self):
-        self.unload_plugins()
-        self.teardown_beets()
+class IPFSPluginTest(PluginTestCase):
+    plugin = "ipfs"
 
     def test_stored_hashes(self):
         test_album = self.mk_test_album()
         ipfs = IPFSPlugin()
         added_albums = ipfs.ipfs_added_albums(self.lib, self.lib.path)
         added_album = added_albums.get_album(1)
-        self.assertEqual(added_album.ipfs, test_album.ipfs)
+        assert added_album.ipfs == test_album.ipfs
         found = False
         want_item = test_album.items()[2]
         for check_item in added_album.items():
@@ -50,15 +41,16 @@ class IPFSPluginTest(unittest.TestCase, TestHelper):
                     )
                     want_path = "/ipfs/{}/{}".format(test_album.ipfs, ipfs_item)
                     want_path = bytestring_path(want_path)
-                    self.assertEqual(check_item.path, want_path)
-                    self.assertEqual(
-                        check_item.get("ipfs", with_album=False), want_item.ipfs
+                    assert check_item.path == want_path
+                    assert (
+                        check_item.get("ipfs", with_album=False)
+                        == want_item.ipfs
                     )
-                    self.assertEqual(check_item.title, want_item.title)
+                    assert check_item.title == want_item.title
                     found = True
             except AttributeError:
                 pass
-        self.assertTrue(found)
+        assert found
 
     def mk_test_album(self):
         items = [_common.item() for _ in range(3)]
@@ -87,11 +79,3 @@ class IPFSPluginTest(unittest.TestCase, TestHelper):
         album.store(inherit=False)
 
         return album
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

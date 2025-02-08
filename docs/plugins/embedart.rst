@@ -10,10 +10,15 @@ displaying album art in some media players (iPods, for example).
 Embedding Art Automatically
 ---------------------------
 
-To automatically embed discovered album art into imported files, just enable
-the ``embedart`` plugin (see :doc:`/plugins/index`). You'll also want to enable the
-:doc:`/plugins/fetchart` to obtain the images to be embedded. Art will be
-embedded after each album has its cover art set.
+To use the ``embedart`` plugin, first enable it in your configuration (see
+:ref:`using-plugins`). Then, install ``beets`` with ``embedart`` extra
+
+.. code-block:: bash
+
+    pip install "beets[embedart]"
+
+You'll also want to enable the :doc:`/plugins/fetchart` to obtain the images to
+be embedded. Art will be embedded after each album has its cover art set.
 
 This behavior can be disabled with the ``auto`` config option (see below).
 

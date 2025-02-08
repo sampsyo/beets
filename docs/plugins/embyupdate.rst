@@ -1,9 +1,20 @@
 EmbyUpdate Plugin
 =================
 
-``embyupdate`` is a plugin that lets you automatically update `Emby`_'s library whenever you change your beets library.
+``embyupdate`` is a plugin that lets you automatically update `Emby`_'s library
+whenever you change your beets library.
 
-To use ``embyupdate`` plugin, enable it in your configuration (see :ref:`using-plugins`). Then, you'll want to configure the specifics of your Emby server. You can do that using an ``emby:`` section in your ``config.yaml``, which looks like this::
+To use it, first enable the your configuration (see :ref:`using-plugins`).
+Then, install ``beets`` with ``embyupdate`` extra
+
+.. code-block:: bash
+
+    pip install "beets[embyupdate]"
+
+Then, you'll want to configure the specifics of your Emby server. You can do
+that using an ``emby`` section in your ``config.yaml``
+
+.. code-block:: yaml
 
     emby:
         host: localhost
@@ -11,14 +22,9 @@ To use ``embyupdate`` plugin, enable it in your configuration (see :ref:`using-p
         username: user
         apikey: apikey
 
-To use the ``embyupdate`` plugin you need to install the `requests`_ library with::
-
-    pip install requests
-
 With that all in place, you'll see beets send the "update" command to your Emby server every time you change your beets library.
 
 .. _Emby: https://emby.media/
-.. _requests: https://requests.readthedocs.io/en/master/
 
 Configuration
 -------------

@@ -33,8 +33,16 @@ You will need at least GStreamer 1.0 and `PyGObject 3.x`_ (a.k.a. ``python-gi``)
 .. _PyGObject 3.x: https://pygobject.readthedocs.io/en/latest/
 .. _GStreamer: https://gstreamer.freedesktop.org/
 
-Then, enable the ``replaygain`` plugin (see :ref:`using-plugins`) and specify
-the GStreamer backend by adding this to your configuration file::
+Then, install ``beets`` with ``replaygain`` extra which installs
+``GStreamer`` bindings for Python
+
+.. code-block:: bash
+
+    pip install "beets[replaygain]"
+
+Lastly, enable the ``replaygain`` plugin in your configuration (see
+:ref:`using-plugins`) and specify the GStreamer backend by adding this to your
+configuration file::
 
     replaygain:
         backend: gstreamer

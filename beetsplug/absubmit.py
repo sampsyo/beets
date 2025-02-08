@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Calculate acoustic information and submit to AcousticBrainz.
-"""
-
+"""Calculate acoustic information and submit to AcousticBrainz."""
 
 import errno
 import hashlib
@@ -187,9 +185,9 @@ only files which would be processed",
             with open(filename) as tmp_file:
                 analysis = json.load(tmp_file)
             # Add the hash to the output.
-            analysis["metadata"]["version"][
-                "essentia_build_sha"
-            ] = self.extractor_sha
+            analysis["metadata"]["version"]["essentia_build_sha"] = (
+                self.extractor_sha
+            )
             return analysis
         finally:
             try:
@@ -203,7 +201,10 @@ only files which would be processed",
         mbid = item["mb_trackid"]
         headers = {"Content-Type": "application/json"}
         response = requests.post(
-            self.url.format(mbid=mbid), json=data, headers=headers
+            self.url.format(mbid=mbid),
+            json=data,
+            headers=headers,
+            timeout=10,
         )
         # Test that request was successful and raise an error on failure.
         if response.status_code != 200:

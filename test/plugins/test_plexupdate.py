@@ -1,12 +1,12 @@
-import unittest
-
 import responses
 
-from beets.test.helper import TestHelper
+from beets.test.helper import PluginTestCase
 from beetsplug.plexupdate import get_music_section, update_plex
 
 
-class PlexUpdateTest(unittest.TestCase, TestHelper):
+class PlexUpdateTest(PluginTestCase):
+    plugin = "plexupdate"
+
     def add_response_get_music_section(self, section_name="Music"):
         """Create response for mocking the get_music_section function."""
 
@@ -73,14 +73,9 @@ class PlexUpdateTest(unittest.TestCase, TestHelper):
         )
 
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("plexupdate")
+        super().setUp()
 
         self.config["plex"] = {"host": "localhost", "port": 32400}
-
-    def tearDown(self):
-        self.teardown_beets()
-        self.unload_plugins()
 
     @responses.activate
     def test_get_music_section(self):
@@ -88,7 +83,7 @@ class PlexUpdateTest(unittest.TestCase, TestHelper):
         self.add_response_get_music_section()
 
         # Test if section key is "2" out of the mocking data.
-        self.assertEqual(
+        assert (
             get_music_section(
                 self.config["plex"]["host"],
                 self.config["plex"]["port"],
@@ -96,8 +91,8 @@ class PlexUpdateTest(unittest.TestCase, TestHelper):
                 self.config["plex"]["library_name"].get(),
                 self.config["plex"]["secure"],
                 self.config["plex"]["ignore_cert_errors"],
-            ),
-            "2",
+            )
+            == "2"
         )
 
     @responses.activate
@@ -105,7 +100,7 @@ class PlexUpdateTest(unittest.TestCase, TestHelper):
         # Adding response.
         self.add_response_get_music_section("My Music Library")
 
-        self.assertEqual(
+        assert (
             get_music_section(
                 self.config["plex"]["host"],
                 self.config["plex"]["port"],
@@ -113,8 +108,8 @@ class PlexUpdateTest(unittest.TestCase, TestHelper):
                 "My Music Library",
                 self.config["plex"]["secure"],
                 self.config["plex"]["ignore_cert_errors"],
-            ),
-            "2",
+            )
+            == "2"
         )
 
     @responses.activate
@@ -124,7 +119,7 @@ class PlexUpdateTest(unittest.TestCase, TestHelper):
         self.add_response_update_plex()
 
         # Testing status code of the mocking request.
-        self.assertEqual(
+        assert (
             update_plex(
                 self.config["plex"]["host"],
                 self.config["plex"]["port"],
@@ -132,14 +127,6 @@ class PlexUpdateTest(unittest.TestCase, TestHelper):
                 self.config["plex"]["library_name"].get(),
                 self.config["plex"]["secure"],
                 self.config["plex"]["ignore_cert_errors"],
-            ).status_code,
-            200,
+            ).status_code
+            == 200
         )
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

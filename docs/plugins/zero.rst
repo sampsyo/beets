@@ -36,9 +36,10 @@ fields to nullify and the conditions for nullifying them:
 For example::
 
     zero:
-        fields: month day genre comments
+        fields: month day genre genres comments
         comments: [EAC, LAME, from.+collection, 'ripped by']
         genre: [rnb, 'power metal']
+        genres: [rnb, 'power metal']
         update_database: true
 
 If a custom pattern is not defined for a given field, the field will be nulled
@@ -60,4 +61,4 @@ art from files' tags unless you tell it not to. To keep the album art, include
 the special field ``images`` in the list. For example::
 
     zero:
-        keep_fields: title artist album year track genre images
+        keep_fields: title artist album year track genre genres images

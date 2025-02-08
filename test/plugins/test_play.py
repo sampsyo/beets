@@ -14,29 +14,29 @@
 
 """Tests for the play plugin"""
 
-
 import os
 import sys
 import unittest
 from unittest.mock import ANY, patch
 
-from beets.test.helper import TestHelper, control_stdin
+import pytest
+
+from beets.test.helper import CleanupModulesMixin, PluginTestCase, control_stdin
 from beets.ui import UserError
 from beets.util import open_anything
+from beetsplug.play import PlayPlugin
 
 
 @patch("beetsplug.play.util.interactive_open")
-class PlayPluginTest(unittest.TestCase, TestHelper):
+class PlayPluginTest(CleanupModulesMixin, PluginTestCase):
+    modules = (PlayPlugin.__module__,)
+    plugin = "play"
+
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("play")
+        super().setUp()
         self.item = self.add_item(album="a nice älbum", title="aNiceTitle")
         self.lib.add_album([self.item])
         self.config["play"]["command"] = "echo"
-
-    def tearDown(self):
-        self.teardown_beets()
-        self.unload_plugins()
 
     def run_and_assert(
         self,
@@ -51,7 +51,7 @@ class PlayPluginTest(unittest.TestCase, TestHelper):
         expected_playlist = expected_playlist or self.item.path.decode("utf-8")
         exp_playlist = expected_playlist + "\n"
         with open(open_mock.call_args[0][0][0], "rb") as playlist:
-            self.assertEqual(exp_playlist, playlist.read().decode("utf-8"))
+            assert exp_playlist == playlist.read().decode("utf-8")
 
     def test_basic(self, open_mock):
         self.run_and_assert(open_mock)
@@ -96,9 +96,8 @@ class PlayPluginTest(unittest.TestCase, TestHelper):
         open_mock.assert_called_once_with(ANY, open_anything())
         with open(open_mock.call_args[0][0][0], "rb") as f:
             playlist = f.read().decode("utf-8")
-        self.assertEqual(
-            "{}\n".format(os.path.dirname(self.item.path.decode("utf-8"))),
-            playlist,
+        assert (
+            f'{os.path.dirname(self.item.path.decode("utf-8"))}\n' == playlist
         )
 
     def test_raw(self, open_mock):
@@ -140,13 +139,5 @@ class PlayPluginTest(unittest.TestCase, TestHelper):
     def test_command_failed(self, open_mock):
         open_mock.side_effect = OSError("some reason")
 
-        with self.assertRaises(UserError):
+        with pytest.raises(UserError):
             self.run_command("play", "title:aNiceTitle")
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

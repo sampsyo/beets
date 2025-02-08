@@ -17,6 +17,7 @@
 music player. Also allow printing the new file locations to stdout in case
 one wants to manually add music to a player by its path.
 """
+
 import datetime
 import os
 import re

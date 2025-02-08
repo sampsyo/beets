@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Fetch various AcousticBrainz metadata using MBID.
-"""
+"""Fetch various AcousticBrainz metadata using MBID."""
 
 from collections import defaultdict
 
@@ -142,7 +141,7 @@ class AcousticPlugin(plugins.BeetsPlugin):
             self._log.debug("fetching URL: {}", url)
 
             try:
-                res = requests.get(url)
+                res = requests.get(url, timeout=10)
             except requests.RequestException as exc:
                 self._log.info("request error: {}", exc)
                 return {}

@@ -1,15 +1,14 @@
-import unittest
-
 import responses
 
-from beets.test.helper import TestHelper
+from beets.test.helper import PluginTestCase
 from beetsplug import embyupdate
 
 
-class EmbyUpdateTest(unittest.TestCase, TestHelper):
+class EmbyUpdateTest(PluginTestCase):
+    plugin = "embyupdate"
+
     def setUp(self):
-        self.setup_beets()
-        self.load_plugins("embyupdate")
+        super().setUp()
 
         self.config["emby"] = {
             "host": "localhost",
@@ -18,85 +17,74 @@ class EmbyUpdateTest(unittest.TestCase, TestHelper):
             "password": "password",
         }
 
-    def tearDown(self):
-        self.teardown_beets()
-        self.unload_plugins()
-
     def test_api_url_only_name(self):
-        self.assertEqual(
+        assert (
             embyupdate.api_url(
                 self.config["emby"]["host"].get(),
                 self.config["emby"]["port"].get(),
                 "/Library/Refresh",
-            ),
-            "http://localhost:8096/Library/Refresh?format=json",
+            )
+            == "http://localhost:8096/Library/Refresh?format=json"
         )
 
     def test_api_url_http(self):
-        self.assertEqual(
+        assert (
             embyupdate.api_url(
                 "http://localhost",
                 self.config["emby"]["port"].get(),
                 "/Library/Refresh",
-            ),
-            "http://localhost:8096/Library/Refresh?format=json",
+            )
+            == "http://localhost:8096/Library/Refresh?format=json"
         )
 
     def test_api_url_https(self):
-        self.assertEqual(
+        assert (
             embyupdate.api_url(
                 "https://localhost",
                 self.config["emby"]["port"].get(),
                 "/Library/Refresh",
-            ),
-            "https://localhost:8096/Library/Refresh?format=json",
+            )
+            == "https://localhost:8096/Library/Refresh?format=json"
         )
 
     def test_password_data(self):
-        self.assertEqual(
-            embyupdate.password_data(
-                self.config["emby"]["username"].get(),
-                self.config["emby"]["password"].get(),
-            ),
-            {
-                "username": "username",
-                "password": "5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8",
-                "passwordMd5": "5f4dcc3b5aa765d61d8327deb882cf99",
-            },
-        )
+        assert embyupdate.password_data(
+            self.config["emby"]["username"].get(),
+            self.config["emby"]["password"].get(),
+        ) == {
+            "username": "username",
+            "password": "5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8",
+            "passwordMd5": "5f4dcc3b5aa765d61d8327deb882cf99",
+        }
 
     def test_create_header_no_token(self):
-        self.assertEqual(
-            embyupdate.create_headers("e8837bc1-ad67-520e-8cd2-f629e3155721"),
-            {
-                "x-emby-authorization": (
-                    "MediaBrowser "
-                    'UserId="e8837bc1-ad67-520e-8cd2-f629e3155721", '
-                    'Client="other", '
-                    'Device="beets", '
-                    'DeviceId="beets", '
-                    'Version="0.0.0"'
-                )
-            },
-        )
+        assert embyupdate.create_headers(
+            "e8837bc1-ad67-520e-8cd2-f629e3155721"
+        ) == {
+            "x-emby-authorization": (
+                "MediaBrowser "
+                'UserId="e8837bc1-ad67-520e-8cd2-f629e3155721", '
+                'Client="other", '
+                'Device="beets", '
+                'DeviceId="beets", '
+                'Version="0.0.0"'
+            )
+        }
 
     def test_create_header_with_token(self):
-        self.assertEqual(
-            embyupdate.create_headers(
-                "e8837bc1-ad67-520e-8cd2-f629e3155721", token="abc123"
+        assert embyupdate.create_headers(
+            "e8837bc1-ad67-520e-8cd2-f629e3155721", token="abc123"
+        ) == {
+            "x-emby-authorization": (
+                "MediaBrowser "
+                'UserId="e8837bc1-ad67-520e-8cd2-f629e3155721", '
+                'Client="other", '
+                'Device="beets", '
+                'DeviceId="beets", '
+                'Version="0.0.0"'
             ),
-            {
-                "x-emby-authorization": (
-                    "MediaBrowser "
-                    'UserId="e8837bc1-ad67-520e-8cd2-f629e3155721", '
-                    'Client="other", '
-                    'Device="beets", '
-                    'DeviceId="beets", '
-                    'Version="0.0.0"'
-                ),
-                "x-mediabrowser-token": "abc123",
-            },
-        )
+            "x-mediabrowser-token": "abc123",
+        }
 
     @responses.activate
     def test_get_token(self):
@@ -178,9 +166,9 @@ class EmbyUpdateTest(unittest.TestCase, TestHelper):
             "passwordMd5": "5f4dcc3b5aa765d61d8327deb882cf99",
         }
 
-        self.assertEqual(
-            embyupdate.get_token("http://localhost", 8096, headers, auth_data),
-            "4b19180cf02748f7b95c7e8e76562fc8",
+        assert (
+            embyupdate.get_token("http://localhost", 8096, headers, auth_data)
+            == "4b19180cf02748f7b95c7e8e76562fc8"
         )
 
     @responses.activate
@@ -235,14 +223,6 @@ class EmbyUpdateTest(unittest.TestCase, TestHelper):
 
         response = embyupdate.get_user("http://localhost", 8096, "username")
 
-        self.assertEqual(response[0]["Id"], "2ec276a2642e54a19b612b9418a8bd3b")
+        assert response[0]["Id"] == "2ec276a2642e54a19b612b9418a8bd3b"
 
-        self.assertEqual(response[0]["Name"], "username")
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert response[0]["Name"] == "username"

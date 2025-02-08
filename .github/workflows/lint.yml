@@ -1,0 +1,137 @@
+name: Lint check
+run-name: Lint code
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+env:
+  PYTHON_VERSION: 3.9
+
+jobs:
+  changed-files:
+    runs-on: ubuntu-latest
+    name: Get changed files
+    outputs:
+      any_docs_changed: ${{ steps.changed-doc-files.outputs.any_changed }}
+      any_python_changed: ${{ steps.raw-changed-python-files.outputs.any_changed }}
+      changed_doc_files: ${{ steps.changed-doc-files.outputs.all_changed_files }}
+      changed_python_files: ${{ steps.changed-python-files.outputs.all_changed_files }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get changed docs files
+        id: changed-doc-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            docs/**
+      - name: Get changed python files
+        id: raw-changed-python-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **.py
+            poetry.lock
+
+      - name: Check changed python files
+        id: changed-python-files
+        env:
+          CHANGED_PYTHON_FILES: ${{ steps.raw-changed-python-files.outputs.all_changed_files }}
+        run: |
+          if [[ " $CHANGED_PYTHON_FILES " == *" poetry.lock "* ]]; then
+            # if poetry.lock is changed, we need to check everything
+            CHANGED_PYTHON_FILES="."
+          fi
+          echo "all_changed_files=$CHANGED_PYTHON_FILES" >> "$GITHUB_OUTPUT"
+
+  format:
+    if: needs.changed-files.outputs.any_python_changed == 'true'
+    runs-on: ubuntu-latest
+    name: Check formatting
+    needs: changed-files
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --only=lint
+
+      - name: Check code formatting
+        # the job output will contain colored diffs with what needs adjusting
+        run: poe check-format
+
+  lint:
+    if: needs.changed-files.outputs.any_python_changed == 'true'
+    runs-on: ubuntu-latest
+    name: Check linting
+    needs: changed-files
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --only=lint
+
+      - name: Lint code
+        run: poe lint --output-format=github ${{ needs.changed-files.outputs.changed_python_files }}
+
+  mypy:
+    if: needs.changed-files.outputs.any_python_changed == 'true'
+    runs-on: ubuntu-latest
+    name: Check types with mypy
+    needs: changed-files
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --only=typing
+
+      - name: Type check code
+        uses: liskin/gh-problem-matcher-wrap@v3
+        continue-on-error: true
+        with:
+          linters: mypy
+          run: poe check-types --show-column-numbers --no-error-summary ${{ needs.changed-files.outputs.changed_python_files }}
+
+  docs:
+    if: needs.changed-files.outputs.any_docs_changed == 'true'
+    runs-on: ubuntu-latest
+    name: Check docs
+    needs: changed-files
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --extras=docs
+
+      - name: Add Sphinx problem matcher
+        run: echo "::add-matcher::.github/sphinx-problem-matcher.json"
+
+      - name: Build docs
+        run: |-
+          poe docs |& tee /tmp/output
+          # fail the job if there are issues
+          grep -q " WARNING:" /tmp/output && exit 1 || exit 0

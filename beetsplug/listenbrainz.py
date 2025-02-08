@@ -148,9 +148,6 @@ class ListenBrainzPlugin(BeetsPlugin):
         return self._make_request(url)
 
     def get_listenbrainz_playlists(self):
-        """Returns a list of playlists created by ListenBrainz."""
-        import re
-
         resp = self.get_playlists_createdfor(self.username)
         playlists = resp.get("playlists")
         listenbrainz_playlists = []
@@ -159,35 +156,32 @@ class ListenBrainzPlugin(BeetsPlugin):
             playlist_info = playlist.get("playlist")
             if playlist_info.get("creator") == "listenbrainz":
                 title = playlist_info.get("title")
-                match = re.search(
-                    r"(Missed Recordings of \d{4}|Discoveries of \d{4})", title
+                self._log.debug(f"Playlist title: {title}")
+                playlist_type = (
+                    "Exploration" if "Exploration" in title else "Jams"
                 )
-                if "Exploration" in title:
-                    playlist_type = "Exploration"
-                elif "Jams" in title:
-                    playlist_type = "Jams"
-                elif match:
-                    playlist_type = match.group(1)
-                else:
-                    playlist_type = None
-                if "week of " in title:
+                if "week of" in title:
                     date_str = title.split("week of ")[1].split(" ")[0]
                     date = datetime.datetime.strptime(
                         date_str, "%Y-%m-%d"
                     ).date()
                 else:
-                    date = None
+                    continue
                 identifier = playlist_info.get("identifier")
                 id = identifier.split("/")[-1]
-                if playlist_type in ["Jams", "Exploration"]:
-                    listenbrainz_playlists.append(
-                        {
-                            "type": playlist_type,
-                            "date": date,
-                            "identifier": id,
-                            "title": title,
-                        }
-                    )
+                listenbrainz_playlists.append(
+                    {"type": playlist_type, "date": date, "identifier": id}
+                )
+        listenbrainz_playlists = sorted(
+            listenbrainz_playlists, key=lambda x: x["type"]
+        )
+        listenbrainz_playlists = sorted(
+            listenbrainz_playlists, key=lambda x: x["date"], reverse=True
+        )
+        for playlist in listenbrainz_playlists:
+            self._log.debug(
+                f'Playlist: {playlist["type"]} - {playlist["date"]}'
+            )
         return listenbrainz_playlists
 
     def get_playlist(self, identifier):
@@ -199,17 +193,20 @@ class ListenBrainzPlugin(BeetsPlugin):
         """This function returns a list of tracks in the playlist."""
         tracks = []
         for track in playlist.get("playlist").get("track"):
+            identifier = track.get("identifier")
+            if isinstance(identifier, list):
+                identifier = identifier[0]
+
             tracks.append(
                 {
-                    "artist": track.get("creator"),
-                    "identifier": track.get("identifier").split("/")[-1],
+                    "artist": track.get("creator", "Unknown artist"),
+                    "identifier": identifier.split("/")[-1],
                     "title": track.get("title"),
                 }
             )
         return self.get_track_info(tracks)
 
     def get_track_info(self, tracks):
-        """Returns a list of track info."""
         track_info = []
         for track in tracks:
             identifier = track.get("identifier")
@@ -242,25 +239,37 @@ class ListenBrainzPlugin(BeetsPlugin):
             )
         return track_info
 
-    def get_weekly_playlist(self, index):
-        """Returns a list of weekly playlists based on the index."""
+    def get_weekly_playlist(self, playlist_type, most_recent=True):
+        # Fetch all playlists
         playlists = self.get_listenbrainz_playlists()
-        playlist = self.get_playlist(playlists[index].get("identifier"))
-        self._log.info(f"Getting {playlist.get('playlist').get('title')}")
+        # Filter playlists by type
+        filtered_playlists = [
+            p for p in playlists if p["type"] == playlist_type
+        ]
+        # Sort playlists by date in descending order
+        sorted_playlists = sorted(
+            filtered_playlists, key=lambda x: x["date"], reverse=True
+        )
+        # Select the most recent or older playlist based on the most_recent flag
+        selected_playlist = (
+            sorted_playlists[0] if most_recent else sorted_playlists[1]
+        )
+        self._log.debug(
+            f"Selected playlist: {selected_playlist['type']} "
+            f"- {selected_playlist['date']}"
+        )
+        # Fetch and return tracks from the selected playlist
+        playlist = self.get_playlist(selected_playlist.get("identifier"))
         return self.get_tracks_from_playlist(playlist)
 
     def get_weekly_exploration(self):
-        """Returns a list of weekly exploration."""
-        return self.get_weekly_playlist(0)
+        return self.get_weekly_playlist("Exploration", most_recent=True)
 
     def get_weekly_jams(self):
-        """Returns a list of weekly jams."""
-        return self.get_weekly_playlist(1)
+        return self.get_weekly_playlist("Jams", most_recent=True)
 
     def get_last_weekly_exploration(self):
-        """Returns a list of weekly exploration."""
-        return self.get_weekly_playlist(3)
+        return self.get_weekly_playlist("Exploration", most_recent=False)
 
     def get_last_weekly_jams(self):
-        """Returns a list of weekly jams."""
-        return self.get_weekly_playlist(3)
+        return self.get_weekly_playlist("Jams", most_recent=False)

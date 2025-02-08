@@ -17,7 +17,9 @@ This command::
 
     $ beet list love
 
-will show all tracks matching the query string ``love``. By default any unadorned word like this matches in a track's  title, artist, album name, album artist, genre and comments. See below on how to search other fields.
+will show all tracks matching the query string ``love``. By default any
+unadorned word like this matches in a track's title, artist, album name, album
+artist, genre and comments. See below on how to search other fields.
 
 For example, this is what I might see when I run the command above::
 
@@ -83,6 +85,14 @@ For multi-valued tags (such as ``artists`` or ``albumartists``), a regular
 expression search must be used to search for a single value within the
 multi-valued tag.
 
+Note that you can filter albums by querying tracks fields and vice versa::
+
+    $ beet list -a title:love
+
+and vice versa::
+
+    $ beet list art_path::love
+
 Phrases
 -------
 
@@ -115,9 +125,9 @@ the field name's colon and before the expression::
     $ beet list artist:=AIR
 
 The first query is a simple substring one that returns tracks by Air, AIR, and
-Air Supply.  The second query returns tracks by Air and AIR, since both are a
+Air Supply. The second query returns tracks by Air and AIR, since both are a
 case-insensitive match for the entire expression, but does not return anything
-by Air Supply.  The third query, which requires a case-sensitive exact match,
+by Air Supply. The third query, which requires a case-sensitive exact match,
 returns tracks by AIR only.
 
 Exact matches may be performed on phrases as well::
@@ -358,7 +368,7 @@ result in lower-case values being placed after upper-case values, e.g.,
 ``Bar Qux foo``.
 
 Note that when sorting by fields that are not present on all items (such as
-flexible fields, or those defined by plugins) in *ascending* order,  the items
+flexible fields, or those defined by plugins) in *ascending* order, the items
 that lack that particular field will be listed at the *beginning* of the list.
 
 You can set the default sorting behavior with the :ref:`sort_item` and

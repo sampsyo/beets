@@ -23,18 +23,23 @@ If you're willing to pay the performance cost for fingerprinting, read on!
 Installing Dependencies
 -----------------------
 
-To get fingerprinting working, you'll need to install three things: the
-`Chromaprint`_ library or command-line tool, an audio decoder, and the
-`pyacoustid`_ Python library (version 0.6 or later).
+To get fingerprinting working, you'll need to install three things: 
 
-First, install pyacoustid itself. You can do this using `pip`_, like so::
+1. `pyacoustid`_ Python library (version 0.6 or later). You can install it by
+   installing ``beets`` with ``chroma`` extra
 
-    $ pip install pyacoustid
+.. code-block:: bash
 
-.. _pip: https://pip.pypa.io
+    pip install "beets[chroma]"
 
-Then, you will need to install `Chromaprint`_, either as a dynamic library or
-in the form of a command-line tool (``fpcalc``).
+2. the `Chromaprint`_ library_ or |command-line-tool|_
+3. an |audio-decoder|_
+
+.. |command-line-tool| replace:: command line tool
+.. |audio-decoder| replace:: audio decoder
+
+
+.. _command-line-tool:
 
 Installing the Binary Command-Line Tool
 '''''''''''''''''''''''''''''''''''''''
@@ -47,6 +52,8 @@ executable somewhere like ``/usr/local/bin``.
 
 .. _download: https://acoustid.org/chromaprint
 
+.. _library:
+
 Installing the Library
 ''''''''''''''''''''''
 
@@ -57,6 +64,11 @@ site has links to packages for major Linux distributions. If you use
 chromaprint``.
 
 .. _Homebrew: https://brew.sh/
+
+.. _audio-decoder:
+
+Audio Decoder
+'''''''''''''
 
 You will also need a mechanism for decoding audio files supported by the
 `audioread`_ library:

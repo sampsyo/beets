@@ -135,7 +135,11 @@ class SubsonicUpdate(BeetsPlugin):
         else:
             return
         try:
-            response = requests.get(url, params=payload)
+            response = requests.get(
+                url,
+                params=payload,
+                timeout=10,
+            )
             json = response.json()
 
             if (

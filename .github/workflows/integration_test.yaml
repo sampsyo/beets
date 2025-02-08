@@ -2,34 +2,29 @@ name: integration tests
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * SUN'  # run every Sunday at midnight
+    - cron: "0 0 * * SUN" # run every Sunday at midnight
 jobs:
   test_integration:
     runs-on: ubuntu-latest
-
-    env:
-      PY_COLORS: 1
-
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Set up latest Python version
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - uses: actions/setup-python@v5
         with:
-          python-version: 3.9-dev
+          python-version: 3.8
+          cache: poetry
 
-      - name: Install base dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install tox sphinx
+      - name: Install dependencies
+        run: poetry install
 
-      - name: Test with tox
-        run: |
-          tox -e int
+      - name: Test
+        env:
+          INTEGRATION_TEST: 1
+        run: poe test
 
       - name: Check external links in docs
-        run: |
-          tox -e links
+        run: poe check-docs-links
 
       - name: Notify on failure
         if: ${{ failure() }}

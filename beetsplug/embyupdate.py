@@ -1,11 +1,11 @@
 """Updates the Emby Library whenever the beets library is changed.
 
-    emby:
-        host: localhost
-        port: 8096
-        username: user
-        apikey: apikey
-        password: password
+emby:
+    host: localhost
+    port: 8096
+    username: user
+    apikey: apikey
+    password: password
 """
 
 import hashlib
@@ -112,7 +112,12 @@ def get_token(host, port, headers, auth_data):
     :rtype: str
     """
     url = api_url(host, port, "/Users/AuthenticateByName")
-    r = requests.post(url, headers=headers, data=auth_data)
+    r = requests.post(
+        url,
+        headers=headers,
+        data=auth_data,
+        timeout=10,
+    )
 
     return r.json().get("AccessToken")
 
@@ -130,7 +135,7 @@ def get_user(host, port, username):
     :rtype: list
     """
     url = api_url(host, port, "/Users/Public")
-    r = requests.get(url)
+    r = requests.get(url, timeout=10)
     user = [i for i in r.json() if i["Name"] == username]
 
     return user
@@ -196,7 +201,11 @@ class EmbyUpdate(BeetsPlugin):
 
         # Trigger the Update.
         url = api_url(host, port, "/Library/Refresh")
-        r = requests.post(url, headers=headers)
+        r = requests.post(
+            url,
+            headers=headers,
+            timeout=10,
+        )
         if r.status_code != 204:
             self._log.warning("Update could not be triggered")
         else:

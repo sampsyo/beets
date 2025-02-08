@@ -21,13 +21,12 @@ to run. Its source can be found on `GitHub`_, and while it is possible to
 compile the extractor from source, AcousticBrainz would prefer if you used
 their binary (see the AcousticBrainz `FAQ`_).
 
-The ``absubmit`` plugin also requires `requests`_, which you can install
-using `pip`_ by typing::
+Then, install ``beets`` with ``absubmit`` extra
 
-    pip install requests
+    pip install "beets[absubmit]"
 
-After installing both the extractor binary and requests you can enable
-the plugin ``absubmit`` in your configuration (see :ref:`using-plugins`).
+Lastly, enable the plugin in your configuration (see :ref:`using-plugins`). 
+
 
 Submitting Data
 ---------------

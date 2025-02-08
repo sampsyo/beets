@@ -1,0 +1,129 @@
+name: Make a Beets Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version of the new release, just as a number with no prepended "v"'
+        required: true
+
+env:
+  PYTHON_VERSION: 3.8
+  NEW_VERSION: ${{ inputs.version }}
+  NEW_TAG: v${{ inputs.version }}
+
+jobs:
+  increment-version:
+    name: Bump version, commit and create tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --only=release
+
+      - name: Bump project version
+        run: poe bump "${{ env.NEW_VERSION }}"
+
+      - uses: EndBug/add-and-commit@v9
+        id: commit_and_tag
+        name: Commit the changes and create tag
+        with:
+          message: "Increment version to ${{ env.NEW_VERSION }}"
+          tag: "${{ env.NEW_TAG }} --force"
+
+  build:
+    name: Get changelog and build the distribution package
+    runs-on: ubuntu-latest
+    needs: increment-version
+    outputs:
+      changelog: ${{ steps.generate_changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.NEW_TAG }}
+
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: poetry
+
+      - name: Install dependencies
+        run: poetry install --with=release --extras=docs
+
+      - name: Install pandoc
+        run: sudo apt update && sudo apt install pandoc -y
+
+      - name: Obtain the changelog
+        id: generate_changelog
+        run: |
+          poe docs
+          {
+            echo 'changelog<<EOF'
+            poe --quiet changelog
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build a binary wheel and a source tarball
+        run: poe build
+
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-to-pypi:
+    name: Publish distribution 📦 to PyPI
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: pypi
+      url: https://pypi.org/p/beets
+    permissions:
+      id-token: write
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distribution 📦 to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  make-github-release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: [build, publish-to-pypi]
+    env:
+      CHANGELOG: ${{ needs.build.outputs.changelog }}
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Create a GitHub release
+        id: make_release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ env.NEW_TAG }}
+          name: Release ${{ env.NEW_TAG }}
+          body: ${{ env.CHANGELOG }}
+          artifacts: dist/*
+      - name: Send release toot to Fosstodon
+        uses: cbrgm/mastodon-github-action@v2
+        continue-on-error: true
+        with:
+          access-token: ${{ secrets.MASTODON_ACCESS_TOKEN }}
+          url: ${{ secrets.MASTODON_URL }}
+          message: "Version ${{ env.NEW_TAG }} of beets has been released! Check out all of the new changes at ${{ steps.make_release.outputs.html_url }}"

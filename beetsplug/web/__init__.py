@@ -231,7 +231,7 @@ def _get_unique_table_field_values(model, field, sort_field):
         raise KeyError
     with g.lib.transaction() as tx:
         rows = tx.query(
-            'SELECT DISTINCT "{}" FROM "{}" ORDER BY "{}"'.format(
+            "SELECT DISTINCT '{}' FROM '{}' ORDER BY '{}'".format(
                 field, model._table, sort_field
             )
         )
@@ -312,7 +312,7 @@ def item_file(item_id):
     if os.name == "nt":
         item_path = util.syspath(item.path)
     else:
-        item_path = util.py3_path(item.path)
+        item_path = os.fsdecode(item.path)
 
     base_filename = os.path.basename(item_path)
     # FIXME: Arguably, this should just use `displayable_path`: The latter

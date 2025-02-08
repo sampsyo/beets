@@ -1,33 +1,33 @@
 name: Verify changelog updated
 
 on: 
-  pull_request:
+  pull_request_target:
     types:
       - opened
       - ready_for_review
-
 
 jobs:
   check_changes:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Get changed files
-        id: getfile
-        run: |
-          echo "Files changed:"
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
-          echo "$CHANGED_FILES"
-          echo "CHANGED_FILES<<EOF" >> $GITHUB_ENV
-          echo "$CHANGED_FILES" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+      - name: Get all updated Python files
+        id: changed-python-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            **.py
+
+      - name: Check for the changelog update
+        id: changelog-update
+        uses: tj-actions/changed-files@v44
+        with:
+          files: docs/changelog.rst
           
-      - name: Comment PR
+      - name: Comment under the PR with a reminder
+        if: steps.changed-python-files.outputs.any_changed == 'true' && steps.changelog-update.outputs.any_changed == 'false'
         uses: thollander/actions-comment-pull-request@v2
         with:
            message: 'Thank you for the PR! The changelog has not been updated, so here is a friendly reminder to check if you need to add an entry.'
            GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
-        if: contains(env.CHANGED_FILES, '.py') && !contains(env.CHANGED_FILES, 'changelog.rst')

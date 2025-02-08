@@ -12,9 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Creates freedesktop.org-compliant .directory files on an album level.
-"""
-
+"""Creates freedesktop.org-compliant .directory files on an album level."""
 
 from beets import ui
 from beets.plugins import BeetsPlugin

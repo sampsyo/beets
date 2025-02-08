@@ -1,367 +1,277 @@
 #!/usr/bin/env python3
 
-"""A utility script for automating the beets release process.
-"""
-import datetime
-import os
+"""A utility script for automating the beets release process."""
+
+from __future__ import annotations
+
 import re
 import subprocess
-from contextlib import contextmanager
+from contextlib import redirect_stdout
+from datetime import datetime, timezone
+from functools import partial
+from io import StringIO
+from pathlib import Path
+from typing import Callable, NamedTuple
 
 import click
+import tomli
+from packaging.version import Version, parse
+from sphinx.ext import intersphinx
+from typing_extensions import TypeAlias
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHANGELOG = os.path.join(BASE, "docs", "changelog.rst")
+BASE = Path(__file__).parent.parent.absolute()
+PYPROJECT = BASE / "pyproject.toml"
+CHANGELOG = BASE / "docs" / "changelog.rst"
+DOCS = "https://beets.readthedocs.io/en/stable"
+
+VERSION_HEADER = r"\d+\.\d+\.\d+ \([^)]+\)"
+RST_LATEST_CHANGES = re.compile(
+    rf"{VERSION_HEADER}\n--+\s+(.+?)\n\n+{VERSION_HEADER}", re.DOTALL
+)
+
+Replacement: TypeAlias = "tuple[str, str | Callable[[re.Match[str]], str]]"
 
 
-@contextmanager
-def chdir(d):
-    """A context manager that temporary changes the working directory."""
-    olddir = os.getcwd()
-    os.chdir(d)
-    yield
-    os.chdir(olddir)
+class Ref(NamedTuple):
+    """A reference to documentation with ID, path, and optional title."""
+
+    id: str
+    path: str | None
+    title: str | None
+
+    @classmethod
+    def from_line(cls, line: str) -> Ref:
+        """Create Ref from a Sphinx objects.inv line.
+
+        Each line has the following structure:
+        <id>    [optional title : ] <relative-url-path>
+
+        See the output of
+            python -m sphinx.ext.intersphinx docs/_build/html/objects.inv
+        """
+        if len(line_parts := line.split(" ", 1)) == 1:
+            return cls(line, None, None)
+
+        id, path_with_name = line_parts
+        parts = [p.strip() for p in path_with_name.split(":", 1)]
+
+        if len(parts) == 1:
+            path, name = parts[0], None
+        else:
+            name, path = parts
+
+        return cls(id, path, name)
+
+    @property
+    def url(self) -> str:
+        """Full documentation URL."""
+        return f"{DOCS}/{self.path}"
+
+    @property
+    def name(self) -> str:
+        """Display name (title if available, otherwise ID)."""
+        return self.title or self.id
+
+
+def get_refs() -> dict[str, Ref]:
+    """Parse Sphinx objects.inv and return dict of documentation references."""
+    objects_filepath = Path("docs/_build/html/objects.inv")
+    if not objects_filepath.exists():
+        raise ValueError("Documentation does not exist. Run 'poe docs' first.")
+
+    captured_output = StringIO()
+
+    with redirect_stdout(captured_output):
+        intersphinx.inspect_main([str(objects_filepath)])
+
+    lines = captured_output.getvalue().replace("\t", "    ").splitlines()
+    return {
+        r.id: r
+        for ln in lines
+        if ln.startswith("    ") and (r := Ref.from_line(ln.strip()))
+    }
+
+
+def create_rst_replacements() -> list[Replacement]:
+    """Generate list of pattern replacements for RST changelog."""
+    refs = get_refs()
+
+    def make_ref_link(ref_id: str, name: str | None = None) -> str:
+        ref = refs[ref_id]
+        return rf"`{name or ref.name} <{ref.url}>`_"
+
+    commands = "|".join(r.split("-")[0] for r in refs if r.endswith("-cmd"))
+    plugins = "|".join(
+        r.split("/")[-1] for r in refs if r.startswith("plugins/")
+    )
+    return [
+        # Fix nested bullet points indent: use 2 spaces consistently
+        (r"(?<=\n) {3,4}(?=\*)", "  "),
+        # Fix nested text indent: use 4 spaces consistently
+        (r"(?<=\n) {5,6}(?=[\w:`])", "    "),
+        # Replace Sphinx :ref: and :doc: directives by documentation URLs
+        #   :ref:`/plugins/autobpm` -> [AutoBPM Plugin](DOCS/plugins/autobpm.html)
+        (
+            r":(?:ref|doc):`+(?:([^`<]+)<)?/?([\w./_-]+)>?`+",
+            lambda m: make_ref_link(m[2], m[1]),
+        ),
+        # Convert command references to documentation URLs
+        #   `beet move` or `move` command -> [import](DOCS/reference/cli.html#import)
+        (
+            rf"`+beet ({commands})`+|`+({commands})`+(?= command)",
+            lambda m: make_ref_link(f"{m[1] or m[2]}-cmd"),
+        ),
+        # Convert plugin references to documentation URLs
+        #   `fetchart` plugin -> [fetchart](DOCS/plugins/fetchart.html)
+        (rf"`+({plugins})`+", lambda m: make_ref_link(f"plugins/{m[1]}")),
+        # Add additional backticks around existing backticked text to ensure it
+        # is rendered as inline code in Markdown
+        (r"(?<=[\s])(`[^`]+`)(?!_)", r"`\1`"),
+        # Convert bug references to GitHub issue links
+        (r":bug:`(\d+)`", r":bug: (#\1)"),
+        # Convert user references to GitHub @mentions
+        (r":user:`(\w+)`", r"\@\1"),
+    ]
+
+
+MD_REPLACEMENTS: list[Replacement] = [
+    (r"<span[^>]+>([^<]+)</span>", r"_\1"),  # remove a couple of wild span refs
+    (r"^(\w[^\n]{,80}):(?=\n\n[^ ])", r"### \1"),  # format section headers
+    (r"^(\w[^\n]{81,}):(?=\n\n[^ ])", r"**\1**"),  # and bolden too long ones
+    (r"### [^\n]+\n+(?=### )", ""),  # remove empty sections
+]
+order_bullet_points = partial(
+    re.compile("(\n- .*?(?=\n(?! *- )|$))", flags=re.DOTALL).sub,
+    lambda m: "\n- ".join(sorted(m.group().split("\n- "))),
+)
+
+
+def update_docs_config(text: str, new: Version) -> str:
+    new_major_minor = f"{new.major}.{new.minor}"
+    text = re.sub(r"(?<=version = )[^\n]+", f'"{new_major_minor}"', text)
+    return re.sub(r"(?<=release = )[^\n]+", f'"{new}"', text)
+
+
+def update_changelog(text: str, new: Version) -> str:
+    new_header = f"{new} ({datetime.now(timezone.utc).date():%B %d, %Y})"
+    return re.sub(
+        # do not match if the new version is already present
+        r"\nUnreleased\n--+\n",
+        rf"""
+Unreleased
+----------
+
+New features:
+
+Bug fixes:
+
+For packagers:
+
+Other changes:
+
+{new_header}
+{'-' * len(new_header)}
+""",
+        text,
+    )
+
+
+UpdateVersionCallable = Callable[[str, Version], str]
+FILENAME_AND_UPDATE_TEXT: list[tuple[Path, UpdateVersionCallable]] = [
+    (
+        PYPROJECT,
+        lambda text, new: re.sub(r"(?<=\nversion = )[^\n]+", f'"{new}"', text),
+    ),
+    (
+        BASE / "beets" / "__init__.py",
+        lambda text, new: re.sub(
+            r"(?<=__version__ = )[^\n]+", f'"{new}"', text
+        ),
+    ),
+    (CHANGELOG, update_changelog),
+    (BASE / "docs" / "conf.py", update_docs_config),
+]
+
+
+def validate_new_version(
+    ctx: click.Context, param: click.Argument, value: Version
+) -> Version:
+    """Validate the version is newer than the current one."""
+    with PYPROJECT.open("rb") as f:
+        current = parse(tomli.load(f)["tool"]["poetry"]["version"])
+
+    if not value > current:
+        msg = f"version must be newer than {current}"
+        raise click.BadParameter(msg)
+
+    return value
+
+
+def bump_version(new: Version) -> None:
+    """Update the version number in specified files."""
+    for path, perform_update in FILENAME_AND_UPDATE_TEXT:
+        with path.open("r+") as f:
+            contents = f.read()
+            f.seek(0)
+            f.write(perform_update(contents, new))
+            f.truncate()
+
+
+def rst2md(text: str) -> str:
+    """Use Pandoc to convert text from ReST to Markdown."""
+    return (
+        subprocess.check_output(
+            ["pandoc", "--from=rst", "--to=gfm+hard_line_breaks"],
+            input=text.encode(),
+        )
+        .decode()
+        .strip()
+    )
+
+
+def get_changelog_contents() -> str | None:
+    if m := RST_LATEST_CHANGES.search(CHANGELOG.read_text()):
+        return m.group(1)
+
+    return None
+
+
+def changelog_as_markdown(rst: str) -> str:
+    """Get the latest changelog entry as hacked up Markdown."""
+    for pattern, repl in create_rst_replacements():
+        rst = re.sub(pattern, repl, rst, flags=re.M | re.DOTALL)
+
+    md = rst2md(rst)
+
+    for pattern, repl in MD_REPLACEMENTS:
+        md = re.sub(pattern, repl, md, flags=re.M | re.DOTALL)
+
+    # order bullet points in each of the lists alphabetically to
+    # improve readability
+    return order_bullet_points(md)
 
 
 @click.group()
-def release():
+def cli():
     pass
 
 
-# Locations (filenames and patterns) of the version number.
-VERSION_LOCS = [
-    (
-        os.path.join(BASE, "beets", "__init__.py"),
-        [
-            (
-                r'__version__\s*=\s*[\'"]([0-9\.]+)[\'"]',
-                "__version__ = '{version}'",
-            )
-        ],
-    ),
-    (
-        os.path.join(BASE, "docs", "conf.py"),
-        [
-            (
-                r'version\s*=\s*[\'"]([0-9\.]+)[\'"]',
-                "version = '{minor}'",
-            ),
-            (
-                r'release\s*=\s*[\'"]([0-9\.]+)[\'"]',
-                "release = '{version}'",
-            ),
-        ],
-    ),
-    (
-        os.path.join(BASE, "setup.py"),
-        [
-            (
-                r'\s*version\s*=\s*[\'"]([0-9\.]+)[\'"]',
-                "    version='{version}',",
-            )
-        ],
-    ),
-]
-
-GITHUB_USER = "beetbox"
-GITHUB_REPO = "beets"
-
-
-def bump_version(version):
-    """Update the version number in setup.py, docs config, changelog,
-    and root module.
-    """
-    version_parts = [int(p) for p in version.split(".")]
-    assert len(version_parts) == 3, "invalid version number"
-    minor = "{}.{}".format(*version_parts)
-    major = "{}".format(*version_parts)
-
-    # Replace the version each place where it lives.
-    for filename, locations in VERSION_LOCS:
-        # Read and transform the file.
-        out_lines = []
-        with open(filename) as f:
-            found = False
-            for line in f:
-                for pattern, template in locations:
-                    match = re.match(pattern, line)
-                    if match:
-                        # Check that this version is actually newer.
-                        old_version = match.group(1)
-                        old_parts = [int(p) for p in old_version.split(".")]
-                        assert (
-                            version_parts > old_parts
-                        ), "version must be newer than {}".format(old_version)
-
-                        # Insert the new version.
-                        out_lines.append(
-                            template.format(
-                                version=version,
-                                major=major,
-                                minor=minor,
-                            )
-                            + "\n"
-                        )
-
-                        found = True
-                        break
-
-                else:
-                    # Normal line.
-                    out_lines.append(line)
-
-            if not found:
-                print(f"No pattern found in {filename}")
-
-        # Write the file back.
-        with open(filename, "w") as f:
-            f.write("".join(out_lines))
-
-    # Generate bits to insert into changelog.
-    header_line = f"{version} (in development)"
-    header = "\n\n" + header_line + "\n" + "-" * len(header_line) + "\n\n"
-    header += "Changelog goes here!\n"
-
-    # Insert into the right place.
-    with open(CHANGELOG) as f:
-        contents = f.read()
-    location = contents.find("\n\n")  # First blank line.
-    contents = contents[:location] + header + contents[location:]
-
-    # Write back.
-    with open(CHANGELOG, "w") as f:
-        f.write(contents)
-
-
-@release.command()
-@click.argument("version")
-def bump(version):
-    """Bump the version number."""
+@cli.command()
+@click.argument("version", type=Version, callback=validate_new_version)
+def bump(version: Version) -> None:
+    """Bump the version in project files."""
     bump_version(version)
 
 
-def get_latest_changelog():
-    """Extract the first section of the changelog."""
-    started = False
-    lines = []
-    with open(CHANGELOG) as f:
-        for line in f:
-            if re.match(r"^--+$", line.strip()):
-                # Section boundary. Start or end.
-                if started:
-                    # Remove last line, which is the header of the next
-                    # section.
-                    del lines[-1]
-                    break
-                else:
-                    started = True
-
-            elif started:
-                lines.append(line)
-    return "".join(lines).strip()
-
-
-def rst2md(text):
-    """Use Pandoc to convert text from ReST to Markdown."""
-    pandoc = subprocess.Popen(
-        ["pandoc", "--from=rst", "--to=markdown", "--wrap=none"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, _ = pandoc.communicate(text.encode("utf-8"))
-    md = stdout.decode("utf-8").strip()
-
-    # Fix up odd spacing in lists.
-    return re.sub(r"^-   ", "- ", md, flags=re.M)
-
-
-def changelog_as_markdown():
-    """Get the latest changelog entry as hacked up Markdown."""
-    rst = get_latest_changelog()
-
-    # Replace plugin links with plugin names.
-    rst = re.sub(r":doc:`/plugins/(\w+)`", r"``\1``", rst)
-
-    # References with text.
-    rst = re.sub(r":ref:`([^<]+)(<[^>]+>)`", r"\1", rst)
-
-    # Other backslashes with verbatim ranges.
-    rst = re.sub(r"(\s)`([^`]+)`([^_])", r"\1``\2``\3", rst)
-
-    # Command links with command names.
-    rst = re.sub(r":ref:`(\w+)-cmd`", r"``\1``", rst)
-
-    # Bug numbers.
-    rst = re.sub(r":bug:`(\d+)`", r"#\1", rst)
-
-    # Users.
-    rst = re.sub(r":user:`(\w+)`", r"@\1", rst)
-
-    # Convert with Pandoc.
-    md = rst2md(rst)
-
-    # Restore escaped issue numbers.
-    md = re.sub(r"\\#(\d+)\b", r"#\1", md)
-
-    return md
-
-
-@release.command()
+@cli.command()
 def changelog():
     """Get the most recent version's changelog as Markdown."""
-    print(changelog_as_markdown())
-
-
-def get_version(index=0):
-    """Read the current version from the changelog."""
-    with open(CHANGELOG) as f:
-        cur_index = 0
-        for line in f:
-            match = re.search(r"^\d+\.\d+\.\d+", line)
-            if match:
-                if cur_index == index:
-                    return match.group(0)
-                else:
-                    cur_index += 1
-
-
-@release.command()
-def version():
-    """Display the current version."""
-    print(get_version())
-
-
-@release.command()
-def datestamp():
-    """Enter today's date as the release date in the changelog."""
-    dt = datetime.datetime.now()
-    stamp = "({} {}, {})".format(dt.strftime("%B"), dt.day, dt.year)
-    marker = "(in development)"
-
-    lines = []
-    underline_length = None
-    with open(CHANGELOG) as f:
-        for line in f:
-            if marker in line:
-                # The header line.
-                line = line.replace(marker, stamp)
-                lines.append(line)
-                underline_length = len(line.strip())
-            elif underline_length:
-                # This is the line after the header. Rewrite the dashes.
-                lines.append("-" * underline_length + "\n")
-                underline_length = None
-            else:
-                lines.append(line)
-
-    with open(CHANGELOG, "w") as f:
-        for line in lines:
-            f.write(line)
-
-
-@release.command()
-def prep():
-    """Run all steps to prepare a release.
-
-    - Tag the commit.
-    - Build the sdist package.
-    - Generate the Markdown changelog to ``changelog.md``.
-    - Bump the version number to the next version.
-    """
-    cur_version = get_version()
-
-    # Tag.
-    subprocess.check_call(["git", "tag", f"v{cur_version}"])
-
-    # Build.
-    with chdir(BASE):
-        subprocess.check_call(["python", "setup.py", "sdist"])
-
-    # Generate Markdown changelog.
-    cl = changelog_as_markdown()
-    with open(os.path.join(BASE, "changelog.md"), "w") as f:
-        f.write(cl)
-
-    # Version number bump.
-    # FIXME It should be possible to specify this as an argument.
-    version_parts = [int(n) for n in cur_version.split(".")]
-    version_parts[-1] += 1
-    next_version = ".".join(map(str, version_parts))
-    bump_version(next_version)
-
-
-@release.command()
-def publish():
-    """Unleash a release unto the world.
-
-    - Push the tag to GitHub.
-    - Upload to PyPI.
-    """
-    version = get_version(1)
-
-    # Push to GitHub.
-    with chdir(BASE):
-        subprocess.check_call(["git", "push"])
-        subprocess.check_call(["git", "push", "--tags"])
-
-    # Upload to PyPI.
-    path = os.path.join(BASE, "dist", f"beets-{version}.tar.gz")
-    subprocess.check_call(["twine", "upload", path])
-
-
-@release.command()
-def ghrelease():
-    """Create a GitHub release using the `github-release` command-line
-    tool.
-
-    Reads the changelog to upload from `changelog.md`. Uploads the
-    tarball from the `dist` directory.
-    """
-    version = get_version(1)
-    tag = "v" + version
-
-    # Load the changelog.
-    with open(os.path.join(BASE, "changelog.md")) as f:
-        cl_md = f.read()
-
-    # Create the release.
-    subprocess.check_call(
-        [
-            "github-release",
-            "release",
-            "-u",
-            GITHUB_USER,
-            "-r",
-            GITHUB_REPO,
-            "--tag",
-            tag,
-            "--name",
-            f"{GITHUB_REPO} {version}",
-            "--description",
-            cl_md,
-        ]
-    )
-
-    # Attach the release tarball.
-    tarball = os.path.join(BASE, "dist", f"beets-{version}.tar.gz")
-    subprocess.check_call(
-        [
-            "github-release",
-            "upload",
-            "-u",
-            GITHUB_USER,
-            "-r",
-            GITHUB_REPO,
-            "--tag",
-            tag,
-            "--name",
-            os.path.basename(tarball),
-            "--file",
-            tarball,
-        ]
-    )
+    if changelog := get_changelog_contents():
+        try:
+            print(changelog_as_markdown(changelog))
+        except ValueError as e:
+            raise click.exceptions.UsageError(str(e))
 
 
 if __name__ == "__main__":
-    release()
+    cli()

@@ -1,0 +1,45 @@
+# 2014
+# flake8-cleanliness in missing
+e21c04e9125a28ae0452374acf03d93315eb4381
+
+# 2016
+# Removed unicode_literals from library, logging and mediafile
+43572f50b0eb3522239d94149d91223e67d9a009
+# Removed unicode_literals from plugins
+53d2c8d9db87be4d4750ad879bf46176537be73f
+# reformat flake8 errors
+1db46dfeb6607c164afb247d8da82443677795c1
+
+# 2021
+# pyupgrade root
+e26276658052947e9464d9726b703335304c7c13
+# pyupgrade beets  dir
+6d1316f463cb7c9390f85bf35b220e250a35004a
+# pyupgrade autotag dir
+f8b8938fd8bbe91898d0982552bc75d35703d3ef
+# pyupgrade dbcore dir
+d288f872903c79a7ee7c5a7c9cc690809441196e
+# pyupgrade ui directory
+432fa557258d9ff01e23ed750f9a86a96239599e
+# pyupgrade util dir
+af102c3e2f1c7a49e99839e2825906fe01780eec
+# fix unused import and flake8
+910354a6c617ed5aa643cff666205b43e1557373
+# pyupgrade beetsplug and tests
+1ec87a3bdd737abe46c6e614051bf9e314db4619
+
+# 2022
+# Reformat flake8 config comments
+abc3dfbf429b179fac25bd1dff72d577cd4d04c7
+
+# 2023
+# Apply formatting tools to all files
+a6e5201ff3fad4c69bf24d17bace2ef744b9f51b
+
+# 2024
+# Reformat the codebase
+85a17ee5039628a6f3cdcb7a03d7d1bd530fbe89
+# Fix lint issues
+f36bc497c8c8f89004f3f6879908d3f0b25123e1
+# Remove some lint exclusions and fix the issues
+5f78d1b82b2292d5ce0c99623ba0ec444b80d24c

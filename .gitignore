@@ -56,6 +56,7 @@ htmlcov/
 coverage.xml
 *,cover
 .hypothesis/
+.reports
 
 # Flask stuff:
 instance/
@@ -74,6 +75,7 @@ target/
 .env
 
 # virtualenv
+env/
 venv/
 .venv/
 ENV/
@@ -89,3 +91,6 @@ ENV/
 /.pydevproject
 /.settings
 .vscode
+
+# pyright
+pyrightconfig.json

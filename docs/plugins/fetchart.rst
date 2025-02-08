@@ -5,13 +5,11 @@ The ``fetchart`` plugin retrieves album art images from various sources on the
 Web and stores them as image files.
 
 To use the ``fetchart`` plugin, first enable it in your configuration (see
-:ref:`using-plugins`). Then, install the `requests`_ library by typing::
+:ref:`using-plugins`). Then, install ``beets`` with ``fetchart`` extra
 
-    pip install requests
+.. code-block:: bash
 
-The plugin uses `requests`_ to fetch album art from the Web.
-
-.. _requests: https://requests.readthedocs.io/en/master/
+    pip install "beets[fetchart]"
 
 Fetching Album Art During Import
 --------------------------------
@@ -259,10 +257,6 @@ the list of sources in your configuration.
 
 Spotify
 '''''''
-
-Spotify backend requires `BeautifulSoup`_, which you can install using `pip`_ by typing::
-
-    pip install beautifulsoup4
 
 Spotify backend is enabled by default and will update album art if a valid Spotify album id is found.
 

@@ -12,19 +12,10 @@ read the :ref:`aura-issues` section.
 Install
 -------
 
-The ``aura`` plugin depends on `Flask`_, which can be installed using
-``python -m pip install flask``. Then you can enable the ``aura`` plugin in
-your configuration (see :ref:`using-plugins`).
+To use the ``aura`` plugin, first enable it in your configuration (see
+:ref:`using-plugins`). Then, install ``beets`` with ``aura`` extra
 
-It is likely that you will need to enable :ref:`aura-cors`, which introduces
-an additional dependency: `flask-cors`_. This can be installed with
-``python -m pip install flask-cors``.
-
-If `Pillow`_ is installed (``python -m pip install Pillow``) then the optional
-``width`` and ``height`` attributes are included in image resource objects.
-
-.. _flask-cors: https://flask-cors.readthedocs.io
-.. _Pillow: https://pillow.readthedocs.io
+    pip install "beets[aura]"
 
 
 Usage

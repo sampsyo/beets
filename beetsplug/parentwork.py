@@ -16,7 +16,6 @@
 and work composition date
 """
 
-
 import musicbrainzngs
 
 from beets import ui

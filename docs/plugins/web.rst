@@ -15,16 +15,12 @@ drastically increase the number of people who can use beets.
 Install
 -------
 
-The Web interface depends on `Flask`_. To get it, just run ``pip install
-flask``. Then enable the ``web`` plugin in your configuration (see
-:ref:`using-plugins`).
+To use the ``web`` plugin, first enable it in your configuration (see
+:ref:`using-plugins`). Then, install ``beets`` with ``web`` extra
 
-If you need CORS (it's disabled by default---see :ref:`web-cors`, below), then
-you also need `flask-cors`_. Just type ``pip install flask-cors``.
+.. code-block:: bash
 
-.. _flask-cors: https://github.com/CoryDolphin/flask-cors
-.. _CORS: https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
-
+    pip install "beets[web]"
 
 Run the Server
 --------------
@@ -101,8 +97,7 @@ server as the API. (You will get an arcane error about ``XMLHttpRequest``
 otherwise.) A technology called `CORS`_ lets you relax this restriction.
 
 If you want to use an in-browser client hosted elsewhere (or running from a
-different server on your machine), first install the `flask-cors`_ plugin by
-typing ``pip install flask-cors``. Then set the ``cors`` configuration option to
+different server on your machine), set the ``cors`` configuration option to
 the "origin" (protocol, host, and optional port number) where the client is
 served. Or set it to ``'*'`` to enable access from all origins. Note that there
 are security implications if you set the origin to ``'*'``, so please research
@@ -118,6 +113,7 @@ For example::
         host: 0.0.0.0
         cors: 'http://example.com'
 
+.. _CORS: https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
 .. _reverse-proxy:
 
 Reverse Proxy Support

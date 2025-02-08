@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Adds Deezer release and track search support to the autotagger
-"""
+"""Adds Deezer release and track search support to the autotagger"""
 
 import collections
 import time
@@ -112,8 +111,8 @@ class DeezerPlugin(MetadataSourcePlugin, BeetsPlugin):
             day = None
         else:
             raise ui.UserError(
-                "Invalid `release_date` returned "
-                "by {} API: '{}'".format(self.data_source, release_date)
+                f"Invalid `release_date` returned by {self.data_source} API: "
+                f"{release_date!r}"
             )
         tracks_obj = self.fetch_data(self.album_url + deezer_id + "/tracks")
         if tracks_obj is None:
@@ -126,7 +125,10 @@ class DeezerPlugin(MetadataSourcePlugin, BeetsPlugin):
         if not tracks_data:
             return None
         while "next" in tracks_obj:
-            tracks_obj = requests.get(tracks_obj["next"]).json()
+            tracks_obj = requests.get(
+                tracks_obj["next"],
+                timeout=10,
+            ).json()
             tracks_data.extend(tracks_obj["data"])
 
         tracks = []
@@ -276,10 +278,20 @@ class DeezerPlugin(MetadataSourcePlugin, BeetsPlugin):
         if not query:
             return None
         self._log.debug(f"Searching {self.data_source} for '{query}'")
-        response = requests.get(
-            self.search_url + query_type, params={"q": query}
-        )
-        response.raise_for_status()
+        try:
+            response = requests.get(
+                self.search_url + query_type,
+                params={"q": query},
+                timeout=10,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            self._log.error(
+                "Error fetching data from {} API\n Error: {}",
+                self.data_source,
+                e,
+            )
+            return None
         response_data = response.json().get("data", [])
         self._log.debug(
             "Found {} result(s) from {} for '{}'",

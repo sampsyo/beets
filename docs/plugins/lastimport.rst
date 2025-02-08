@@ -11,20 +11,17 @@ with this field.
 Installation
 ------------
 
-The plugin requires `pylast`_, which you can install using `pip`_ by typing::
+To use the ``lastimport`` plugin, first enable it in your configuration (see
+:ref:`using-plugins`). Then, install ``beets`` with ``lastimport`` extra
 
-    pip install pylast
+.. code-block:: bash
 
-After you have pylast installed, enable the ``lastimport`` plugin in your
-configuration (see :ref:`using-plugins`).
+    pip install "beets[lastimport]"
 
 Next, add your Last.fm username to your beets configuration file::
 
     lastfm:
         user: beetsfanatic
-
-.. _pip: https://pip.pypa.io
-.. _pylast: https://github.com/pylast/pylast
 
 Importing Play Counts
 ---------------------

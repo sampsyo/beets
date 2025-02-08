@@ -207,6 +207,7 @@ match:
         track_index: 1.0
         track_length: 2.0
         track_id: 5.0
+        medium: 1.0
     preferred:
         countries: []
         media: []

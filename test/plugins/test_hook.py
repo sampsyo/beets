@@ -13,162 +13,113 @@
 # included in all copies or substantial portions of the Software.
 
 
+from __future__ import annotations
+
 import os.path
 import sys
-import tempfile
 import unittest
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Callable
 
-from beets import config, plugins
-from beets.test import _common
-from beets.test.helper import TestHelper, capture_log
+from beets import plugins
+from beets.test.helper import PluginTestCase, capture_log
 
-
-def get_temporary_path():
-    temporary_directory = tempfile._get_default_tempdir()
-    temporary_name = next(tempfile._get_candidate_names())
-
-    return os.path.join(temporary_directory, temporary_name)
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
-class HookTest(_common.TestCase, TestHelper):
-    TEST_HOOK_COUNT = 5
+class HookTestCase(PluginTestCase):
+    plugin = "hook"
+    preload_plugin = False
 
-    def setUp(self):
-        self.setup_beets()
+    def _get_hook(self, event: str, command: str) -> dict[str, str]:
+        return {"event": event, "command": command}
 
-    def tearDown(self):
-        self.unload_plugins()
-        self.teardown_beets()
 
-    def _add_hook(self, event, command):
-        hook = {"event": event, "command": command}
+class HookLogsTest(HookTestCase):
+    @contextmanager
+    def _configure_logs(self, command: str) -> Iterator[list[str]]:
+        config = {"hooks": [self._get_hook("test_event", command)]}
 
-        hooks = config["hook"]["hooks"].get(list) if "hook" in config else []
-        hooks.append(hook)
-
-        config["hook"]["hooks"] = hooks
+        with self.configure_plugin(config), capture_log("beets.hook") as logs:
+            plugins.send("test_event")
+            yield logs
 
     def test_hook_empty_command(self):
-        self._add_hook("test_event", "")
-
-        self.load_plugins("hook")
-
-        with capture_log("beets.hook") as logs:
-            plugins.send("test_event")
-
-        self.assertIn('hook: invalid command ""', logs)
+        with self._configure_logs("") as logs:
+            assert 'hook: invalid command ""' in logs
 
     # FIXME: fails on windows
     @unittest.skipIf(sys.platform == "win32", "win32")
     def test_hook_non_zero_exit(self):
-        self._add_hook("test_event", 'sh -c "exit 1"')
-
-        self.load_plugins("hook")
-
-        with capture_log("beets.hook") as logs:
-            plugins.send("test_event")
-
-        self.assertIn("hook: hook for test_event exited with status 1", logs)
+        with self._configure_logs('sh -c "exit 1"') as logs:
+            assert "hook: hook for test_event exited with status 1" in logs
 
     def test_hook_non_existent_command(self):
-        self._add_hook("test_event", "non-existent-command")
+        with self._configure_logs("non-existent-command") as logs:
+            logs = "\n".join(logs)
 
-        self.load_plugins("hook")
+        assert "hook: hook for test_event failed: " in logs
+        # The error message is different for each OS. Unfortunately the text is
+        # different in each case, where the only shared text is the string
+        # 'file' and substring 'Err'
+        assert "Err" in logs
+        assert "file" in logs
 
-        with capture_log("beets.hook") as logs:
-            plugins.send("test_event")
 
-        self.assertTrue(
-            any(
-                message.startswith("hook: hook for test_event failed: ")
-                for message in logs
-            )
-        )
+class HookCommandTest(HookTestCase):
+    TEST_HOOK_COUNT = 2
 
-    # FIXME: fails on windows
+    events = [f"test_event_{i}" for i in range(TEST_HOOK_COUNT)]
+
+    def setUp(self):
+        super().setUp()
+        temp_dir = os.fsdecode(self.temp_dir)
+        self.paths = [os.path.join(temp_dir, e) for e in self.events]
+
+    def _test_command(
+        self,
+        make_test_path: Callable[[str, str], str],
+        send_path_kwarg: bool = False,
+    ) -> None:
+        """Check that each of the configured hooks is executed.
+
+        Configure hooks for each event:
+        1. Use the given 'make_test_path' callable to create a test path from the event
+           and the original path.
+        2. Configure a hook with a command to touch this path.
+
+        For each of the original paths:
+        1. Send a test event
+        2. Assert that a file has been created under the original path, which proves
+           that the configured hook command has been executed.
+        """
+        hooks = [
+            self._get_hook(e, f"touch {make_test_path(e, p)}")
+            for e, p in zip(self.events, self.paths)
+        ]
+
+        with self.configure_plugin({"hooks": hooks}):
+            for event, path in zip(self.events, self.paths):
+                if send_path_kwarg:
+                    plugins.send(event, path=path)
+                else:
+                    plugins.send(event)
+                assert os.path.isfile(path)
+
     @unittest.skipIf(sys.platform == "win32", "win32")
     def test_hook_no_arguments(self):
-        temporary_paths = [
-            get_temporary_path() for i in range(self.TEST_HOOK_COUNT)
-        ]
+        self._test_command(lambda _, p: p)
 
-        for index, path in enumerate(temporary_paths):
-            self._add_hook(f"test_no_argument_event_{index}", f'touch "{path}"')
-
-        self.load_plugins("hook")
-
-        for index in range(len(temporary_paths)):
-            plugins.send(f"test_no_argument_event_{index}")
-
-        for path in temporary_paths:
-            self.assertTrue(os.path.isfile(path))
-            os.remove(path)
-
-    # FIXME: fails on windows
     @unittest.skipIf(sys.platform == "win32", "win32")
     def test_hook_event_substitution(self):
-        temporary_directory = tempfile._get_default_tempdir()
-        event_names = [
-            f"test_event_event_{i}" for i in range(self.TEST_HOOK_COUNT)
-        ]
+        self._test_command(lambda e, p: p.replace(e, "{event}"))
 
-        for event in event_names:
-            self._add_hook(event, f'touch "{temporary_directory}/{{event}}"')
-
-        self.load_plugins("hook")
-
-        for event in event_names:
-            plugins.send(event)
-
-        for event in event_names:
-            path = os.path.join(temporary_directory, event)
-
-            self.assertTrue(os.path.isfile(path))
-            os.remove(path)
-
-    # FIXME: fails on windows
     @unittest.skipIf(sys.platform == "win32", "win32")
     def test_hook_argument_substitution(self):
-        temporary_paths = [
-            get_temporary_path() for i in range(self.TEST_HOOK_COUNT)
-        ]
+        self._test_command(lambda *_: "{path}", send_path_kwarg=True)
 
-        for index, path in enumerate(temporary_paths):
-            self._add_hook(f"test_argument_event_{index}", 'touch "{path}"')
-
-        self.load_plugins("hook")
-
-        for index, path in enumerate(temporary_paths):
-            plugins.send(f"test_argument_event_{index}", path=path)
-
-        for path in temporary_paths:
-            self.assertTrue(os.path.isfile(path))
-            os.remove(path)
-
-    # FIXME: fails on windows
     @unittest.skipIf(sys.platform == "win32", "win32")
     def test_hook_bytes_interpolation(self):
-        temporary_paths = [
-            get_temporary_path().encode("utf-8")
-            for i in range(self.TEST_HOOK_COUNT)
-        ]
-
-        for index, path in enumerate(temporary_paths):
-            self._add_hook(f"test_bytes_event_{index}", 'touch "{path}"')
-
-        self.load_plugins("hook")
-
-        for index, path in enumerate(temporary_paths):
-            plugins.send(f"test_bytes_event_{index}", path=path)
-
-        for path in temporary_paths:
-            self.assertTrue(os.path.isfile(path))
-            os.remove(path)
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        self.paths = [p.encode() for p in self.paths]
+        self._test_command(lambda *_: "{path}", send_path_kwarg=True)

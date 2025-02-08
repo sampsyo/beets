@@ -16,13 +16,13 @@
 interface.
 """
 
-
 import os
 import re
-from collections import Counter, namedtuple
+from collections import Counter
+from collections.abc import Sequence
 from itertools import chain
 from platform import python_version
-from typing import Sequence
+from typing import Any, NamedTuple
 
 import beets
 from beets import autotag, config, importer, library, logging, plugins, ui, util
@@ -47,7 +47,6 @@ from beets.util import (
 from . import _store_dict
 
 VARIOUS_ARTISTS = "Various Artists"
-PromptChoice = namedtuple("PromptChoice", ["short", "long", "callback"])
 
 # Global logger.
 log = logging.getLogger("beets")
@@ -90,7 +89,7 @@ def _paths_from_logfile(path):
     """Parse the logfile and yield skipped paths to pass to the `import`
     command.
     """
-    with open(path, mode="r", encoding="utf-8") as fp:
+    with open(path, encoding="utf-8") as fp:
         for i, line in enumerate(fp, start=1):
             verb, sep, paths = line.rstrip("\n").partition(" ")
             if not sep:
@@ -117,7 +116,7 @@ def _parse_logfiles(logfiles):
                     util.displayable_path(logfile), str(err)
                 )
             ) from err
-        except IOError as err:
+        except OSError as err:
             raise ui.UserError(
                 "unreadable logfile {}: {}".format(
                     util.displayable_path(logfile), str(err)
@@ -300,7 +299,7 @@ def penalty_string(distance, limit=None):
         return ui.colorize("changed", penalty_string)
 
 
-class ChangeRepresentation(object):
+class ChangeRepresentation:
     """Keeps track of all information needed to generate a (colored) text
     representation of the changes that will be made if an album or singleton's
     tags are changed according to `match`, which must be an AlbumMatch or
@@ -654,7 +653,7 @@ class AlbumChange(ChangeRepresentation):
     """Album change representation, setting cur_album"""
 
     def __init__(self, cur_artist, cur_album, match):
-        super(AlbumChange, self).__init__()
+        super().__init__()
         self.cur_artist = cur_artist
         self.cur_album = cur_album
         self.match = match
@@ -664,8 +663,8 @@ class AlbumChange(ChangeRepresentation):
         suggests for them.
         """
         # Tracks.
-        # match is an AlbumMatch named tuple, mapping is a dict
-        # Sort the pairs by the track_info index (at index 1 of the namedtuple)
+        # match is an AlbumMatch NamedTuple, mapping is a dict
+        # Sort the pairs by the track_info index (at index 1 of the NamedTuple)
         pairs = list(self.match.mapping.items())
         pairs.sort(key=lambda item_and_track_info: item_and_track_info[1].index)
         # Build up LHS and RHS for track difference display. The `lines` list
@@ -722,7 +721,7 @@ class TrackChange(ChangeRepresentation):
     """Track change representation, comparing item with match."""
 
     def __init__(self, cur_artist, cur_title, match):
-        super(TrackChange, self).__init__()
+        super().__init__()
         self.cur_artist = cur_artist
         self.cur_title = cur_title
         self.match = match
@@ -838,6 +837,12 @@ def _summary_judgment(rec):
     elif action == importer.action.ASIS:
         print_("Importing as-is.")
     return action
+
+
+class PromptChoice(NamedTuple):
+    short: str
+    long: str
+    callback: Any
 
 
 def choose_candidate(
@@ -1022,7 +1027,7 @@ def manual_id(session, task):
 
 def abort_action(session, task):
     """A prompt choice callback that aborts the importer."""
-    raise importer.ImportAbort()
+    raise importer.ImportAbortError()
 
 
 class TerminalImportSession(importer.ImportSession):
@@ -1052,7 +1057,7 @@ class TerminalImportSession(importer.ImportSession):
         if len(actions) == 1:
             return actions[0]
         elif len(actions) > 1:
-            raise plugins.PluginConflictException(
+            raise plugins.PluginConflictError(
                 "Only one handler for `import_task_before_choice` may return "
                 "an action."
             )
@@ -1312,8 +1317,7 @@ def import_files(lib, paths, query):
             loghandler = logging.FileHandler(logpath, encoding="utf-8")
         except OSError:
             raise ui.UserError(
-                "could not open log file for writing: "
-                "{}".format(displayable_path(logpath))
+                f"Could not open log file for writing: {displayable_path(logpath)}"
             )
     else:
         loghandler = None

@@ -1,117 +1,92 @@
-name: ci
+name: Test
 on:
+  pull_request:
   push:
     branches:
       - master
-  pull_request:
-    branches:
-      - master
+env:
+  PY_COLORS: 1
+
 jobs:
   test:
-    runs-on: ${{ matrix.platform }}
+    name: Run tests
     strategy:
+      fail-fast: false
       matrix:
         platform: [ubuntu-latest, windows-latest]
-        python-version: ['3.7', '3.8', '3.9', '3.x']
-
+        python-version: ["3.9"]
+    runs-on: ${{ matrix.platform }}
     env:
-      PY_COLORS: 1
-
+      IS_MAIN_PYTHON: ${{ matrix.python-version == '3.9' && matrix.platform == 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - name: Install Python tools
+        uses: BrandonLWhite/pipx-install-action@v0.1.1
+      - name: Setup Python with poetry caching
+        # poetry cache requires poetry to already be installed, weirdly
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: poetry
 
-      # tox fails on Windows if version > 3.8.3
-      - name: Install base dependencies - Windows
-        if: matrix.platform == 'windows-latest'
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install tox==3.8.3 sphinx
-
-      - name: Install base dependencies - Ubuntu
-        if: matrix.platform != 'windows-latest'
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install tox sphinx
-
-      - name: Install optional dependencies
-        if: matrix.platform != 'windows-latest'
+      - name: Install PyGobject and release script dependencies on Ubuntu
+        if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt update
-          sudo apt install ffmpeg  # For replaygain
+          sudo apt install ffmpeg gobject-introspection libcairo2-dev libgirepository1.0-dev pandoc
 
-      - name: Test older Python versions with tox
-        if: matrix.python-version != '3.x'
-        run: |
-          tox -e py-test
+      - name: Get changed lyrics files
+        id: lyrics-update
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            beetsplug/lyrics.py
+            test/plugins/test_lyrics.py
 
-      - name: Test latest Python version with tox and get coverage
-        if: matrix.python-version == '3.x'
-        run: |
-          tox -vv -e py-cov
+      - name: Add pytest annotator
+        uses: liskin/gh-problem-matcher-wrap@v3
+        with:
+          linters: pytest
+          action: add
 
-      - name: Test latest Python version with tox and mypy
-        if: matrix.python-version == '3.x'
-        # continue-on-error is not ideal since it doesn't give a visible
-        # warning, but there doesn't seem to be anything better:
-        # https://github.com/actions/toolkit/issues/399
-        continue-on-error: true
+      - if: ${{ env.IS_MAIN_PYTHON != 'true' }}
+        name: Test without coverage
         run: |
-          tox -vv -e py-mypy
+          poetry install --extras=autobpm --extras=lyrics
+          poe test
+
+      - if: ${{ env.IS_MAIN_PYTHON == 'true' }}
+        name: Test with coverage
+        env:
+          LYRICS_UPDATED: ${{ steps.lyrics-update.outputs.any_changed }}
+        run: |
+          poetry install --extras=autobpm --extras=lyrics --extras=docs --extras=replaygain --extras=reflink
+          poe docs
+          poe test-with-coverage
+
+      - if: ${{ env.IS_MAIN_PYTHON == 'true' }}
+        name: Store the coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .reports/coverage.xml
+
+  upload-coverage:
+    name: Upload coverage report
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get the coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
 
       - name: Upload code coverage
-        if: matrix.python-version == '3.x'
-        run: |
-          pip install codecov || true
-          codecov || true
-
-  test-docs:
-    runs-on: ubuntu-latest
-
-    env:
-      PY_COLORS: 1
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Set up Python 3.x
-        uses: actions/setup-python@v2
+        uses: codecov/codecov-action@v4
         with:
-          python-version: '3.x'
-
-      - name: Install base dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install tox sphinx
-
-      - name: Add problem matcher
-        run: echo "::add-matcher::.github/sphinx-problem-matcher.json"
-
-      - name: Build and check docs using tox
-        run: tox -e docs
-
-  lint:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Set up Python 3.x
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-
-      - name: Install base dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install tox sphinx
-
-      - name: Add problem matcher
-        run: echo "::add-matcher::.github/flake8-problem-matcher.json"
-
-      - name: Lint with flake8
-        run: tox -e py-lint
+          files: ./coverage.xml
+          use_oidc: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) }}

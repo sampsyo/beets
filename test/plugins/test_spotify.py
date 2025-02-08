@@ -1,15 +1,13 @@
 """Tests for the 'spotify' plugin"""
 
 import os
-import unittest
 from urllib.parse import parse_qs, urlparse
 
 import responses
 
-from beets import config
 from beets.library import Item
 from beets.test import _common
-from beets.test.helper import TestHelper
+from beets.test.helper import BeetsTestCase
 from beetsplug import spotify
 
 
@@ -25,11 +23,10 @@ def _params(url):
     return parse_qs(urlparse(url).query)
 
 
-class SpotifyPluginTest(_common.TestCase, TestHelper):
+class SpotifyPluginTest(BeetsTestCase):
     @responses.activate
     def setUp(self):
-        config.clear()
-        self.setup_beets()
+        super().setUp()
         responses.add(
             responses.POST,
             spotify.SpotifyPlugin.oauth_token_url,
@@ -46,19 +43,14 @@ class SpotifyPluginTest(_common.TestCase, TestHelper):
         opts = ArgumentsMock("list", False)
         self.spotify._parse_opts(opts)
 
-    def tearDown(self):
-        self.teardown_beets()
-
     def test_args(self):
         opts = ArgumentsMock("fail", True)
-        self.assertEqual(False, self.spotify._parse_opts(opts))
+        assert not self.spotify._parse_opts(opts)
         opts = ArgumentsMock("list", False)
-        self.assertEqual(True, self.spotify._parse_opts(opts))
+        assert self.spotify._parse_opts(opts)
 
     def test_empty_query(self):
-        self.assertEqual(
-            None, self.spotify._match_library_tracks(self.lib, "1=2")
-        )
+        assert self.spotify._match_library_tracks(self.lib, "1=2") is None
 
     @responses.activate
     def test_missing_request(self):
@@ -83,14 +75,14 @@ class SpotifyPluginTest(_common.TestCase, TestHelper):
             length=10,
         )
         item.add(self.lib)
-        self.assertEqual([], self.spotify._match_library_tracks(self.lib, ""))
+        assert [] == self.spotify._match_library_tracks(self.lib, "")
 
         params = _params(responses.calls[0].request.url)
         query = params["q"][0]
-        self.assertIn("duifhjslkef", query)
-        self.assertIn("artist:ujydfsuihse", query)
-        self.assertIn("album:lkajsdflakjsd", query)
-        self.assertEqual(params["type"], ["track"])
+        assert "duifhjslkef" in query
+        assert "artist:ujydfsuihse" in query
+        assert "album:lkajsdflakjsd" in query
+        assert params["type"] == ["track"]
 
     @responses.activate
     def test_track_request(self):
@@ -116,16 +108,16 @@ class SpotifyPluginTest(_common.TestCase, TestHelper):
         )
         item.add(self.lib)
         results = self.spotify._match_library_tracks(self.lib, "Happy")
-        self.assertEqual(1, len(results))
-        self.assertEqual("6NPVjNh8Jhru9xOmyQigds", results[0]["id"])
+        assert 1 == len(results)
+        assert "6NPVjNh8Jhru9xOmyQigds" == results[0]["id"]
         self.spotify._output_match_results(results)
 
         params = _params(responses.calls[0].request.url)
         query = params["q"][0]
-        self.assertIn("Happy", query)
-        self.assertIn("artist:Pharrell Williams", query)
-        self.assertIn("album:Despicable Me 2", query)
-        self.assertEqual(params["type"], ["track"])
+        assert "Happy" in query
+        assert "artist:Pharrell Williams" in query
+        assert "album:Despicable Me 2" in query
+        assert params["type"] == ["track"]
 
     @responses.activate
     def test_track_for_id(self):
@@ -182,13 +174,5 @@ class SpotifyPluginTest(_common.TestCase, TestHelper):
         item.add(self.lib)
 
         results = self.spotify._match_library_tracks(self.lib, "Happy")
-        self.assertEqual(1, len(results))
-        self.assertEqual("6NPVjNh8Jhru9xOmyQigds", results[0]["id"])
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")
+        assert 1 == len(results)
+        assert "6NPVjNh8Jhru9xOmyQigds" == results[0]["id"]

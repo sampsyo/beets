@@ -203,7 +203,7 @@ def _event_select(events):
     return ready_events
 
 
-class ThreadException(Exception):
+class ThreadError(Exception):
     def __init__(self, coro, exc_info):
         self.coro = coro
         self.exc_info = exc_info
@@ -266,7 +266,7 @@ def run(root_coro):
         """After an event is fired, run a given coroutine associated with
         it in the threads dict until it yields again. If the coroutine
         exits, then the thread is removed from the pool. If the coroutine
-        raises an exception, it is reraised in a ThreadException. If
+        raises an exception, it is reraised in a ThreadError. If
         is_exc is True, then the value must be an exc_info tuple and the
         exception is thrown into the coroutine.
         """
@@ -281,7 +281,7 @@ def run(root_coro):
         except BaseException:
             # Thread raised some other exception.
             del threads[coro]
-            raise ThreadException(coro, sys.exc_info())
+            raise ThreadError(coro, sys.exc_info())
         else:
             if isinstance(next_event, types.GeneratorType):
                 # Automatically invoke sub-coroutines. (Shorthand for
@@ -369,7 +369,7 @@ def run(root_coro):
                 else:
                     advance_thread(event2coro[event], value)
 
-        except ThreadException as te:
+        except ThreadError as te:
             # Exception raised from inside a thread.
             event = ExceptionEvent(te.exc_info)
             if te.coro in delegators:

@@ -10,7 +10,7 @@ Installing
 ----------
 
 You will need Python.
-Beets works on Python 3.7 or later.
+Beets works on Python 3.8 or later.
 
 * **macOS** 11 (Big Sur) includes Python 3.8 out of the box.
   You can opt for a more recent Python installing it via `Homebrew`_
@@ -98,7 +98,7 @@ Installing on Windows
 Installing beets on Windows can be tricky. Following these steps might help you
 get it right:
 
-1. If you don't have it, `install Python`_ (you want at least Python 3.7). The
+1. If you don't have it, `install Python`_ (you want at least Python 3.8). The
    installer should give you the option to "add Python to PATH." Check this
    box. If you do that, you can skip the next step.
 
@@ -109,7 +109,7 @@ get it right:
    should open the "System Properties" screen, then select the "Advanced" tab, 
    then hit the "Environmental Variables..." button, and then look for the PATH 
    variable in the table. Add the following to the end of the variable's value: 
-   ``;C:\Python37;C:\Python37\Scripts``. You may need to adjust these paths to 
+   ``;C:\Python38;C:\Python38\Scripts``. You may need to adjust these paths to 
    point to your Python installation.
 
 3. Now install beets by running: ``pip install beets``
@@ -132,6 +132,19 @@ trouble or you have more detail to contribute here, please direct it to
 .. _install pip: https://pip.pypa.io/en/stable/installing/
 .. _get-pip.py: https://bootstrap.pypa.io/get-pip.py
 
+Installing on ARM (Raspberry Pi and similar)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Beets on ARM devices is not recommended for Linux novices. If you are
+comfortable with light troubleshooting in tools like ``pip``, ``make``,
+and beets' command-line binary dependencies (e.g. ``ffmpeg`` and
+``ImageMagick``), you will probably be okay on ARM devices like the
+Raspberry Pi. We have `notes for ARM`_ and an `older ARM reference`_.
+Beets is generally developed on x86-64 based devices, and most plugins
+target that platform as well.
+
+.. _notes for ARM: https://github.com/beetbox/beets/discussions/4910
+.. _older ARM reference: https://discourse.beets.io/t/diary-of-beets-on-arm-odroid-hc4-armbian/1993
 
 Configuring
 -----------
@@ -185,6 +198,11 @@ here, including the directory and file naming scheme. See
 :doc:`/reference/config` for a full reference.
 
 .. _YAML: https://yaml.org/
+
+To check that you've set up your configuration how you want it, you can type
+``beet version`` to see a list of enabled plugins or ``beet config`` to get a
+complete listing of your current configuration.
+
 
 Importing Your Library
 ----------------------

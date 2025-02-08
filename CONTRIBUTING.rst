@@ -62,33 +62,84 @@ Programming
    information in the `“For Developers” section of the
    docs <https://beets.readthedocs.io/en/stable/dev/>`__.
 
+.. _development-tools:
+
+Development Tools
+^^^^^^^^^^^^^^^^^
+
+In order to develop beets, you will need a few tools installed:
+
+-  `poetry`_ for packaging, virtual environment and dependency management
+-  `poethepoet`_ to run tasks, such as linting, formatting, testing
+
+Python community recommends using `pipx`_ to install stand-alone command-line
+applications such as above. `pipx`_ installs each application in an isolated
+virtual environment, where its dependencies will not interfere with your system
+and other CLI tools.
+
+If you do not have `pipx`_ installed in your system, follow `pipx-installation-instructions`_ or
+
+.. code-block:: sh
+
+    $ python3 -m pip install --user pipx
+
+Install `poetry`_ and `poethepoet`_ using `pipx`_::
+
+    $ pipx install poetry poethepoet
+
+.. _pipx: https://pipx.pypa.io/stable
+.. _pipx-installation-instructions: https://pipx.pypa.io/stable/installation/
+
+.. _getting-the-source:
+
 Getting the Source
 ^^^^^^^^^^^^^^^^^^
 
-The easiest way to get started with the latest beets source is to use
-`pip`_ to install an “editable” package. This
-can be done with one command:
-
-.. code-block:: bash
-
-    $ pip install -e git+https://github.com/beetbox/beets.git#egg=beets
-
-Or, equivalently:
+The easiest way to get started with the latest beets source is to clone the
+repository and install ``beets`` in a local virtual environment using `poetry`_.
+This can be done with:
 
 .. code-block:: bash
 
     $ git clone https://github.com/beetbox/beets.git
     $ cd beets
-    $ pip install -e .
+    $ poetry install
 
-If you already have a released version of beets installed, you may need
-to remove it first by typing ``pip uninstall beets``. The pip command
-above will put the beets source in a ``src/beets`` directory and install
-the ``beet`` CLI script to a standard location on your system. You may
-want to use the ``--src`` option to specify the parent directory where
-the source will be checked out and the ``--user`` option such that the
-package will be installed to your home directory (compare with the
-output of ``pip install --help``).
+This will install ``beets`` and all development dependencies into its own
+virtual environment in your ``$POETRY_CACHE_DIR``. See ``poetry install
+--help`` for installation options, including installing ``extra`` dependencies
+for plugins.
+
+In order to run something within this virtual environment, start the command
+with ``poetry run`` to them, for example ``poetry run pytest``.
+
+On the other hand, it may get tedious to type ``poetry run`` before every
+command. Instead, you can activate the virtual environment in your shell with::
+
+    $ poetry shell
+
+You should see ``(beets-py3.9)`` prefix in your shell prompt. Now you can run
+commands directly, for example::
+
+    $ (beets-py3.9) pytest
+
+Additionally, `poethepoet`_ task runner assists us with the most common
+operations. Formatting, linting, testing are defined as ``poe`` tasks in
+`pyproject.toml`_. Run::
+
+    $ poe
+
+to see all available tasks. They can be used like this, for example
+
+.. code-block:: sh
+
+    $ poe lint                  # check code style
+    $ poe format                # fix formatting issues
+    $ poe test                  # run tests
+    # ... fix failing tests
+    $ poe test --lf             # re-run failing tests (note the additional pytest option)
+    $ poe check-types --pretty  # check types with an extra option for mypy
+
 
 Code Contribution Ideas
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -115,6 +166,9 @@ Code Contribution Ideas
    syntax for
    Sphinx <https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html>`__
    to, for example, refer to a class name.
+
+.. _poethepoet: https://poethepoet.natn.io/index.html
+.. _poetry: https://python-poetry.org/docs/
 
 Your First Contribution
 =======================
@@ -153,8 +207,7 @@ request and your code will ship in no time.
    listed.
 6. Add a changelog entry to ``docs/changelog.rst`` near the top of the
    document.
-7. Run the tests and style checker. The easiest way to run the tests is
-   to use `tox`_. For more information on running tests, see :ref:`testing`.
+7. Run the tests and style checker, see :ref:`testing`.
 8. Push to your fork and open a pull request! We’ll be in touch shortly.
 9. If you add commits to a pull request, please add a comment or
    re-request a review after you push them since GitHub doesn’t
@@ -184,7 +237,7 @@ There are a few coding conventions we use in beets:
    .. code-block:: python
 
        with g.lib.transaction() as tx:
-             rows = tx.query('SELECT DISTINCT "{0}" FROM "{1}" ORDER BY "{2}"'
+             rows = tx.query("SELECT DISTINCT '{0}' FROM '{1}' ORDER BY '{2}'"
                              .format(field, model._table, sort_field))
 
    To fetch Item objects from the database, use lib.items(…) and supply
@@ -195,7 +248,7 @@ There are a few coding conventions we use in beets:
    .. code-block:: python
 
        with lib.transaction() as tx:
-           rows = tx.query('SELECT …')
+           rows = tx.query("SELECT …")
 
    Transaction objects help control concurrent access to the database
    and assist in debugging conflicting accesses.
@@ -221,14 +274,13 @@ There are a few coding conventions we use in beets:
 Style
 -----
 
-We follow `black`_ formatting and `google's docstring format`_.
+We use `ruff`_ to format and lint the codebase.
 
-You can use ``tox -e lint`` to check your code for any style errors.
-Running ``tox -e format`` will automatically format your code according
-to the specifications required by the project.
+Run ``poe check-format`` and ``poe lint`` to check your code for style and
+linting errors. Running ``poe format`` will automatically format your code
+according to the specifications required by the project.
 
-.. _black: https://black.readthedocs.io/en/stable/
-.. _google's docstring format: https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings
+.. _ruff: https://docs.astral.sh/ruff/
 
 Handling Paths
 --------------
@@ -280,52 +332,45 @@ Testing
 Running the Tests
 -----------------
 
-To run the tests for multiple Python versions, compile the docs, and
-check style, use `tox`_. Just type ``tox`` or use something like
-``tox -e py27`` to test a specific configuration. You can use the
-``--parallel`` flag to make this go faster.
+Use ``poe`` to run tests::
+
+    $ poe test [pytest options]
 
 You can disable a hand-selected set of "slow" tests by setting the
-environment variable SKIP_SLOW_TESTS before running them.
+environment variable ``SKIP_SLOW_TESTS``, for example::
 
-Other ways to run the tests:
-
--  ``python testall.py`` (ditto)
--  ``python -m unittest discover -p 'test_*'`` (ditto)
--  `pytest`_
-
-You can also see the latest test results on `Linux`_ and on `Windows`_.
-
-Note, if you are on Windows and are seeing errors running tox, it may be related to `this issue`_,
-in which case you may have to install tox v3.8.3 e.g. ``python -m pip install tox==3.8.3``
-
-.. _this issue: https://github.com/tox-dev/tox/issues/1550
+    $ SKIP_SLOW_TESTS=1 poe test
 
 Coverage
 ^^^^^^^^
 
-``tox -e cov`` will add coverage info for tests: Coverage is pretty low
-still -- see the current status on `Codecov`_.
+The ``test`` command does not include coverage as it slows down testing. In
+order to measure it, use the ``test-with-coverage`` task
+
+    $ poe test-with-coverage [pytest options]
+
+You are welcome to explore coverage by opening the HTML report in
+``.reports/html/index.html``.
+
+Note that for each covered line the report shows **which tests cover it**
+(expand the list on the right-hand side of the affected line).
+
+You can find project coverage status on `Codecov`_.
 
 Red Flags
 ^^^^^^^^^
 
 The `pytest-random`_ plugin makes it easy to randomize the order of
-tests. ``py.test test --random`` will occasionally turn up failing tests
+tests. ``poe test --random`` will occasionally turn up failing tests
 that reveal ordering dependencies—which are bad news!
 
 Test Dependencies
 ^^^^^^^^^^^^^^^^^
 
-The tests have a few more dependencies than beets itself. (The
-additional dependencies consist of testing utilities and dependencies of
-non-default plugins exercised by the test suite.) The dependencies are
-listed under 'test' in ``extras_require`` in `setup.py`_.
-To install the test dependencies, run ``python -m pip install .[test]``.
-Or, just run a test suite with ``tox`` which will install them
-automatically.
-
-.. _setup.py: https://github.com/beetbox/beets/blob/master/setup.py
+The tests have a few more dependencies than beets itself. (The additional
+dependencies consist of testing utilities and dependencies of non-default
+plugins exercised by the test suite.) The dependencies are listed under the
+``tool.poetry.group.test.dependencies`` section in `pyproject.toml`_.
 
 Writing Tests
 -------------
@@ -333,41 +378,33 @@ Writing Tests
 Writing tests is done by adding or modifying files in folder `test`_.
 Take a look at
 `https://github.com/beetbox/beets/blob/master/test/test_template.py#L224`_
-to get a basic view on how tests are written. We currently allow writing
-tests with either `unittest`_ or `pytest`_.
+to get a basic view on how tests are written. Since we are currently migrating
+the tests from `unittest`_ to `pytest`_, new tests should be written using
+`pytest`_. Contributions migrating existing tests are welcome!
 
-Any tests that involve sending out network traffic e.g. an external API
-call, should be skipped normally and run under our weekly `integration
-test`_ suite. These tests can be useful in detecting external changes
-that would affect ``beets``. In order to do this, simply add the
-following snippet before the applicable test case:
+External API requests under test should be mocked with `requests-mock`_,
+However, we still want to know whether external APIs are up and that they
+return expected responses, therefore we test them weekly with our `integration
+test`_ suite.
+
+In order to add such a test, mark your test with the ``integration_test`` marker
 
 .. code-block:: python
 
-    @unittest.skipUnless(
-        os.environ.get('INTEGRATION_TEST', '0') == '1',
-        'integration testing not enabled')
+  @pytest.mark.integration_test
+  def test_external_api_call():
+      ...
 
-If you do this, it is also advised to create a similar test that 'mocks'
-the network call and can be run under normal circumstances by our CI and
-others. See `unittest.mock`_ for more info.
-
--  **AVOID** using the ``start()`` and ``stop()`` methods of
-   ``mock.patch``, as they require manual cleanup. Use the annotation or
-   context manager forms instead.
+This way, the test will be run only in the integration test suite.
 
 .. _Codecov: https://codecov.io/github/beetbox/beets
 .. _pytest-random: https://github.com/klrmn/pytest-random
-.. _tox: https://tox.readthedocs.io/en/latest/
 .. _pytest: https://docs.pytest.org/en/stable/
-.. _Linux: https://github.com/beetbox/beets/actions
-.. _Windows: https://ci.appveyor.com/project/beetbox/beets/
-.. _`https://github.com/beetbox/beets/blob/master/setup.py#L99`: https://github.com/beetbox/beets/blob/master/setup.py#L99
+.. _pyproject.toml: https://github.com/beetbox/beets/tree/master/pyproject.toml
 .. _test: https://github.com/beetbox/beets/tree/master/test
 .. _`https://github.com/beetbox/beets/blob/master/test/test_template.py#L224`: https://github.com/beetbox/beets/blob/master/test/test_template.py#L224
 .. _unittest: https://docs.python.org/3/library/unittest.html
 .. _integration test: https://github.com/beetbox/beets/actions?query=workflow%3A%22integration+tests%22
-.. _unittest.mock: https://docs.python.org/3/library/unittest.mock.html
+.. _requests-mock: https://requests-mock.readthedocs.io/en/latest/response.html
 .. _documentation: https://beets.readthedocs.io/en/stable/
-.. _pip: https://pip.pypa.io/en/stable/
 .. _vim: https://www.vim.org/

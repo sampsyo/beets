@@ -3,47 +3,57 @@
 Writing Plugins
 ---------------
 
-A beets plugin is just a Python module inside the ``beetsplug`` namespace
-package. (Check out this `Stack Overflow question about namespace packages`_ if
-you haven't heard of them.) So, to make one, create a directory called
-``beetsplug`` and put two files in it: one called ``__init__.py`` and one called
-``myawesomeplugin.py`` (but don't actually call it that). Your directory
-structure should look like this::
+A beets plugin is just a Python module or package inside the ``beetsplug``
+namespace package. (Check out `this article`_ and `this Stack Overflow
+question`_ if you haven't heard about namespace packages.) So, to make one,
+create a directory called ``beetsplug`` and add either your plugin module::
 
     beetsplug/
-        __init__.py
         myawesomeplugin.py
 
-.. _Stack Overflow question about namespace packages:
-    https://stackoverflow.com/questions/1675734/how-do-i-create-a-namespace-package-in-python/1676069#1676069
+or your plugin subpackage::
 
-Then, you'll need to put this stuff in ``__init__.py`` to make ``beetsplug`` a
-namespace package::
+    beetsplug/
+        myawesomeplugin/
+            __init__.py
+            myawesomeplugin.py
 
-    from pkgutil import extend_path
-    __path__ = extend_path(__path__, __name__)
+.. attention::
 
-That's all for ``__init__.py``; you can can leave it alone. The meat of your
-plugin goes in ``myawesomeplugin.py``. There, you'll have to import the
-``beets.plugins`` module and define a subclass of the ``BeetsPlugin`` class
-found therein. Here's a skeleton of a plugin file::
+    You do not anymore need to add a ``__init__.py`` file to the ``beetsplug``
+    directory. Python treats your plugin as a namespace package automatically,
+    thus we do not depend on ``pkgutil``-based setup in the ``__init__.py``
+    file anymore.
+
+The meat of your plugin goes in ``myawesomeplugin.py``. There, you'll have to
+import ``BeetsPlugin`` from ``beets.plugins`` and subclass it, for example
+
+.. code-block:: python
 
     from beets.plugins import BeetsPlugin
 
-    class MyPlugin(BeetsPlugin):
+    class MyAwesomePlugin(BeetsPlugin):
         pass
 
 Once you have your ``BeetsPlugin`` subclass, there's a variety of things your
 plugin can do. (Read on!)
 
-To use your new plugin, make sure the directory that contains your
-``beetsplug`` directory is in the Python
-path (using ``PYTHONPATH`` or by installing in a `virtualenv`_, for example).
-Then, as described above, edit your ``config.yaml`` to include
-``plugins: myawesomeplugin`` (substituting the name of the Python module
-containing your plugin).
+To use your new plugin, package your plugin (see how to do this with `poetry`_
+or `setuptools`_, for example) and install it into your ``beets`` virtual
+environment. Then, add your plugin to beets configuration
 
-.. _virtualenv: https://pypi.org/project/virtualenv
+.. code-block:: yaml
+
+    # config.yaml
+    plugins:
+      - myawesomeplugin
+
+and you're good to go!
+
+.. _this article: https://realpython.com/python-namespace-package/#setting-up-some-namespace-packages
+.. _this Stack Overflow question: https://stackoverflow.com/a/27586272/9582674
+.. _poetry: https://python-poetry.org/docs/pyproject/#packages
+.. _setuptools: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html#finding-simple-packages
 
 .. _add_subcommands:
 
@@ -114,7 +124,7 @@ an example::
 
     class SomePlugin(BeetsPlugin):
       def __init__(self):
-        super(SomePlugin, self).__init__()
+        super().__init__()
         self.register_listener('pluginload', loaded)
 
 Note that if you want to access an attribute of your plugin (e.g. ``config`` or
@@ -125,7 +135,7 @@ registration process in this case::
 
     class SomePlugin(BeetsPlugin):
       def __init__(self):
-        super(SomePlugin, self).__init__()
+        super().__init__()
         self.register_listener('pluginload', self.loaded)
 
       def loaded(self):
@@ -249,13 +259,13 @@ The events currently available are:
   during a ``beet import`` interactive session. Plugins can use this event for
   :ref:`appending choices to the prompt <append_prompt_choices>` by returning a
   list of ``PromptChoices``. Parameters: ``task`` and ``session``.
-  
+
 * `mb_track_extract`: called after the metadata is obtained from
   MusicBrainz. The parameter is a ``dict`` containing the tags retrieved from
   MusicBrainz for a track. Plugins must return a new (potentially empty)
   ``dict`` with additional ``field: value`` pairs, which the autotagger will
   apply to the item, as flexible attributes if ``field`` is not a hardcoded
-  field. Fields already present on the track are overwritten. 
+  field. Fields already present on the track are overwritten.
   Parameter: ``data``
 
 * `mb_album_extract`: Like `mb_track_extract`, but for album tags. Overwrites
@@ -354,7 +364,7 @@ Here's an example::
 
     class MyPlugin(BeetsPlugin):
         def __init__(self):
-            super(MyPlugin, self).__init__()
+            super().__init__()
             self.template_funcs['initial'] = _tmpl_initial
 
     def _tmpl_initial(text):
@@ -374,7 +384,7 @@ Here's an example that adds a ``$disc_and_track`` field::
 
     class MyPlugin(BeetsPlugin):
         def __init__(self):
-            super(MyPlugin, self).__init__()
+            super().__init__()
             self.template_fields['disc_and_track'] = _tmpl_disc_and_track
 
     def _tmpl_disc_and_track(item):
@@ -452,7 +462,7 @@ to register it::
     from beets.plugins import BeetsPlugin
     class ExamplePlugin(BeetsPlugin):
         def __init__(self):
-            super(ExamplePlugin, self).__init__()
+            super().__init__()
             self.import_stages = [self.stage]
         def stage(self, session, task):
             print('Importing something!')
@@ -542,6 +552,9 @@ Specifying types has several advantages:
 
 * User input for flexible fields may be validated and converted.
 
+* Items missing the given field can use an appropriate null value for
+  querying and sorting purposes.
+
 
 .. _plugin-logging:
 
@@ -596,7 +609,7 @@ plugin shall expose to the user::
 
     class ExamplePlugin(BeetsPlugin):
         def __init__(self):
-            super(ExamplePlugin, self).__init__()
+            super().__init__()
             self.register_listener('before_choose_candidate',
                                    self.before_choose_candidate_event)
 

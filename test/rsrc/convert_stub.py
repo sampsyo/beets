@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """A tiny tool used to test the `convert` plugin. It copies a file and appends
 a specified text tag.

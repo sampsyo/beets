@@ -18,7 +18,6 @@ This plugin is POSIX-only.
 Spec: standards.freedesktop.org/thumbnail-spec/latest/index.html
 """
 
-
 import ctypes
 import ctypes.util
 import os
@@ -222,7 +221,7 @@ class PathlibURI(URIGetter):
     name = "Python Pathlib"
 
     def uri(self, path):
-        return PurePosixPath(util.py3_path(path)).as_uri()
+        return PurePosixPath(os.fsdecode(path)).as_uri()
 
 
 def copy_c_string(c_string):
@@ -280,8 +279,7 @@ class GioURI(URIGetter):
         if not uri_ptr:
             self.libgio.g_free(uri_ptr)
             raise RuntimeError(
-                "No URI received from the gfile pointer for "
-                "{}".format(displayable_path(path))
+                f"No URI received from the gfile pointer for {displayable_path(path)}"
             )
 
         try:

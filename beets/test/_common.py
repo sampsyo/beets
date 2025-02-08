@@ -15,22 +15,18 @@
 """Some common functionality for beets' test cases."""
 
 import os
-import shutil
 import sys
-import tempfile
-import time
 import unittest
 from contextlib import contextmanager
 
-import beets  # noqa: E402
-import beets.library  # noqa: E402
+import beets
+import beets.library
 
 # Make sure the development versions of the plugins are used
-import beetsplug  # noqa: E402
-from beets import util  # noqa: E402
-from beets import importer, logging  # noqa: E402
-from beets.ui import commands  # noqa: E402
-from beets.util import bytestring_path, syspath  # noqa: E402
+import beetsplug
+from beets import importer, logging, util
+from beets.ui import commands
+from beets.util import syspath
 
 beetsplug.__path__ = [
     os.path.abspath(
@@ -62,24 +58,12 @@ log = logging.getLogger("beets")
 log.propagate = True
 log.setLevel(logging.DEBUG)
 
-# Dummy item creation.
-_item_ident = 0
-
 # OS feature test.
 HAVE_SYMLINK = sys.platform != "win32"
 HAVE_HARDLINK = sys.platform != "win32"
 
-try:
-    import reflink
-
-    HAVE_REFLINK = reflink.supported_at(tempfile.gettempdir())
-except ImportError:
-    HAVE_REFLINK = False
-
 
 def item(lib=None):
-    global _item_ident
-    _item_ident += 1
     i = beets.library.Item(
         title="the title",
         artist="the artist",
@@ -104,7 +88,6 @@ def item(lib=None):
         comments="the comments",
         bpm=8,
         comp=True,
-        path=f"somepath{_item_ident}",
         length=60.0,
         bitrate=128000,
         format="FLAC",
@@ -121,33 +104,6 @@ def item(lib=None):
     return i
 
 
-_album_ident = 0
-
-
-def album(lib=None):
-    global _item_ident
-    _item_ident += 1
-    i = beets.library.Album(
-        artpath=None,
-        albumartist="some album artist",
-        albumartist_sort="some sort album artist",
-        albumartist_credit="some album artist credit",
-        album="the album",
-        genre="the genre",
-        year=2014,
-        month=2,
-        day=5,
-        tracktotal=0,
-        disctotal=1,
-        comp=False,
-        mb_albumid="someID-1",
-        mb_albumartistid="someID-1",
-    )
-    if lib:
-        lib.add(i)
-    return i
-
-
 # Dummy import session.
 def import_session(lib=None, loghandler=None, paths=[], query=[], cli=False):
     cls = commands.TerminalImportSession if cli else importer.ImportSession
@@ -157,137 +113,35 @@ def import_session(lib=None, loghandler=None, paths=[], query=[], cli=False):
 class Assertions:
     """A mixin with additional unit test assertions."""
 
-    def assertExists(self, path):  # noqa
-        self.assertTrue(
-            os.path.exists(syspath(path)), f"file does not exist: {path!r}"
-        )
+    def assertExists(self, path):
+        assert os.path.exists(syspath(path)), f"file does not exist: {path!r}"
 
-    def assertNotExists(self, path):  # noqa
-        self.assertFalse(
-            os.path.exists(syspath(path)), f"file exists: {path!r}"
-        )
+    def assertNotExists(self, path):
+        assert not os.path.exists(syspath(path)), f"file exists: {path!r}"
 
-    def assertIsFile(self, path):  # noqa
+    def assertIsFile(self, path):
         self.assertExists(path)
-        self.assertTrue(
-            os.path.isfile(syspath(path)),
-            "path exists, but is not a regular file: {!r}".format(path),
-        )
+        assert os.path.isfile(
+            syspath(path)
+        ), "path exists, but is not a regular file: {!r}".format(path)
 
-    def assertIsDir(self, path):  # noqa
+    def assertIsDir(self, path):
         self.assertExists(path)
-        self.assertTrue(
-            os.path.isdir(syspath(path)),
-            "path exists, but is not a directory: {!r}".format(path),
-        )
+        assert os.path.isdir(
+            syspath(path)
+        ), "path exists, but is not a directory: {!r}".format(path)
 
     def assert_equal_path(self, a, b):
         """Check that two paths are equal."""
-        self.assertEqual(
-            util.normpath(a),
-            util.normpath(b),
-            f"paths are not equal: {a!r} and {b!r}",
-        )
+        a_bytes, b_bytes = util.normpath(a), util.normpath(b)
 
-
-# A test harness for all beets tests.
-# Provides temporary, isolated configuration.
-class TestCase(unittest.TestCase, Assertions):
-    """A unittest.TestCase subclass that saves and restores beets'
-    global configuration. This allows tests to make temporary
-    modifications that will then be automatically removed when the test
-    completes. Also provides some additional assertion methods, a
-    temporary directory, and a DummyIO.
-    """
-
-    def setUp(self):
-        # A "clean" source list including only the defaults.
-        beets.config.sources = []
-        beets.config.read(user=False, defaults=True)
-
-        # Direct paths to a temporary directory. Tests can also use this
-        # temporary directory.
-        self.temp_dir = util.bytestring_path(tempfile.mkdtemp())
-
-        beets.config["statefile"] = util.py3_path(
-            os.path.join(self.temp_dir, b"state.pickle")
-        )
-        beets.config["library"] = util.py3_path(
-            os.path.join(self.temp_dir, b"library.db")
-        )
-        beets.config["directory"] = util.py3_path(
-            os.path.join(self.temp_dir, b"libdir")
-        )
-
-        # Set $HOME, which is used by Confuse to create directories.
-        self._old_home = os.environ.get("HOME")
-        os.environ["HOME"] = util.py3_path(self.temp_dir)
-
-        # Initialize, but don't install, a DummyIO.
-        self.io = DummyIO()
-
-    def tearDown(self):
-        if os.path.isdir(syspath(self.temp_dir)):
-            shutil.rmtree(syspath(self.temp_dir))
-        if self._old_home is None:
-            del os.environ["HOME"]
-        else:
-            os.environ["HOME"] = self._old_home
-        self.io.restore()
-
-        beets.config.clear()
-        beets.config._materialized = False
-
-
-class LibTestCase(TestCase):
-    """A test case that includes an in-memory library object (`lib`) and
-    an item added to the library (`i`).
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.lib = beets.library.Library(":memory:")
-        self.i = item(self.lib)
-
-    def tearDown(self):
-        self.lib._connection().close()
-        super().tearDown()
-
-
-# Mock timing.
-
-
-class Timecop:
-    """Mocks the timing system (namely time() and sleep()) for testing.
-    Inspired by the Ruby timecop library.
-    """
-
-    def __init__(self):
-        self.now = time.time()
-
-    def time(self):
-        return self.now
-
-    def sleep(self, amount):
-        self.now += amount
-
-    def install(self):
-        self.orig = {
-            "time": time.time,
-            "sleep": time.sleep,
-        }
-        time.time = self.time
-        time.sleep = self.sleep
-
-    def restore(self):
-        time.time = self.orig["time"]
-        time.sleep = self.orig["sleep"]
+        assert a_bytes == b_bytes, f"{a_bytes=} != {b_bytes=}"
 
 
 # Mock I/O.
 
 
-class InputException(Exception):
+class InputError(Exception):
     def __init__(self, output=None):
         self.output = output
 
@@ -334,9 +188,9 @@ class DummyIn:
     def readline(self):
         if not self.buf:
             if self.out:
-                raise InputException(self.out.get())
+                raise InputError(self.out.get())
             else:
-                raise InputException()
+                raise InputError()
         self.reads += 1
         return self.buf.pop(0)
 
@@ -386,25 +240,6 @@ class Bag:
 
     def __getattr__(self, key):
         return self.fields.get(key)
-
-
-# Convenience methods for setting up a temporary sandbox directory for tests
-# that need to interact with the filesystem.
-
-
-class TempDirMixin:
-    """Text mixin for creating and deleting a temporary directory."""
-
-    def create_temp_dir(self):
-        """Create a temporary directory and assign it into `self.temp_dir`.
-        Call `remove_temp_dir` later to delete it.
-        """
-        self.temp_dir = bytestring_path(tempfile.mkdtemp())
-
-    def remove_temp_dir(self):
-        """Delete the temporary directory created by `create_temp_dir`."""
-        if os.path.isdir(syspath(self.temp_dir)):
-            shutil.rmtree(syspath(self.temp_dir))
 
 
 # Platform mocking.

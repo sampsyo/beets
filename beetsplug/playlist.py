@@ -15,17 +15,22 @@
 import fnmatch
 import os
 import tempfile
-from typing import Any, Optional, Sequence, Tuple
+from collections.abc import Sequence
 
 import beets
+from beets.dbcore.query import InQuery
+from beets.library import BLOB_TYPE
 from beets.util import path_as_posix
 
 
-class PlaylistQuery(beets.dbcore.NamedQuery):
+class PlaylistQuery(InQuery[bytes]):
     """Matches files listed by a playlist file."""
 
-    def __init__(self, pattern):
-        self.pattern = pattern
+    @property
+    def subvals(self) -> Sequence[BLOB_TYPE]:
+        return [BLOB_TYPE(p) for p in self.pattern]
+
+    def __init__(self, _, pattern: str, __):
         config = beets.config["playlist"]
 
         # Get the full path to the playlist
@@ -39,7 +44,7 @@ class PlaylistQuery(beets.dbcore.NamedQuery):
             ),
         )
 
-        self.paths = []
+        paths = []
         for playlist_path in playlist_paths:
             if not fnmatch.fnmatch(playlist_path, "*.[mM]3[uU]"):
                 # This is not am M3U playlist, skip this candidate
@@ -63,23 +68,14 @@ class PlaylistQuery(beets.dbcore.NamedQuery):
                     # ignore comments, and extm3u extension
                     continue
 
-                self.paths.append(
+                paths.append(
                     beets.util.normpath(
                         os.path.join(relative_to, line.rstrip())
                     )
                 )
             f.close()
             break
-
-    def clause(self) -> Tuple[Optional[str], Sequence[Any]]:
-        if not self.paths:
-            # Playlist is empty
-            return "0", ()
-        clause = "path IN ({})".format(", ".join("?" for path in self.paths))
-        return clause, (beets.library.BLOB_TYPE(p) for p in self.paths)
-
-    def match(self, item):
-        return item.path in self.paths
+        super().__init__("path", paths)
 
 
 class PlaylistPlugin(beets.plugins.BeetsPlugin):

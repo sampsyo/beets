@@ -12,8 +12,9 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""The core data store and collection logic for beets.
-"""
+"""The core data store and collection logic for beets."""
+
+from __future__ import annotations
 
 import os
 import re
@@ -22,7 +23,11 @@ import string
 import sys
 import time
 import unicodedata
+from functools import cached_property
+from pathlib import Path
+from typing import TYPE_CHECKING
 
+import platformdirs
 from mediafile import MediaFile, UnreadableFileError
 
 import beets
@@ -31,12 +36,15 @@ from beets.dbcore import Results, types
 from beets.util import (
     MoveOperation,
     bytestring_path,
-    lazy_property,
+    cached_classproperty,
     normpath,
     samefile,
     syspath,
 )
 from beets.util.functemplate import Template, template
+
+if TYPE_CHECKING:
+    from .dbcore.query import FieldQuery, FieldQueryType
 
 # To use the SQLite "blob" type, it doesn't suffice to provide a byte
 # string; SQLite treats that as encoded text. Wrapping it in a
@@ -49,7 +57,7 @@ log = logging.getLogger("beets")
 # Library-specific query types.
 
 
-class SingletonQuery(dbcore.FieldQuery):
+class SingletonQuery(dbcore.FieldQuery[str]):
     """This query is responsible for the 'singleton' lookup.
 
     It is based on the FieldQuery and constructs a SQL clause
@@ -60,14 +68,14 @@ class SingletonQuery(dbcore.FieldQuery):
     and singleton:false, singleton:0 are handled consistently.
     """
 
-    def __new__(cls, field, value, *args, **kwargs):
+    def __new__(cls, field: str, value: str, *args, **kwargs):
         query = dbcore.query.NoneQuery("album_id")
         if util.str2bool(value):
             return query
         return dbcore.query.NotQuery(query)
 
 
-class PathQuery(dbcore.FieldQuery):
+class PathQuery(dbcore.FieldQuery[bytes]):
     """A query that matches all items under a given path.
 
     Matching can either be case-insensitive or case-sensitive. By
@@ -185,7 +193,7 @@ class DateType(types.Float):
                 return self.null
 
 
-class PathType(types.Type):
+class PathType(types.Type[bytes, bytes]):
     """A dbcore type for filesystem paths.
 
     These are represented as `bytes` objects, in keeping with
@@ -291,50 +299,6 @@ class DurationType(types.Float):
                 return self.null
 
 
-# Library-specific sort types.
-
-
-class SmartArtistSort(dbcore.query.Sort):
-    """Sort by artist (either album artist or track artist),
-    prioritizing the sort field over the raw field.
-    """
-
-    def __init__(self, model_cls, ascending=True, case_insensitive=True):
-        self.album = model_cls is Album
-        self.ascending = ascending
-        self.case_insensitive = case_insensitive
-
-    def order_clause(self):
-        order = "ASC" if self.ascending else "DESC"
-        field = "albumartist" if self.album else "artist"
-        collate = "COLLATE NOCASE" if self.case_insensitive else ""
-        return (
-            "(CASE {0}_sort WHEN NULL THEN {0} "
-            'WHEN "" THEN {0} '
-            "ELSE {0}_sort END) {1} {2}"
-        ).format(field, collate, order)
-
-    def sort(self, objs):
-        if self.album:
-
-            def field(a):
-                return a.albumartist_sort or a.albumartist
-
-        else:
-
-            def field(i):
-                return i.artist_sort or i.artist
-
-        if self.case_insensitive:
-
-            def key(x):
-                return field(x).lower()
-
-        else:
-            key = field
-        return sorted(objs, key=key, reverse=not self.ascending)
-
-
 # Special path format key.
 PF_KEY_DEFAULT = "default"
 
@@ -380,11 +344,15 @@ class WriteError(FileOperationError):
 # Item and Album model classes.
 
 
-class LibModel(dbcore.Model):
+class LibModel(dbcore.Model["Library"]):
     """Shared concrete functionality for Items and Albums."""
 
     # Config key that specifies how an instance should be formatted.
-    _format_config_key = None
+    _format_config_key: str
+
+    @cached_classproperty
+    def writable_media_fields(cls) -> set[str]:
+        return set(MediaFile.fields()) & cls._fields.keys()
 
     def _template_funcs(self):
         funcs = DefaultTemplateFunctions(self, self._db).functions()
@@ -415,6 +383,44 @@ class LibModel(dbcore.Model):
     def __bytes__(self):
         return self.__str__().encode("utf-8")
 
+    # Convenient queries.
+
+    @classmethod
+    def field_query(
+        cls, field: str, pattern: str, query_cls: FieldQueryType
+    ) -> FieldQuery:
+        """Get a `FieldQuery` for the given field on this model."""
+        fast = field in cls.all_db_fields
+        if field in cls.shared_db_fields:
+            # This field exists in both tables, so SQLite will encounter
+            # an OperationalError if we try to use it in a query.
+            # Using an explicit table name resolves this.
+            field = f"{cls._table}.{field}"
+
+        return query_cls(field, pattern, fast)
+
+    @classmethod
+    def any_field_query(cls, *args, **kwargs) -> dbcore.OrQuery:
+        return dbcore.OrQuery(
+            [cls.field_query(f, *args, **kwargs) for f in cls._search_fields]
+        )
+
+    @classmethod
+    def any_writable_media_field_query(cls, *args, **kwargs) -> dbcore.OrQuery:
+        fields = cls.writable_media_fields
+        return dbcore.OrQuery(
+            [cls.field_query(f, *args, **kwargs) for f in fields]
+        )
+
+    def duplicates_query(self, fields: list[str]) -> dbcore.AndQuery:
+        """Return a query for entities with same values in the given fields."""
+        return dbcore.AndQuery(
+            [
+                self.field_query(f, self.get(f), dbcore.MatchQuery)
+                for f in fields
+            ]
+        )
+
 
 class FormattedItemMapping(dbcore.db.FormattedMapping):
     """Add lookup for album-level fields.
@@ -436,11 +442,11 @@ class FormattedItemMapping(dbcore.db.FormattedMapping):
             self.model_keys = included_keys
         self.item = item
 
-    @lazy_property
+    @cached_property
     def all_keys(self):
         return set(self.model_keys).union(self.album_keys)
 
-    @lazy_property
+    @cached_property
     def album_keys(self):
         album_keys = []
         if self.album:
@@ -631,7 +637,7 @@ class Item(LibModel):
 
     _formatter = FormattedItemMapping
 
-    _sorts = {"artist": SmartArtistSort}
+    _sorts = {"artist": dbcore.query.SmartArtistSort}
 
     _queries = {"singleton": SingletonQuery}
 
@@ -639,6 +645,27 @@ class Item(LibModel):
 
     # Cached album object. Read-only.
     __album = None
+
+    @cached_classproperty
+    def _relation(cls) -> type[Album]:
+        return Album
+
+    @cached_classproperty
+    def relation_join(cls) -> str:
+        """Return the FROM clause which includes related albums.
+
+        We need to use a LEFT JOIN here, otherwise items that are not part of
+        an album (e.g. singletons) would be left out.
+        """
+        return (
+            f"LEFT JOIN {cls._relation._table} "
+            f"ON {cls._table}.album_id = {cls._relation._table}.id"
+        )
+
+    @property
+    def filepath(self) -> Path | None:
+        """The path to the item's file as pathlib.Path."""
+        return Path(os.fsdecode(self.path)) if self.path else self.path
 
     @property
     def _cached_album(self):
@@ -666,6 +693,12 @@ class Item(LibModel):
         getters["singleton"] = lambda i: i.album_id is None
         getters["filesize"] = Item.try_filesize  # In bytes.
         return getters
+
+    def duplicates_query(self, fields: list[str]) -> dbcore.AndQuery:
+        """Return a query for entities with same values in the given fields."""
+        return super().duplicates_query(fields) & dbcore.query.NoneQuery(
+            "album_id"
+        )
 
     @classmethod
     def from_path(cls, path):
@@ -1056,10 +1089,10 @@ class Item(LibModel):
         instead of encoded as a bytestring. basedir can override the library's
         base directory for the destination.
         """
-        self._check_db()
+        db = self._check_db()
         platform = platform or sys.platform
-        basedir = basedir or self._db.directory
-        path_formats = path_formats or self._db.path_formats
+        basedir = basedir or db.directory
+        path_formats = path_formats or db.path_formats
         if replacements is None:
             replacements = self._db.replacements
 
@@ -1102,7 +1135,7 @@ class Item(LibModel):
         maxlen = beets.config["max_filename_length"].get(int)
         if not maxlen:
             # When zero, try to determine from filesystem.
-            maxlen = util.max_filename_length(self._db.directory)
+            maxlen = util.max_filename_length(db.directory)
 
         subpath, fellback = util.legalize_path(
             subpath,
@@ -1190,8 +1223,8 @@ class Album(LibModel):
     }
 
     _sorts = {
-        "albumartist": SmartArtistSort,
-        "artist": SmartArtistSort,
+        "albumartist": dbcore.query.SmartArtistSort,
+        "artist": dbcore.query.SmartArtistSort,
     }
 
     # List of keys that are set on an album's items.
@@ -1239,6 +1272,22 @@ class Album(LibModel):
     ]
 
     _format_config_key = "format_album"
+
+    @cached_classproperty
+    def _relation(cls) -> type[Item]:
+        return Item
+
+    @cached_classproperty
+    def relation_join(cls) -> str:
+        """Return FROM clause which joins on related album items.
+
+        Use LEFT join to select all albums, including those that do not have
+        any items.
+        """
+        return (
+            f"LEFT JOIN {cls._relation._table} "
+            f"ON {cls._table}.id = {cls._relation._table}.album_id"
+        )
 
     @classmethod
     def _getters(cls):
@@ -1550,17 +1599,6 @@ def parse_query_string(s, model_cls):
     return parse_query_parts(parts, model_cls)
 
 
-def _sqlite_bytelower(bytestring):
-    """A custom ``bytelower`` sqlite function so we can compare
-    bytestrings in a semi case insensitive fashion.
-
-    This is to work around sqlite builds are that compiled with
-    ``-DSQLITE_LIKE_DOESNT_MATCH_BLOBS``. See
-    ``https://github.com/beetbox/beets/issues/2172`` for details.
-    """
-    return bytestring.lower()
-
-
 # The Library: interface to the database.
 
 
@@ -1572,23 +1610,20 @@ class Library(dbcore.Database):
     def __init__(
         self,
         path="library.blb",
-        directory="~/Music",
+        directory: str | None = None,
         path_formats=((PF_KEY_DEFAULT, "$artist/$album/$track $title"),),
         replacements=None,
     ):
         timeout = beets.config["timeout"].as_number()
         super().__init__(path, timeout=timeout)
 
-        self.directory = bytestring_path(normpath(directory))
+        self.directory = normpath(directory or platformdirs.user_music_path())
+
         self.path_formats = path_formats
         self.replacements = replacements
 
-        self._memotable = {}  # Used for template substitution performance.
-
-    def _create_connection(self):
-        conn = super()._create_connection()
-        conn.create_function("bytelower", 1, _sqlite_bytelower)
-        return conn
+        # Used for template substitution performance.
+        self._memotable: dict[tuple[str, ...], str] = {}
 
     # Adding objects to the database.
 
@@ -1723,6 +1758,11 @@ class DefaultTemplateFunctions:
 
     _prefix = "tmpl_"
 
+    @cached_classproperty
+    def _func_names(cls) -> list[str]:
+        """Names of tmpl_* functions in this class."""
+        return [s for s in dir(cls) if s.startswith(cls._prefix)]
+
     def __init__(self, item=None, lib=None):
         """Parametrize the functions.
 
@@ -1753,6 +1793,11 @@ class DefaultTemplateFunctions:
     def tmpl_upper(s):
         """Convert a string to upper case."""
         return s.upper()
+
+    @staticmethod
+    def tmpl_capitalize(s):
+        """Converts to a capitalized string."""
+        return s.capitalize()
 
     @staticmethod
     def tmpl_title(s):
@@ -1873,7 +1918,6 @@ class DefaultTemplateFunctions:
             Item.all_keys(),
             # Do nothing for non singletons.
             lambda i: i.album_id is not None,
-            initial_subqueries=[dbcore.query.NoneQuery("album_id", True)],
         )
 
     def _tmpl_unique_memokey(self, name, keys, disam, item_id):
@@ -1892,7 +1936,6 @@ class DefaultTemplateFunctions:
         db_item,
         item_keys,
         skip_item,
-        initial_subqueries=None,
     ):
         """Generate a string that is guaranteed to be unique among all items of
         the same type as "db_item" who share the same set of keys.
@@ -1939,15 +1982,7 @@ class DefaultTemplateFunctions:
             bracket_r = ""
 
         # Find matching items to disambiguate with.
-        subqueries = []
-        if initial_subqueries is not None:
-            subqueries.extend(initial_subqueries)
-        for key in keys:
-            value = db_item.get(key, "")
-            # Use slow queries for flexible attributes.
-            fast = key in item_keys
-            subqueries.append(dbcore.MatchQuery(key, value, fast))
-        query = dbcore.AndQuery(subqueries)
+        query = db_item.duplicates_query(keys)
         ambigous_items = (
             self.lib.items(query)
             if isinstance(db_item, Item)
@@ -2020,11 +2055,3 @@ class DefaultTemplateFunctions:
             return trueval if trueval else self.item.formatted().get(field)
         else:
             return falseval
-
-
-# Get the name of tmpl_* functions in the above class.
-DefaultTemplateFunctions._func_names = [
-    s
-    for s in dir(DefaultTemplateFunctions)
-    if s.startswith(DefaultTemplateFunctions._prefix)
-]

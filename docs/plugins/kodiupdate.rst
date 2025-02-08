@@ -29,18 +29,21 @@ To update multiple Kodi instances, specify them as an array::
         pwd: kodi2
 
 
-To use the ``kodiupdate`` plugin you need to install the `requests`_ library with::
+To use the ``kodiupdate`` plugin, first enable it in your configuration (see
+:ref:`using-plugins`). Then, install ``beets`` with ``kodiupdate`` extra
 
-    pip install requests
+.. code-block:: bash
 
-You'll also need to enable JSON-RPC in Kodi in order the use the plugin.
+    pip install "beets[kodiupdate]"
+
+You'll also need to enable JSON-RPC in Kodi.
+
 In Kodi's interface, navigate to System/Settings/Network/Services and choose "Allow control of Kodi via HTTP."
 
 With that all in place, you'll see beets send the "update" command to your Kodi
 host every time you change your beets library.
 
 .. _Kodi: https://kodi.tv/
-.. _requests: https://requests.readthedocs.io/en/master/
 
 Configuration
 -------------

@@ -12,8 +12,7 @@
 # The above copyright notice and this permission notice shall be
 # included in all copies or substantial portions of the Software.
 
-"""Open metadata information in a text editor to let the user edit it.
-"""
+"""Open metadata information in a text editor to let the user edit it."""
 
 import codecs
 import os

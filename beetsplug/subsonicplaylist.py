@@ -170,7 +170,8 @@ class SubsonicPlaylistPlugin(BeetsPlugin):
         resp = requests.get(
             "{}/rest/{}?{}".format(
                 self.config["base_url"].get(), endpoint, urlencode(params)
-            )
+            ),
+            timeout=10,
         )
         return resp
 

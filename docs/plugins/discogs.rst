@@ -15,11 +15,11 @@ Installation
 ------------
 
 To use the ``discogs`` plugin, first enable it in your configuration (see
-:ref:`using-plugins`). Then, install the `python3-discogs-client`_ library by typing:
+:ref:`using-plugins`). Then, install ``beets`` with ``discogs`` extra
 
-.. code-block:: console
+.. code-block:: bash
 
-    $ pip install python3-discogs-client
+    pip install "beets[discogs]"
 
 You will also need to register for a `Discogs`_ account, and provide
 authentication credentials via a personal access token or an OAuth2

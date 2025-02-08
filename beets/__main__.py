@@ -16,7 +16,6 @@
 `python -m beets`.
 """
 
-
 import sys
 
 from .ui import main

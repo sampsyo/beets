@@ -26,12 +26,10 @@ This is sort of like a tiny, horrible degeneration of a real templating
 engine like Jinja2 or Mustache.
 """
 
-
 import ast
 import dis
 import functools
 import re
-import sys
 import types
 
 SYMBOL_DELIM = "$"
@@ -97,8 +95,7 @@ def compile_func(arg_names, statements, name="_the_func", debug=False):
         "kw_defaults": [],
         "defaults": [ex_literal(None) for _ in arg_names],
     }
-    if "posonlyargs" in ast.arguments._fields:  # Added in Python 3.8.
-        args_fields["posonlyargs"] = []
+    args_fields["posonlyargs"] = []
     args = ast.arguments(**args_fields)
 
     func_def = ast.FunctionDef(
@@ -110,10 +107,7 @@ def compile_func(arg_names, statements, name="_the_func", debug=False):
 
     # The ast.Module signature changed in 3.8 to accept a list of types to
     # ignore.
-    if sys.version_info >= (3, 8):
-        mod = ast.Module([func_def], [])
-    else:
-        mod = ast.Module([func_def])
+    mod = ast.Module([func_def], [])
 
     ast.fix_missing_locations(mod)
 

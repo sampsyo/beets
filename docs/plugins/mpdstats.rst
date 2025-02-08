@@ -21,13 +21,10 @@ Installing Dependencies
 This plugin requires the python-mpd2 library in order to talk to the MPD
 server.
 
-Install the library from `pip`_, like so::
+To use the ``mpdstats`` plugin, first enable it in your configuration (see
+:ref:`using-plugins`). Then, install ``beets`` with ``mpdstats`` extra
 
-    $ pip install python-mpd2
-
-Add the ``mpdstats`` plugin to your configuration (see :ref:`using-plugins`).
-
-.. _pip: https://pip.pypa.io
+    pip install "beets[mpdstats]"
 
 Usage
 -----

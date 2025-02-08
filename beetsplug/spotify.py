@@ -140,6 +140,7 @@ class SpotifyPlugin(MetadataSourcePlugin, BeetsPlugin):
             self.oauth_token_url,
             data={"grant_type": "client_credentials"},
             headers=headers,
+            timeout=10,
         )
         try:
             response.raise_for_status()

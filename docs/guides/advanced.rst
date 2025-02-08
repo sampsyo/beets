@@ -7,7 +7,7 @@ cataloged your collection. Here's a few features to get you started.
 
 Most of these tips involve :doc:`plugins </plugins/index>` and fiddling with
 beets' :doc:`configuration </reference/config>`. So use your favorite text
-editor create a config file before you continue.
+editor to create a config file before you continue.
 
 
 Fetch album art, genres, and lyrics
@@ -62,7 +62,7 @@ Stream your music to another computer
 -------------------------------------
 
 Sometimes it can be really convenient to store your music on one machine and
-play it on another. For example, I like to keep my music on a server at home
+play it on another. For example, I like to keep my music on a server at home,
 but play it at work (without copying my whole library locally). The
 :doc:`/plugins/web` makes streaming your music easy---it's sort of like having
 your own personal Spotify.
@@ -107,7 +107,7 @@ using the :ref:`modify-cmd` command::
 
     beet modify context=party artist:'beastie boys'
 
-By default beets will show you the changes that are about to be applied and ask
+By default, beets will show you the changes that are about to be applied and ask
 if you really want to apply them to all, some or none of the items or albums.
 You can type y for "yes", n for "no", or s for "select". If you choose the latter,
 the command will prompt you for each individual matching item or album.
@@ -135,7 +135,7 @@ Choose a path style manually for some music
 
 Sometimes, you need to categorize some songs differently in your file system.
 For example, you might want to group together all the music you don't really
-like but keep around to play for friends and family. This is, of course,
+like, but keep around to play for friends and family. This is, of course,
 impossible to determine automatically using metadata from MusicBrainz.
 
 Instead, use a flexible attribute (see above) to store a flag on the music you

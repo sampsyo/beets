@@ -1,13 +1,11 @@
 """Tests for the 'subsonic' plugin."""
 
-import unittest
 from urllib.parse import parse_qs, urlparse
 
 import responses
 
 from beets import config
-from beets.test import _common
-from beets.test.helper import TestHelper
+from beets.test.helper import BeetsTestCase
 from beetsplug import subsonicupdate
 
 
@@ -26,14 +24,13 @@ def _params(url):
     return parse_qs(urlparse(url).query)
 
 
-class SubsonicPluginTest(_common.TestCase, TestHelper):
+class SubsonicPluginTest(BeetsTestCase):
     """Test class for subsonicupdate."""
 
     @responses.activate
     def setUp(self):
         """Sets up config and plugin for test."""
-        config.clear()
-        self.setup_beets()
+        super().setUp()
 
         config["subsonic"]["user"] = "admin"
         config["subsonic"]["pass"] = "admin"
@@ -89,10 +86,6 @@ class SubsonicPluginTest(_common.TestCase, TestHelper):
     "path": "/rest/startScn"
 }
 """
-
-    def tearDown(self):
-        """Tears down tests."""
-        self.teardown_beets()
 
     @responses.activate
     def test_start_scan(self):
@@ -189,12 +182,3 @@ class SubsonicPluginTest(_common.TestCase, TestHelper):
         )
 
         self.subsonicupdate.start_scan()
-
-
-def suite():
-    """Default test suite."""
-    return unittest.TestLoader().loadTestsFromName(__name__)
-
-
-if __name__ == "__main__":
-    unittest.main(defaultTest="suite")

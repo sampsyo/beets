@@ -149,18 +149,19 @@ it's helpful to run on the "bleeding edge". To run the latest source:
       and ``python3`` instead of ``pip`` and ``python`` respectively.
    -  Use ``pip`` to install the latest snapshot tarball. Type:
       ``pip install https://github.com/beetbox/beets/tarball/master``
-   -  Grab the source using git. First, clone the repository:
-      ``git clone https://github.com/beetbox/beets.git``.
-      Then, ``cd beets`` and ``python setup.py install``.
    -  Use ``pip`` to install an "editable" version of beets based on an
       automatic source checkout. For example, run
       ``pip install -e git+https://github.com/beetbox/beets#egg=beets``
       to clone beets and install it, allowing you to modify the source
       in-place to try out changes.
-   -  Combine the previous two approaches, cloning the source yourself,
-      and then installing in editable mode:
-      ``git clone https://github.com/beetbox/beets.git`` then
-      ``pip install -e beets``. This approach lets you decide where the
+   -  Clone source code and install it in editable mode
+
+      .. code-block:: shell
+
+         git clone https://github.com/beetbox/beets.git
+         poetry install
+
+      This approach lets you decide where the
       source is stored, with any changes immediately reflected in your
       environment.
 

@@ -60,6 +60,7 @@ These functions are built in to beets:
 
 * ``%lower{text}``: Convert ``text`` to lowercase.
 * ``%upper{text}``: Convert ``text`` to UPPERCASE.
+* ``%capitalize{text}``: Make the first letter of ``text`` UPPERCASE and the rest lowercase.
 * ``%title{text}``: Convert ``text`` to Title Case.
 * ``%left{text,n}``: Return the first ``n`` characters of ``text``.
 * ``%right{text,n}``: Return the last ``n`` characters of  ``text``.

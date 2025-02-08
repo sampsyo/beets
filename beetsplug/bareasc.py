@@ -18,7 +18,6 @@
 
 """Provides a bare-ASCII matching query."""
 
-
 from unidecode import unidecode
 
 from beets import ui
@@ -27,7 +26,7 @@ from beets.plugins import BeetsPlugin
 from beets.ui import decargs, print_
 
 
-class BareascQuery(StringFieldQuery):
+class BareascQuery(StringFieldQuery[str]):
     """Compare items using bare ASCII, without accents etc."""
 
     @classmethod
