@@ -33,7 +33,7 @@ class DummyDataTestCase(BeetsTestCase):
         albums = [
             Album(
                 album="Album A",
-                genre="Rock",
+                label="Label",
                 year=2001,
                 flex1="Flex1-1",
                 flex2="Flex2-A",
@@ -41,7 +41,7 @@ class DummyDataTestCase(BeetsTestCase):
             ),
             Album(
                 album="Album B",
-                genre="Rock",
+                label="Label",
                 year=2001,
                 flex1="Flex1-2",
                 flex2="Flex2-A",
@@ -49,7 +49,7 @@ class DummyDataTestCase(BeetsTestCase):
             ),
             Album(
                 album="Album C",
-                genre="Jazz",
+                label="Records",
                 year=2005,
                 flex1="Flex1-1",
                 flex2="Flex2-B",
@@ -236,19 +236,19 @@ class SortAlbumFixedFieldTest(DummyDataTestCase):
 
     def test_sort_two_field_asc(self):
         q = ""
-        s1 = dbcore.query.FixedFieldSort("genre", True)
+        s1 = dbcore.query.FixedFieldSort("label", True)
         s2 = dbcore.query.FixedFieldSort("album", True)
         sort = dbcore.query.MultipleSort()
         sort.add_sort(s1)
         sort.add_sort(s2)
         results = self.lib.albums(q, sort)
-        assert results[0]["genre"] <= results[1]["genre"]
-        assert results[1]["genre"] <= results[2]["genre"]
-        assert results[1]["genre"] == "Rock"
-        assert results[2]["genre"] == "Rock"
+        assert results[0]["label"] <= results[1]["label"]
+        assert results[1]["label"] <= results[2]["label"]
+        assert results[1]["label"] == "Label"
+        assert results[2]["label"] == "Records"
         assert results[1]["album"] <= results[2]["album"]
         # same thing with query string
-        q = "genre+ album+"
+        q = "label+ album+"
         results2 = self.lib.albums(q)
         for r1, r2 in zip(results, results2):
             assert r1.id == r2.id
@@ -388,7 +388,7 @@ class CaseSensitivityTest(DummyDataTestCase, BeetsTestCase):
 
         album = Album(
             album="album",
-            genre="alternative",
+            label="label",
             year="2001",
             flex1="flex1",
             flex2="flex2-A",

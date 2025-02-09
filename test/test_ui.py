@@ -690,7 +690,7 @@ class UpdateTest(BeetsTestCase):
         mf.album = "differentAlbum"
         mf.genre = "differentGenre"
         mf.save()
-        self._update(move=True, fields=["genre"])
+        self._update(move=True, fields=["genres"])
         item = self.lib.items().get()
         assert b"differentAlbum" not in item.path
         assert item.genre == "differentGenre"
@@ -1445,7 +1445,7 @@ class CompletionTest(TestPluginTestCase):
         assert tester.returncode == 0
         assert out == b"completion tests passed\n", (
             "test/test_completion.sh did not execute properly. "
-            f'Output:{out.decode("utf-8")}'
+            f"Output:{out.decode('utf-8')}"
         )
 
 
