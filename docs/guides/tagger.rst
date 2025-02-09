@@ -76,7 +76,8 @@ all of these limitations.
   Musepack, Windows Media, Opus, and AIFF files are supported. (Do you use
   some other format? Please `file a feature request`_!)
 
-.. _file a feature request: https://github.com/beetbox/beets/issues/new
+.. _file a feature request:
+   https://github.com/beetbox/beets/issues/new?template=feature-request.md
 
 Now that that's out of the way, let's tag some music.
 
