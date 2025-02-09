@@ -257,7 +257,7 @@ class SmartPlaylistPlugin(BeetsPlugin):
         tpl = self.config["uri_format"].get()
         prefix = bytestring_path(self.config["prefix"].as_str())
         relative_to = self.config["relative_to"].get()
-        if relative_to:
+        if relative_to != "m3u":
             relative_to = normpath(relative_to)
 
         # Maps playlist filenames to lists of track filenames.
@@ -287,6 +287,8 @@ class SmartPlaylistPlugin(BeetsPlugin):
                 item_uri = item.path
                 if tpl:
                     item_uri = tpl.replace("$id", str(item.id)).encode("utf-8")
+                if relative_to == "m3u":
+                    item_uri = "m3u"
                 else:
                     if relative_to:
                         item_uri = os.path.relpath(item_uri, relative_to)
@@ -323,6 +325,17 @@ class SmartPlaylistPlugin(BeetsPlugin):
                         f.write(b"#EXTM3U\n")
                     for entry in m3us[m3u]:
                         item = entry.item
+                        if entry.uri == "m3u":
+                            entry.uri = os.path.relpath(
+                                item.path, os.path.dirname(m3u_path)
+                            )
+                            if self.config["forward_slash"].get():
+                                entry.uri = path_as_posix(entry.uri)
+                            if self.config["urlencode"]:
+                                entry.uri = bytestring_path(
+                                    pathname2url(entry.uri)
+                                )
+                            entry.uri = prefix + entry.uri
                         comment = ""
                         if extm3u:
                             attr = [(k, entry.item[k]) for k in keys]

@@ -96,6 +96,7 @@ New features:
   from the match. It is thus possible to create more general rules, applying to
   many different artists at once.
 
+* Ability to use relative_to as "m3u" to set playlist files as relative to where each playlist is at, including subdirectories.
 Bug fixes:
 
 * Check if running python from the Microsoft Store and provide feedback to install
