@@ -513,6 +513,8 @@ Bug fixes:
   `requests` timeout.
 * Fix cover art resizing logic to support multiple steps of resizing
   :bug:`5151`
+* :doc:`/plugins/convert`: Fix attempt to convert and perform side-effects if
+  library file is not readable.
 
 For plugin developers:
 

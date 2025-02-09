@@ -22,6 +22,7 @@ import tempfile
 import threading
 from string import Template
 
+import mediafile
 from confuse import ConfigTypeError, Optional
 
 from beets import art, config, plugins, ui, util
@@ -350,6 +351,15 @@ class ConvertPlugin(BeetsPlugin):
         while True:
             item = yield (item, original, converted)
             dest = item.destination(basedir=dest_dir, path_formats=path_formats)
+
+            # Ensure that desired item is readable before processing it. Needed
+            # to avoid any side-effect of the conversion (linking, keep_new,
+            # refresh) if we already know that it will fail.
+            try:
+                mediafile.MediaFile(util.syspath(item.path))
+            except mediafile.UnreadableFileError as exc:
+                self._log.error("Could not open file to convert: {0}", exc)
+                continue
 
             # When keeping the new file in the library, we first move the
             # current (pristine) file to the destination. We'll then copy it
