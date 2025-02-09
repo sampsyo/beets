@@ -86,6 +86,11 @@ Other changes:
   wrong (outdated) commit. Now the tag is created in the same workflow step
   right after committing the version update.
   :bug:`5539`
+* :doc:`plugins/missing`: When running in missing album mode, allows users to specify
+  MusicBrainz release types that they want to show using the ``--release-type``
+  flag. The default behavior is also changed to just show releases of type
+  ``album``. 
+  :bug:`2661`
 
 2.2.0 (December 02, 2024)
 -------------------------
