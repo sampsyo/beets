@@ -40,6 +40,7 @@ class SmartPlaylistPlugin(BeetsPlugin):
         super().__init__()
         self.config.add(
             {
+                "dest_regen": False,
                 "relative_to": None,
                 "playlist_dir": ".",
                 "auto": True,
@@ -86,6 +87,13 @@ class SmartPlaylistPlugin(BeetsPlugin):
             metavar="PATH",
             type="string",
             help="directory to write the generated playlist files to.",
+        )
+        spl_update.parser.add_option(
+            "--dest-regen",
+            action="store_true",
+            dest="dest_regen",
+            help="regenerate the destination path as 'move' or 'convert' "
+            "commands would do.",
         )
         spl_update.parser.add_option(
             "--relative-to",
@@ -256,6 +264,7 @@ class SmartPlaylistPlugin(BeetsPlugin):
         playlist_dir = bytestring_path(playlist_dir)
         tpl = self.config["uri_format"].get()
         prefix = bytestring_path(self.config["prefix"].as_str())
+        dest_regen = self.config["dest_regen"].get()
         relative_to = self.config["relative_to"].get()
         if relative_to:
             relative_to = normpath(relative_to)
@@ -288,6 +297,8 @@ class SmartPlaylistPlugin(BeetsPlugin):
                 if tpl:
                     item_uri = tpl.replace("$id", str(item.id)).encode("utf-8")
                 else:
+                    if dest_regen is True:
+                        item_uri = item.destination()
                     if relative_to:
                         item_uri = os.path.relpath(item_uri, relative_to)
                     if self.config["forward_slash"].get():
