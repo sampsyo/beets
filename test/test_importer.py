@@ -34,7 +34,7 @@ from mediafile import MediaFile
 
 from beets import config, importer, logging, util
 from beets.autotag import AlbumInfo, AlbumMatch, TrackInfo
-from beets.importer import albums_in_dir
+from beets.importer.tasks import albums_in_dir
 from beets.test import _common
 from beets.test.helper import (
     NEEDS_REFLINK,

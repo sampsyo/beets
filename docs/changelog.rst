@@ -86,6 +86,8 @@ Other changes:
   wrong (outdated) commit. Now the tag is created in the same workflow step
   right after committing the version update.
   :bug:`5539`
+* Added some typehints: ImportSession and Pipeline have typehints now. Should
+  improve useability for new developers.
 
 2.2.0 (December 02, 2024)
 -------------------------

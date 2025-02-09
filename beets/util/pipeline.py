@@ -34,6 +34,9 @@ in place of any single coroutine.
 import queue
 import sys
 from threading import Lock, Thread
+from typing import Callable, Generator, Optional, Union
+
+from typing_extensions import TypeVar, TypeVarTuple, Unpack
 
 BUBBLE = "__PIPELINE_BUBBLE__"
 POISON = "__PIPELINE_POISON__"
@@ -149,7 +152,17 @@ def multiple(messages):
     return MultiMessage(messages)
 
 
-def stage(func):
+A = TypeVarTuple("A")
+T = TypeVar("T")
+R = TypeVar("R")
+
+
+def stage(
+    func: Callable[
+        [Unpack[A], T],
+        Optional[R],
+    ],
+):
     """Decorate a function to become a simple stage.
 
     >>> @stage
@@ -163,7 +176,7 @@ def stage(func):
     [3, 4, 5]
     """
 
-    def coro(*args):
+    def coro(*args: Unpack[A]) -> Generator[Union[R, T, None], T, R]:
         task = None
         while True:
             task = yield task
@@ -172,7 +185,7 @@ def stage(func):
     return coro
 
 
-def mutator_stage(func):
+def mutator_stage(func: Callable[[Unpack[A], T], R]):
     """Decorate a function that manipulates items in a coroutine to
     become a simple stage.
 
@@ -187,7 +200,7 @@ def mutator_stage(func):
     [{'x': True}, {'a': False, 'x': True}]
     """
 
-    def coro(*args):
+    def coro(*args: Unpack[A]) -> Generator[Union[T, None], T, None]:
         task = None
         while True:
             task = yield task
