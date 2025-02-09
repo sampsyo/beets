@@ -134,6 +134,8 @@ New features:
 * Beets now uses ``platformdirs`` to determine the default music directory.
   This location varies between systems -- for example, users can configure it
   on Unix systems via ``user-dirs.dirs(5)``.
+* New multi-valued ``genres`` tag. This change brings up the ``genres`` tag to the same state as the ``*artists*`` multi-valued tags (see :bug:`4743` for details).
+  :bug:`5426`
 
 Bug fixes:
 

@@ -710,13 +710,13 @@ class DestinationFunctionTest(BeetsTestCase, PathFormattingMixin):
         self._assert_dest(b"/base/not_played")
 
     def test_first(self):
-        self.i.genres = "Pop; Rock; Classical Crossover"
-        self._setf("%first{$genres}")
+        self.i.semicolon_delimited_field = "Pop; Rock; Classical Crossover"
+        self._setf("%first{$semicolon_delimited_field}")
         self._assert_dest(b"/base/Pop")
 
     def test_first_skip(self):
-        self.i.genres = "Pop; Rock; Classical Crossover"
-        self._setf("%first{$genres,1,2}")
+        self.i.semicolon_delimited_field = "Pop; Rock; Classical Crossover"
+        self._setf("%first{$semicolon_delimited_field,1,2}")
         self._assert_dest(b"/base/Classical Crossover")
 
     def test_first_different_sep(self):
@@ -1307,6 +1307,28 @@ class WriteTest(BeetsTestCase):
         item.date = "foo"
         item.write()
         assert MediaFile(syspath(item.path)).year == clean_year
+
+    def test_write_multi_genres(self):
+        item = self.add_item_fixture(genre="old genre")
+        item.write(
+            tags={"genres": ["g1", "g2"]},
+        )
+
+        # Ensure it reads all genres
+        assert MediaFile(syspath(item.path)).genres == ["g1", "g2"]
+
+        # Ensure reading single genre outputs the first of the genres
+        assert MediaFile(syspath(item.path)).genre == "g1"
+
+    def test_write_multi_genres_both_single_and_multi(self):
+        item = self.add_item_fixture(genre="old genre 1")
+        item.write(
+            tags={"genre": "single genre", "genres": ["multi genre"]},
+        )
+
+        # Ensure the multi takes precedence
+        assert MediaFile(syspath(item.path)).genre == "multi genre"
+        assert MediaFile(syspath(item.path)).genres == ["multi genre"]
 
 
 class ItemReadTest(unittest.TestCase):
