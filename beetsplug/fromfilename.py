@@ -25,12 +25,10 @@ from beets.util import displayable_path
 # Filename field extraction patterns.
 PATTERNS = [
     # Useful patterns.
-    r"^(?P<artist>.+)[\-_](?P<title>.+)[\-_](?P<tag>.*)$",
-    r"^(?P<track>\d+)[\s.\-_]+(?P<artist>.+)[\-_](?P<title>.+)[\-_](?P<tag>.*)$",
-    r"^(?P<artist>.+)[\-_](?P<title>.+)$",
-    r"^(?P<track>\d+)[\s.\-_]+(?P<artist>.+)[\-_](?P<title>.+)$",
-    r"^(?P<track>\d+)[\s.\-_]+(?P<title>.+)$",
-    r"^(?P<track>\d+)\s+(?P<title>.+)$",
+    (r"^(?P<track>\d+)\.?\s*-\s*(?P<artist>.+?)\s*-\s*(?P<title>.+?)"
+     r"(\s*-\s*(?P<tag>.*))?$"),
+    r"^(?P<artist>.+?)\s*-\s*(?P<title>.+?)(\s*-\s*(?P<tag>.*))?$",
+    r"^(?P<track>\d+)\.?[\s\-_]+(?P<title>.+)$",
     r"^(?P<title>.+) by (?P<artist>.+)$",
     r"^(?P<track>\d+).*$",
     r"^(?P<title>.+)$",
@@ -98,6 +96,7 @@ def apply_matches(d, log):
     # Given both an "artist" and "title" field, assume that one is
     # *actually* the artist, which must be uniform, and use the other
     # for the title. This, of course, won't work for VA albums.
+    # Only check for "artist": patterns containing it, also contain "title"
     if "artist" in keys:
         if equal_fields(d, "artist"):
             artist = some_map["artist"]
@@ -113,14 +112,15 @@ def apply_matches(d, log):
             if not item.artist:
                 item.artist = artist
                 log.info("Artist replaced with: {}".format(item.artist))
-
-    # No artist field: remaining field is the title.
-    else:
+    # otherwise, if the pattern contains "title", use that for title_field
+    elif "title" in keys:
         title_field = "title"
+    else:
+        title_field = None
 
-    # Apply the title and track.
+    # Apply the title and track, if any.
     for item in d:
-        if bad_title(item.title):
+        if title_field and bad_title(item.title):
             item.title = str(d[item][title_field])
             log.info("Title replaced with: {}".format(item.title))
 
@@ -160,6 +160,7 @@ class FromFilenamePlugin(plugins.BeetsPlugin):
 
             # Look for useful information in the filenames.
             for pattern in PATTERNS:
+                self._log.debug("Trying pattern: {}".format(pattern))
                 d = all_matches(names, pattern)
                 if d:
                     apply_matches(d, self._log)
