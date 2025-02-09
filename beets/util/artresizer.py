@@ -655,7 +655,10 @@ class ArtResizer(metaclass=Shareable):
             )
         finally:
             if result_path != path_in:
-                os.unlink(path_in)
+                try:
+                    os.unlink(path_in)
+                except OSError:
+                    pass
         return result_path
 
     @property
