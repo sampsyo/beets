@@ -86,6 +86,8 @@ Other changes:
   wrong (outdated) commit. Now the tag is created in the same workflow step
   right after committing the version update.
   :bug:`5539`
+* :doc:`/plugins/smartplaylist`: URL-encode additional item `fields` within generated
+  EXTM3U playlists instead of JSON-encoding them.
 
 2.2.0 (December 02, 2024)
 -------------------------
