@@ -15,13 +15,15 @@
 """Tests for the 'lyrics' plugin."""
 
 import re
+import textwrap
 from functools import partial
 from http import HTTPStatus
+from pathlib import Path
 
 import pytest
 
 from beets.library import Item
-from beets.test.helper import PluginMixin
+from beets.test.helper import PluginMixin, TestHelper
 from beetsplug import lyrics
 
 from .lyrics_pages import LyricsPage, lyrics_pages
@@ -31,6 +33,14 @@ PHRASE_BY_TITLE = {
     "Jazz'n'blues": "as i check my balance i kiss the screen",
     "Beets song": "via plugins, beets becomes a panacea",
 }
+
+
+@pytest.fixture(scope="module")
+def helper():
+    helper = TestHelper()
+    helper.setup_beets()
+    yield helper
+    helper.teardown_beets()
 
 
 class TestLyricsUtils:
@@ -231,6 +241,27 @@ class TestLyricsPlugin(LyricsPluginMixin):
         assert last_log
         assert re.search(expected_log_match, last_log, re.I)
 
+    @pytest.mark.parametrize(
+        "plugin_config, found, expected",
+        [
+            ({}, "new", "old"),
+            ({"force": True}, "new", "new"),
+            ({"force": True, "local": True}, "new", "old"),
+            ({"force": True, "fallback": None}, "", "old"),
+            ({"force": True, "fallback": ""}, "", ""),
+            ({"force": True, "fallback": "default"}, "", "default"),
+        ],
+    )
+    def test_overwrite_config(
+        self, monkeypatch, helper, lyrics_plugin, found, expected
+    ):
+        monkeypatch.setattr(lyrics_plugin, "find_lyrics", lambda _: found)
+        item = helper.create_item(id=1, lyrics="old")
+
+        lyrics_plugin.add_item_lyrics(item, False)
+
+        assert item.lyrics == expected
+
 
 class LyricsBackendTest(LyricsPluginMixin):
     @pytest.fixture
@@ -280,8 +311,13 @@ class TestLyricsSources(LyricsBackendTest):
 
     def test_backend_source(self, lyrics_plugin, lyrics_page: LyricsPage):
         """Test parsed lyrics from each of the configured lyrics pages."""
-        lyrics_info = lyrics_plugin.get_lyrics(
-            lyrics_page.artist, lyrics_page.track_title, "", 186
+        lyrics_info = lyrics_plugin.find_lyrics(
+            Item(
+                artist=lyrics_page.artist,
+                title=lyrics_page.track_title,
+                album="",
+                length=186.0,
+            )
         )
 
         assert lyrics_info
@@ -502,3 +538,144 @@ class TestLRCLibLyrics(LyricsBackendTest):
             lyrics, _ = fetch_lyrics()
 
             assert lyrics == expected_lyrics
+
+
+class TestTranslation:
+    @pytest.fixture(autouse=True)
+    def _patch_bing(self, requests_mock):
+        def callback(request, _):
+            if b"Refrain" in request.body:
+                translations = (
+                    ""
+                    " | [Refrain : Doja Cat]"
+                    " | Difficile pour moi de te laisser partir (Te laisser partir, te laisser partir)"  # noqa: E501
+                    " | Mon corps ne me laissait pas le cacher (Cachez-le)"
+                    " | Quoi qu’il arrive, je ne plierais pas (Ne plierait pas, ne plierais pas)"  # noqa: E501
+                    " | Chevauchant à travers le tonnerre, la foudre"
+                )
+            elif b"00:00.00" in request.body:
+                translations = (
+                    ""
+                    " | [00:00.00] Quelques paroles synchronisées"
+                    " | [00:01.00] Quelques paroles plus synchronisées"
+                )
+            else:
+                translations = (
+                    ""
+                    " | Quelques paroles synchronisées"
+                    " | Quelques paroles plus synchronisées"
+                )
+
+            return [
+                {
+                    "detectedLanguage": {"language": "en", "score": 1.0},
+                    "translations": [{"text": translations, "to": "fr"}],
+                }
+            ]
+
+        requests_mock.post(lyrics.Translator.TRANSLATE_URL, json=callback)
+
+    @pytest.mark.parametrize(
+        "new_lyrics, old_lyrics, expected",
+        [
+            pytest.param(
+                """
+                [Refrain: Doja Cat]
+                Hard for me to let you go (Let you go, let you go)
+                My body wouldn't let me hide it (Hide it)
+                No matter what, I wouldn't fold (Wouldn't fold, wouldn't fold)
+                Ridin' through the thunder, lightnin'""",
+                "",
+                """
+                [Refrain: Doja Cat] / [Refrain : Doja Cat]
+                Hard for me to let you go (Let you go, let you go) / Difficile pour moi de te laisser partir (Te laisser partir, te laisser partir)
+                My body wouldn't let me hide it (Hide it) / Mon corps ne me laissait pas le cacher (Cachez-le)
+                No matter what, I wouldn't fold (Wouldn't fold, wouldn't fold) / Quoi qu’il arrive, je ne plierais pas (Ne plierait pas, ne plierais pas)
+                Ridin' through the thunder, lightnin' / Chevauchant à travers le tonnerre, la foudre""",  # noqa: E501
+                id="plain",
+            ),
+            pytest.param(
+                """
+                [00:00.00] Some synced lyrics
+                [00:00:50]
+                [00:01.00] Some more synced lyrics
+
+                Source: https://lrclib.net/api/123""",
+                "",
+                """
+                [00:00.00] Some synced lyrics / Quelques paroles synchronisées
+                [00:00:50]
+                [00:01.00] Some more synced lyrics / Quelques paroles plus synchronisées
+
+                Source: https://lrclib.net/api/123""",  # noqa: E501
+                id="synced",
+            ),
+            pytest.param(
+                "Quelques paroles",
+                "",
+                "Quelques paroles",
+                id="already in the target language",
+            ),
+            pytest.param(
+                "Some lyrics",
+                "Some lyrics / Some translation",
+                "Some lyrics / Some translation",
+                id="already translated",
+            ),
+        ],
+    )
+    def test_translate(self, new_lyrics, old_lyrics, expected):
+        plugin = lyrics.LyricsPlugin()
+        bing = lyrics.Translator(plugin._log, "123", "FR", ["EN"])
+
+        assert bing.translate(
+            textwrap.dedent(new_lyrics), old_lyrics
+        ) == textwrap.dedent(expected)
+
+
+class TestRestFiles:
+    @pytest.fixture
+    def rest_dir(self, tmp_path):
+        return tmp_path
+
+    @pytest.fixture
+    def rest_files(self, rest_dir):
+        return lyrics.RestFiles(rest_dir)
+
+    def test_write(self, rest_dir: Path, rest_files):
+        items = [
+            Item(albumartist=aa, album=a, title=t, lyrics=lyr)
+            for aa, a, t, lyr in [
+                ("Artist One", "Album One", "Song One", "Lyrics One"),
+                ("Artist One", "Album One", "Song Two", "Lyrics Two"),
+                ("Artist Two", "Album Two", "Song Three", "Lyrics Three"),
+            ]
+        ]
+
+        rest_files.write(items)
+
+        assert (rest_dir / "index.rst").exists()
+        assert (rest_dir / "conf.py").exists()
+
+        artist_one_file = rest_dir / "artists" / "artist-one.rst"
+        artist_two_file = rest_dir / "artists" / "artist-two.rst"
+        assert artist_one_file.exists()
+        assert artist_two_file.exists()
+
+        c = artist_one_file.read_text()
+        assert (
+            c.index("Artist One")
+            < c.index("Album One")
+            < c.index("Song One")
+            < c.index("Lyrics One")
+            < c.index("Song Two")
+            < c.index("Lyrics Two")
+        )
+
+        c = artist_two_file.read_text()
+        assert (
+            c.index("Artist Two")
+            < c.index("Album Two")
+            < c.index("Song Three")
+            < c.index("Lyrics Three")
+        )
