@@ -19,6 +19,7 @@ New features:
   control the maximum allowed distance between the lyrics search result and the
   tagged item's artist and title. This is useful for preventing false positives
   when fetching lyrics.
+* :doc:`plugins/missing`: Add support for all metadata sources.
 
 Bug fixes:
 

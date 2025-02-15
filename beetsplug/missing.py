@@ -16,6 +16,7 @@
 """List missing tracks."""
 
 from collections import defaultdict
+from collections.abc import Iterator
 
 import musicbrainzngs
 from musicbrainzngs.musicbrainz import MusicBrainzError
@@ -23,7 +24,7 @@ from musicbrainzngs.musicbrainz import MusicBrainzError
 from beets import config
 from beets.autotag import hooks
 from beets.dbcore import types
-from beets.library import Item
+from beets.library import Album, Item
 from beets.plugins import BeetsPlugin
 from beets.ui import Subcommand, decargs, print_
 
@@ -226,19 +227,20 @@ class MissingPlugin(BeetsPlugin):
         if total:
             print(total_missing)
 
-    def _missing(self, album):
+    def _missing(self, album: Album) -> Iterator[Item]:
         """Query MusicBrainz to determine items missing from `album`."""
-        item_mbids = [x.mb_trackid for x in album.items()]
-        if len(list(album.items())) < album.albumtotal:
-            # fetch missing items
-            # TODO: Implement caching that without breaking other stuff
-            album_info = hooks.album_for_mbid(album.mb_albumid)
-            for track_info in getattr(album_info, "tracks", []):
+        if len(album.items()) == album.albumtotal:
+            return
+
+        item_mbids = {x.mb_trackid for x in album.items()}
+        # fetch missing items
+        # TODO: Implement caching that without breaking other stuff
+        if album_info := hooks.album_for_id(album.mb_albumid):
+            for track_info in album_info.tracks:
                 if track_info.track_id not in item_mbids:
-                    item = _item(track_info, album_info, album.id)
                     self._log.debug(
                         "track {0} in album {1}",
                         track_info.track_id,
                         album_info.album_id,
                     )
-                    yield item
+                    yield _item(track_info, album_info, album.id)

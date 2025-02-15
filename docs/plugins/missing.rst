@@ -1,17 +1,17 @@
 Missing Plugin
 ==============
 
-This plugin adds a new command, ``missing`` or ``miss``, which finds
-and lists, for every album in your collection, which or how many
-tracks are missing. Listing missing files requires one network call to
-MusicBrainz. Merely counting missing files avoids any network calls.
+This plugin adds a new command, ``missing`` or ``miss``, which finds and lists
+missing tracks for albums in your collection. Each album requires one network
+call to album data source.
 
 Usage
 -----
 
-Add the ``missing`` plugin to your configuration (see :ref:`using-plugins`).
-By default, the ``beet missing`` command lists the names of tracks that your
-library is missing from each album. It can also list the names of albums that
+Add the ``missing`` plugin to your configuration (see :ref:`using-plugins`). By
+default, the ``beet missing`` command fetches album information from the origin
+data source and lists names of the **tracks** that are missing from your
+library. It can also list the names of albums that
 your library is missing from each artist.
 You can customize the output format, count
 the number of missing tracks per album, or total up the number of missing
