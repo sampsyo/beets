@@ -14,17 +14,24 @@
 
 """Support for beets plugins."""
 
+from __future__ import annotations
+
 import abc
 import inspect
 import re
 import traceback
 from collections import defaultdict
 from functools import wraps
+from typing import TYPE_CHECKING
 
 import mediafile
 
 import beets
 from beets import logging
+
+if TYPE_CHECKING:
+    from beets.autotag.hooks import AlbumInfo, TrackInfo
+
 
 PLUGIN_NAMESPACE = "beetsplug"
 
@@ -290,7 +297,7 @@ def load_plugins(names=()):
             )
 
 
-_instances = {}
+_instances: dict[type[BeetsPlugin], BeetsPlugin] = {}
 
 
 def find_plugins():
@@ -397,20 +404,24 @@ def item_candidates(item, artist, title):
         yield from plugin.item_candidates(item, artist, title)
 
 
-def album_for_id(album_id):
-    """Get AlbumInfo objects for a given ID string."""
+def album_for_id(_id: str) -> AlbumInfo | None:
+    """Get AlbumInfo object for the given ID string."""
     for plugin in find_plugins():
-        album = plugin.album_for_id(album_id)
-        if album:
-            yield album
+        if info := plugin.album_for_id(_id):
+            send("albuminfo_received", info=info)
+            return info
+
+    return None
 
 
-def track_for_id(track_id):
-    """Get TrackInfo objects for a given ID string."""
+def track_for_id(_id: str) -> TrackInfo | None:
+    """Get TrackInfo object for the given ID string."""
     for plugin in find_plugins():
-        track = plugin.track_for_id(track_id)
-        if track:
-            yield track
+        if info := plugin.track_for_id(_id):
+            send("trackinfo_received", info=info)
+            return info
+
+    return None
 
 
 def template_funcs():

@@ -510,8 +510,8 @@ def tag_album(
     if search_ids:
         for search_id in search_ids:
             log.debug("Searching for album ID: {0}", search_id)
-            for album_info_for_id in hooks.albums_for_id(search_id):
-                _add_candidate(items, candidates, album_info_for_id)
+            if info := hooks.album_for_id(search_id):
+                _add_candidate(items, candidates, info)
 
     # Use existing metadata or text search.
     else:
@@ -590,11 +590,9 @@ def tag_item(
     if trackids:
         for trackid in trackids:
             log.debug("Searching for track ID: {0}", trackid)
-            for track_info in hooks.tracks_for_id(trackid):
-                dist = track_distance(item, track_info, incl_artist=True)
-                candidates[track_info.track_id] = hooks.TrackMatch(
-                    dist, track_info
-                )
+            if info := hooks.track_for_id(trackid):
+                dist = track_distance(item, info, incl_artist=True)
+                candidates[info.track_id] = hooks.TrackMatch(dist, info)
                 # If this is a good match, then don't keep searching.
                 rec = _recommendation(_sort_candidates(candidates.values()))
                 if (

@@ -602,8 +602,7 @@ def album_for_mbid(release_id: str) -> AlbumInfo | None:
     if the ID is not found.
     """
     try:
-        album = mb.album_for_id(release_id)
-        if album:
+        if album := mb.album_for_id(release_id):
             plugins.send("albuminfo_received", info=album)
         return album
     except mb.MusicBrainzAPIError as exc:
@@ -616,8 +615,7 @@ def track_for_mbid(recording_id: str) -> TrackInfo | None:
     if the ID is not found.
     """
     try:
-        track = mb.track_for_id(recording_id)
-        if track:
+        if track := mb.track_for_id(recording_id):
             plugins.send("trackinfo_received", info=track)
         return track
     except mb.MusicBrainzAPIError as exc:
@@ -625,26 +623,14 @@ def track_for_mbid(recording_id: str) -> TrackInfo | None:
         return None
 
 
-def albums_for_id(album_id: str) -> Iterable[AlbumInfo]:
-    """Get a list of albums for an ID."""
-    a = album_for_mbid(album_id)
-    if a:
-        yield a
-    for a in plugins.album_for_id(album_id):
-        if a:
-            plugins.send("albuminfo_received", info=a)
-            yield a
+def album_for_id(_id: str) -> AlbumInfo | None:
+    """Get AlbumInfo object for the given ID string."""
+    return album_for_mbid(_id) or plugins.album_for_id(_id)
 
 
-def tracks_for_id(track_id: str) -> Iterable[TrackInfo]:
-    """Get a list of tracks for an ID."""
-    t = track_for_mbid(track_id)
-    if t:
-        yield t
-    for t in plugins.track_for_id(track_id):
-        if t:
-            plugins.send("trackinfo_received", info=t)
-            yield t
+def track_for_id(_id: str) -> TrackInfo | None:
+    """Get AlbumInfo object for the given ID string."""
+    return track_for_mbid(_id) or plugins.track_for_id(_id)
 
 
 def invoke_mb(call_func: Callable, *args):
