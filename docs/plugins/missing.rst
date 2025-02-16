@@ -8,24 +8,28 @@ call to album data source.
 Usage
 -----
 
-Add the ``missing`` plugin to your configuration (see :ref:`using-plugins`). By
-default, the ``beet missing`` command fetches album information from the origin
-data source and lists names of the **tracks** that are missing from your
-library. It can also list the names of albums that
-your library is missing from each artist.
-You can customize the output format, count
-the number of missing tracks per album, or total up the number of missing
-tracks over your whole library, using command-line switches::
+Add the ``missing`` plugin to your configuration (see :ref:`using-plugins`).
+The ``beet missing`` command fetches album information from the origin data
+source and lists names of the **tracks** that are missing from your library.
+
+It can also list the names of missing **albums** for each artist, although this
+is limited to albums from the MusicBrainz data source only.
+
+You can customize the output format, show missing counts instead of track
+titles, or display the total number of missing entities across your entire
+library::
 
       -f FORMAT, --format=FORMAT
                             print with custom FORMAT
       -c, --count           count missing tracks per album
-      -t, --total           count total of missing tracks or albums
-      -a, --album           show missing albums for artist instead of tracks
+      -t, --total           count totals across the entire library
+      -a, --album           show missing albums for artist instead of tracks for album
 
-…or by editing corresponding options.
+…or by editing the corresponding configuration options.
 
-Note that ``-c`` is ignored when used with ``-a``.
+.. warning::
+
+    Option ``-c`` is ignored when used with ``-a``.
 
 Configuration
 -------------
