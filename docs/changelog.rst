@@ -22,6 +22,9 @@ New features:
 
 Bug fixes:
 
+* :doc:`plugins/fetchart`: Fix fetchart bug where a tempfile could not be deleted due to never being
+  properly closed.
+  :bug:`5521`
 * :doc:`plugins/lyrics`: LRCLib will fallback to plain lyrics if synced lyrics
   are not found and `synced` flag is set to `yes`.
 * Synchronise files included in the source distribution with what we used to

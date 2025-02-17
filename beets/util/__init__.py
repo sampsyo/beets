@@ -1133,7 +1133,10 @@ def get_temp_filename(
     tempdir = get_module_tempdir(module)
     tempdir.mkdir(parents=True, exist_ok=True)
 
-    _, filename = tempfile.mkstemp(dir=tempdir, prefix=prefix, suffix=suffix)
+    descriptor, filename = tempfile.mkstemp(
+        dir=tempdir, prefix=prefix, suffix=suffix
+    )
+    os.close(descriptor)
     return bytestring_path(filename)
 
 

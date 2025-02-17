@@ -174,9 +174,8 @@ pages.
 …report a bug in beets?
 -----------------------
 
-We use the `issue tracker <https://github.com/beetbox/beets/issues>`__
-on GitHub. `Enter a new issue <https://github.com/beetbox/beets/issues/new>`__
-there to report a bug. Please follow these guidelines when reporting an issue:
+We use the `issue tracker`_ on GitHub where you can `open a new ticket`_.
+Please follow these guidelines when reporting an issue:
 
 -  Most importantly: if beets is crashing, please `include the
    traceback <https://imgur.com/jacoj>`__. Tracebacks can be more
@@ -206,6 +205,7 @@ If you've never reported a bug before, Mozilla has some well-written
 `general guidelines for good bug
 reports`_.
 
+.. _issue tracker: https://github.com/beetbox/beets/issues
 .. _general guidelines for good bug reports: https://developer.mozilla.org/en-US/docs/Mozilla/QA/Bug_writing_guidelines
 
 
@@ -343,11 +343,11 @@ read the file. You can also use specialized programs for checking file
 integrity---for example, type ``metaflac --list music.flac`` to check
 FLAC files.
 
-If beets still complains about a file that seems to be valid, `file a
-bug <https://github.com/beetbox/beets/issues/new>`__ and we'll look into
-it. There's always a possibility that there's a bug "upstream" in the
-`Mutagen <https://github.com/quodlibet/mutagen>`__ library used by beets,
-in which case we'll forward the bug to that project's tracker.
+If beets still complains about a file that seems to be valid, `open a new
+ticket`_ and we'll look into it. There's always a possibility that there's
+a bug "upstream" in the `Mutagen <https://github.com/quodlibet/mutagen>`__
+library used by beets, in which case we'll forward the bug to that project's
+tracker.
 
 
 .. _importhang:
@@ -398,3 +398,5 @@ try `this Super User answer`_.
 
 .. _this Super User answer: https://superuser.com/a/284361/4569
 .. _pip: https://pip.pypa.io/en/stable/
+.. _open a new ticket:
+   https://github.com/beetbox/beets/issues/new?template=bug-report.md
