@@ -366,6 +366,8 @@ New features:
 * :doc:`/plugins/smartplaylist`: Add new config option `smartplaylist.fields`.
 * :doc:`/plugins/fetchart`: Defer source removal config option evaluation to
   the point where they are used really, supporting temporary config changes.
+* :doc:`/plugins/convert`: Add new configuration option `convert.refresh` and
+  command-line option ``--refresh``.
 
 Bug fixes:
 
