@@ -22,7 +22,7 @@ import time
 from collections import defaultdict
 from enum import Enum
 from tempfile import mkdtemp
-from typing import TYPE_CHECKING, Callable, Iterable, Sequence, Union, cast
+from typing import TYPE_CHECKING, Callable, Iterable, Sequence
 
 import mediafile
 
@@ -57,6 +57,15 @@ REIMPORT_FRESH_FIELDS_ALBUM = [
     "tidal_album_id",
 ]
 REIMPORT_FRESH_FIELDS_ITEM = list(REIMPORT_FRESH_FIELDS_ALBUM)
+
+# Global logger.
+log = logging.getLogger("beets")
+
+
+class ImportAbortError(Exception):
+    """Raised when the user aborts the tagging operation."""
+
+    pass
 
 
 class Action(Enum):
@@ -150,7 +159,12 @@ class ImportTask(BaseImportTask):
     cur_artist: str | None = None
     candidates: Sequence[autotag.AlbumMatch | autotag.TrackMatch] = []
 
-    def __init__(self, toppath, paths, items):
+    def __init__(
+        self,
+        toppath: PathBytes | None,
+        paths: Iterable[PathBytes] | None,
+        items: Iterable[library.Item] | None,
+    ):
         super().__init__(toppath, paths, items)
         self.rec = None
         self.should_remove_duplicates = False
@@ -177,16 +191,12 @@ class ImportTask(BaseImportTask):
             Action.ALBUMS,
             Action.RETAG,
         ):
-            # Cast needed as mypy can't infer the type
-            self.choice_flag = cast(Action, choice)
+            # TODO: redesign to stricten the type
+            self.choice_flag = choice  # type: ignore[assignment]
             self.match = None
         else:
             self.choice_flag = Action.APPLY  # Implicit choice.
-            # Union is needed here for python 3.9 compatibility!
-            # Cast needed as mypy can't infer the type
-            self.match = cast(
-                Union[autotag.AlbumMatch, autotag.TrackMatch], choice
-            )
+            self.match = choice  # type: ignore[assignment]
 
     def save_progress(self):
         """Updates the progress state to indicate that this album has
@@ -197,8 +207,7 @@ class ImportTask(BaseImportTask):
 
     def save_history(self):
         """Save the directory in the history for incremental imports."""
-        if self.paths:
-            ImportState().history_add(self.paths)
+        ImportState().history_add(self.paths)
 
     # Logical decisions.
 
@@ -242,10 +251,6 @@ class ImportTask(BaseImportTask):
 
     def apply_metadata(self):
         """Copy metadata from match info to the items."""
-        assert isinstance(
-            self.match, autotag.AlbumMatch
-        ), "apply_metadata() only works for albums"
-
         if config["import"]["from_scratch"]:
             for item in self.match.mapping:
                 item.clear()
@@ -439,9 +444,9 @@ class ImportTask(BaseImportTask):
 
     def manipulate_files(
         self,
+        session: ImportSession,
         operation: util.MoveOperation | None = None,
         write=False,
-        session: ImportSession | None = None,
     ):
         """Copy, move, link, hardlink or reflink (depending on `operation`)
         the files as well as write metadata.
@@ -449,8 +454,8 @@ class ImportTask(BaseImportTask):
         `operation` should be an instance of `util.MoveOperation`.
 
         If `write` is `True` metadata is written to the files.
+        # TODO: Introduce a MoveOperation.NONE or SKIP
         """
-        assert session is not None, "session must be provided"
 
         items = self.imported_items()
         # Save the original paths of all items for deletion and pruning
@@ -676,17 +681,13 @@ class SingletonImportTask(ImportTask):
         assert self.choice_flag in (Action.ASIS, Action.RETAG, Action.APPLY)
         if self.choice_flag in (Action.ASIS, Action.RETAG):
             return dict(self.item)
-        elif self.choice_flag is Action.APPLY and self.match:
+        elif self.choice_flag is Action.APPLY:
             return self.match.info.copy()
-        assert False
 
     def imported_items(self):
         return [self.item]
 
     def apply_metadata(self):
-        assert isinstance(
-            self.match, autotag.TrackMatch
-        ), "apply_metadata() only works for tracks"
         autotag.apply_item_metadata(self.item, self.match.info)
 
     def _emit_imported(self, lib):
@@ -779,12 +780,12 @@ class SentinelImportTask(ImportTask):
         pass
 
     def save_progress(self):
-        if self.paths is None and self.toppath:
+        if not self.paths:
             # "Done" sentinel.
             ImportState().progress_reset(self.toppath)
         elif self.toppath:
             # "Directory progress" sentinel for singletons
-            ImportState().progress_add(self.toppath, *self.paths)
+            super().save_progress()
 
     @property
     def skip(self) -> bool:
@@ -877,16 +878,11 @@ class ArchiveImportTask(SentinelImportTask):
         """
         assert self.toppath is not None, "toppath must be set"
 
-        handler_class = None
         for path_test, handler_class in self.handlers():
             if path_test(os.fsdecode(self.toppath)):
                 break
-
-        if handler_class is None:
-            raise ValueError(
-                "No handler found for archive: {0}".format(self.toppath)
-            )
-
+        else:
+            raise ValueError(f"No handler found for archive: {self.toppath}")
         extract_to = mkdtemp()
         archive = handler_class(os.fsdecode(self.toppath), mode="r")
         try:
@@ -964,10 +960,7 @@ class ImportTaskFactory:
         # it is finished. This is usually just a SentinelImportTask, but
         # for archive imports, send the archive task instead (to remove
         # the extracted directory).
-        if archive_task:
-            yield archive_task
-        else:
-            yield self.sentinel()
+        yield archive_task or self.sentinel()
 
     def _create(self, task: ImportTask | None):
         """Handle a new task to be emitted by the factory.
@@ -1024,8 +1017,6 @@ class ImportTaskFactory:
         `dirs` is a list of parent directories used to record already
         imported albums.
         """
-        if not paths:
-            return None
 
         if dirs is None:
             dirs = list({os.path.dirname(p) for p in paths})
@@ -1042,7 +1033,7 @@ class ImportTaskFactory:
             item for item in map(self.read_item, paths) if item
         ]
 
-        if items:
+        if len(items) > 0:
             return ImportTask(self.toppath, dirs, items)
         else:
             return None

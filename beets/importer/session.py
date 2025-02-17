@@ -20,10 +20,10 @@ import time
 from typing import TYPE_CHECKING, Sequence
 
 from beets import config, dbcore, library, logging, plugins, util
+from beets.importer.tasks import Action
 from beets.util import displayable_path, normpath, pipeline, syspath
 
 from .stages import (
-    Action,
     group_albums,
     import_asis,
     log_files,
@@ -63,7 +63,7 @@ class ImportSession:
     """
 
     logger: logging.Logger
-    paths: list[bytes] | None = None
+    paths: list[PathBytes]
     lib: library.Library
 
     _is_resuming: dict[bytes, bool]
@@ -87,9 +87,9 @@ class ImportSession:
             A logging handler to use for the session's logger. If None, a
             NullHandler will be used.
         paths : os.PathLike or None
-            The paths to be imported. If None, no paths are specified.
+            The paths to be imported.
         query : dbcore.Query or None
-            A query to filter items for import. If None, no query is applied.
+            A query to filter items for import.
         """
         self.lib = lib
         self.logger = self._setup_logging(loghandler)
@@ -99,8 +99,7 @@ class ImportSession:
         self._merged_dirs = set()
 
         # Normalize the paths.
-        if paths is not None:
-            self.paths = list(map(normpath, paths))
+        self.paths = list(map(normpath, paths or []))
 
     def _setup_logging(self, loghandler: logging.Handler | None):
         logger = logging.getLogger(__name__)
@@ -190,24 +189,16 @@ class ImportSession:
                 self.tag_log("skip", paths)
 
     def should_resume(self, path: PathBytes):
-        raise NotImplementedError(
-            "Inheriting class must implement `should_resume`"
-        )
+        raise NotImplementedError
 
     def choose_match(self, task: ImportTask):
-        raise NotImplementedError(
-            "Inheriting class must implement `choose_match`"
-        )
+        raise NotImplementedError
 
     def resolve_duplicate(self, task: ImportTask, found_duplicates):
-        raise NotImplementedError(
-            "Inheriting class must implement `resolve_duplicate`"
-        )
+        raise NotImplementedError
 
     def choose_item(self, task: ImportTask):
-        raise NotImplementedError(
-            "Inheriting class must implement `choose_item`"
-        )
+        raise NotImplementedError
 
     def run(self):
         """Run the import task."""
@@ -277,7 +268,8 @@ class ImportSession:
     _history_dirs = None
 
     @property
-    def history_dirs(self):
+    def history_dirs(self) -> set[tuple[PathBytes, ...]]:
+        # FIXME: This could be simplified to a cached property
         if self._history_dirs is None:
             self._history_dirs = ImportState().taghistory
         return self._history_dirs
@@ -305,7 +297,7 @@ class ImportSession:
 
         You have to call `ask_resume` first to determine the return value.
         """
-        return self._is_resuming.get(normpath(toppath), False)
+        return self._is_resuming.get(toppath, False)
 
     def ask_resume(self, toppath: PathBytes):
         """If import of `toppath` was aborted in an earlier session, ask
@@ -318,9 +310,9 @@ class ImportSession:
             if self.want_resume is True or self.should_resume(toppath):
                 log.warning(
                     "Resuming interrupted import of {0}",
-                    util.displayable_path(normpath(toppath)),
+                    util.displayable_path(toppath),
                 )
-                self._is_resuming[normpath(toppath)] = True
+                self._is_resuming[toppath] = True
             else:
                 # Clear progress; we're starting from the top.
                 ImportState().progress_reset(toppath)

@@ -210,7 +210,7 @@ def sorted_walk(
     """
     # Make sure the paths aren't Unicode strings.
     bytes_path = bytestring_path(path)
-    _ignore = [  # rename prevents mypy variable shadowing issue
+    ignore_bytes = [  # rename prevents mypy variable shadowing issue
         bytestring_path(i) for i in ignore
     ]
 
@@ -232,7 +232,7 @@ def sorted_walk(
 
         # Skip ignored filenames.
         skip = False
-        for pat in _ignore:
+        for pat in ignore_bytes:
             if fnmatch.fnmatch(base, pat):
                 if logger:
                     logger.debug(
@@ -259,7 +259,7 @@ def sorted_walk(
     # Recurse into directories.
     for base in dirs:
         cur = os.path.join(bytes_path, base)
-        yield from sorted_walk(cur, _ignore, ignore_hidden, logger)
+        yield from sorted_walk(cur, ignore_bytes, ignore_hidden, logger)
 
 
 def path_as_posix(path: bytes) -> bytes:

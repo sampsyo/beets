@@ -47,9 +47,6 @@ def read_tasks(session: ImportSession):
     import, yields single-item tasks instead.
     """
     skipped = 0
-    if session.paths is None:
-        log.warning("No path specified in session.")
-        return
 
     for toppath in session.paths:
         # Check whether we need to resume the import.
@@ -304,9 +301,9 @@ def manipulate_files(session: ImportSession, task: ImportTask):
             operation = None
 
         task.manipulate_files(
-            operation,
-            write=session.config["write"],
             session=session,
+            operation=operation,
+            write=session.config["write"],
         )
 
     # Progress, cleanup, and event.

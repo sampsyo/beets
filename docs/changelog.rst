@@ -88,6 +88,8 @@ Other changes:
   :bug:`5539`
 * Added some typehints: ImportSession and Pipeline have typehints now. Should
   improve useability for new developers.
+* :doc:`/plugins/smartplaylist`: URL-encode additional item `fields` within generated
+  EXTM3U playlists instead of JSON-encoding them.
 
 2.2.0 (December 02, 2024)
 -------------------------

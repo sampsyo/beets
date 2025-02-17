@@ -31,10 +31,12 @@ To do so, pass an iterable of coroutines to the Pipeline constructor
 in place of any single coroutine.
 """
 
+from __future__ import annotations
+
 import queue
 import sys
 from threading import Lock, Thread
-from typing import Callable, Generator, Optional, Union
+from typing import Callable, Generator
 
 from typing_extensions import TypeVar, TypeVarTuple, Unpack
 
@@ -152,15 +154,20 @@ def multiple(messages):
     return MultiMessage(messages)
 
 
-A = TypeVarTuple("A")
-T = TypeVar("T")
+A = TypeVarTuple("A")  # Arguments of a function (omitting the task)
+T = TypeVar("T")  # Type of the task
+# Normally these are concatenated i.e. (*args, task)
+
+# Return type of the function (should normally be task but sadly
+# we cant enforce this with the current stage functions without
+# a refactor)
 R = TypeVar("R")
 
 
 def stage(
     func: Callable[
         [Unpack[A], T],
-        Optional[R],
+        R | None,
     ],
 ):
     """Decorate a function to become a simple stage.
@@ -176,8 +183,8 @@ def stage(
     [3, 4, 5]
     """
 
-    def coro(*args: Unpack[A]) -> Generator[Union[R, T, None], T, R]:
-        task = None
+    def coro(*args: Unpack[A]) -> Generator[R | T | None, T, None]:
+        task: R | T | None = None
         while True:
             task = yield task
             task = func(*(args + (task,)))
@@ -200,7 +207,7 @@ def mutator_stage(func: Callable[[Unpack[A], T], R]):
     [{'x': True}, {'a': False, 'x': True}]
     """
 
-    def coro(*args: Unpack[A]) -> Generator[Union[T, None], T, None]:
+    def coro(*args: Unpack[A]) -> Generator[T | None, T, None]:
         task = None
         while True:
             task = yield task

@@ -130,7 +130,7 @@ class ImportState:
         """
         return toppath in self.tagprogress
 
-    def progress_reset(self, toppath: PathBytes):
+    def progress_reset(self, toppath: PathBytes | None):
         """Reset the progress for `toppath`."""
         with self as state:
             if toppath in state.tagprogress:
