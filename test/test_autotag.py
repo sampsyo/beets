@@ -106,12 +106,12 @@ class PluralityTest(BeetsTestCase):
                 assert likelies[f] == f"{f}_1"
 
 
-def _make_item(title, track, artist="some artist"):
+def _make_item(title, track, artist="some artist", album="some_album"):
     return Item(
         title=title,
         track=track,
         artist=artist,
-        album="some album",
+        album=album,
         length=1,
         mb_trackid="",
         mb_albumid="",
@@ -496,6 +496,24 @@ class AlbumDistanceTest(BeetsTestCase):
         info.tracks[2].medium_index = 1
         dist = self._dist(items, info)
         assert dist == 0
+
+    def test_album_disambiguation(self):
+        album = "some album"
+        disambig = "disambig"
+        album_disambig = f"{album} ({disambig})"
+        items = []
+        items.append(_make_item("one", 1, album=album_disambig))
+        items.append(_make_item("two", 2, album=album_disambig))
+        items.append(_make_item("three", 3, album=album_disambig))
+        info = AlbumInfo(
+            artist="some artist",
+            album=album,
+            albumdisambig=disambig,
+            tracks=_make_trackinfo(),
+            va=False,
+        )
+
+        assert self._dist(items, info) == 0
 
 
 class TestAssignment(ConfigMixin):

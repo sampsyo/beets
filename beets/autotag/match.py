@@ -239,7 +239,17 @@ def distance(
         dist.add_string("artist", likelies["artist"], album_info.artist)
 
     # Album.
-    dist.add_string("album", likelies["album"], album_info.album)
+    compare_album = album_info.album
+    if album_info.albumdisambig:
+        # See if "$album ($albumdisambig)" is a closer match, and use that if so.
+        album_with_disambig = f"{compare_album} ({album_info.albumdisambig})"
+        album_dist = hooks.string_dist(likelies["album"], compare_album)
+        album_disambig_dist = hooks.string_dist(
+            likelies["album"], album_with_disambig
+        )
+        if album_disambig_dist < album_dist:
+            compare_album = album_with_disambig
+    dist.add_string("album", likelies["album"], compare_album)
 
     # Current or preferred media.
     if album_info.media:
