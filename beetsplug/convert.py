@@ -253,6 +253,10 @@ class ConvertPlugin(BeetsPlugin):
             ) = self._get_opts_and_config(empty_opts)
 
             items = task.imported_items()
+
+            # Filter items based on should_transcode function
+            items = [item for item in items if should_transcode(item, fmt)]
+
             self._parallel_convert(
                 dest,
                 False,
