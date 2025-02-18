@@ -251,6 +251,7 @@ New features:
   :bug:`4693`
 * :doc:`/plugins/bareasc` lookups have been made faster
 * :ref:`list-cmd` lookups using the pattern operator `::` have been made faster
+* :doc: `/plugins/play`: Added `$playlist` marker to precisely edit the playlist filepath into the command calling the player program.
 * Added additional error handling for `spotify` plugin.
   :bug:`4686`
 * We now import the remixer field from Musicbrainz into the library.

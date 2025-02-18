@@ -48,8 +48,14 @@ To configure the plugin, make a ``play:`` section in your
 configuration file. The available options are:
 
 - **command**: The command used to open the playlist.
-  Default: ``open`` on OS X, ``xdg-open`` on other Unixes and ``start`` on
-  Windows. Insert ``$args`` to use the ``--args`` feature.
+
+  - Default: ``open`` on OS X, ``xdg-open`` on other Unixes and ``start`` on
+    Windows.
+  - Insert ``$args`` to use the ``--args`` feature.
+  - Insert ``$playlist`` to specify precisely where the playlist path should
+    appear in the command; only works if a playlist is generated, that is when
+    **raw** = ``no`` is configured.
+
 - **relative_to**: If set, emit paths relative to this directory.
   Default: None.
 - **use_folders**: When using the ``-a`` option, the m3u will contain the
@@ -97,6 +103,13 @@ example::
 
 indicates that you need to insert extra arguments before specifying the
 playlist.
+
+The above example, however, does not work with current ``mpv`` because the
+``--playlist`` argument wants a different syntax. To satisfy this, the optional
+``$playlist`` can be used to meet that::
+
+    play:
+        command: mpv $args --playlist=$playlist
 
 The ``--yes`` (or ``-y``) flag to the ``play`` command will skip the warning
 message if you choose to play more items than the **warning_threshold** 
