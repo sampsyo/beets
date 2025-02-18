@@ -301,8 +301,18 @@ def track_info(
     ``medium_index``, the track's index on its medium; ``medium_total``,
     the number of tracks on the medium. Each number is a 1-based index.
     """
+    if "alias-list" in recording:
+        alias = _preferred_alias(recording["alias-list"])
+    else:
+        alias = None
+
+    if alias:
+        title = alias["alias"]
+    else:
+        title = recording["title"]
+
     info = beets.autotag.hooks.TrackInfo(
-        title=recording["title"],
+        title=title,
         track_id=recording["id"],
         index=index,
         medium=medium,
@@ -504,7 +514,15 @@ def album_info(release: dict) -> beets.autotag.hooks.AlbumInfo:
 
             # Prefer track data, where present, over recording data.
             if track.get("title"):
-                ti.title = track["title"]
+                if "alias-list" in track["recording"]:
+                    alias = _preferred_alias(track["recording"]["alias-list"])
+                else:
+                    alias = None
+
+                if alias:
+                    ti.title = alias["alias"]
+                else:
+                    ti.title = track["title"]
             if track.get("artist-credit"):
                 # Get the artist names.
                 (
@@ -529,8 +547,19 @@ def album_info(release: dict) -> beets.autotag.hooks.AlbumInfo:
             track_infos.append(ti)
 
     album_artist_ids = _artist_ids(release["artist-credit"])
+
+    if "alias-list" in release:
+        alias = _preferred_alias(release["alias-list"])
+    else:
+        alias = None
+
+    if alias:
+        title = alias["alias"]
+    else:
+        title = release["title"]
+
     info = beets.autotag.hooks.AlbumInfo(
-        album=release["title"],
+        album=title,
         album_id=release["id"],
         artist=artist_name,
         artist_id=album_artist_ids[0],
@@ -554,7 +583,17 @@ def album_info(release: dict) -> beets.autotag.hooks.AlbumInfo:
     info.albumstatus = release.get("status")
 
     if release["release-group"].get("title"):
-        info.release_group_title = release["release-group"].get("title")
+        if "alias-list" in release["release-group"]:
+            alias = _preferred_alias(release["release-group"]["alias-list"])
+        else:
+            alias = None
+
+        if alias:
+            title = alias["alias"]
+        else:
+            title = release["release-group"].get("title")
+
+        info.release_group_title = title
 
     # Get the disambiguation strings at the release and release group level.
     if release["release-group"].get("disambiguation"):
