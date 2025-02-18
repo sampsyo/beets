@@ -128,6 +128,7 @@ following to your configuration::
    substitute
    the
    thumbnails
+   tidal
    types
    unimported
    web
@@ -151,12 +152,16 @@ Autotagger Extensions
 :doc:`deezer <deezer>`
    Search for releases in the `Deezer`_ database.
 
+:doc:`tidal <tidal>`
+   Search for releases and lyrics in the `TIDAL`_ database.
+
 :doc:`fromfilename <fromfilename>`
    Guess metadata for untagged tracks from their filenames.
 
 .. _Discogs: https://www.discogs.com/
 .. _Spotify: https://www.spotify.com
 .. _Deezer: https://www.deezer.com/
+.. _TIDAL: https://www.tidal.com/
 
 Metadata
 --------
