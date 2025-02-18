@@ -741,24 +741,17 @@ def truncate_path(path: AnyStr, length: int = MAX_FILENAME_LENGTH) -> AnyStr:
 
 
 def _legalize_stage(
-    path: str,
-    replacements: Replacements | None,
-    length: int,
-    extension: str,
-    fragment: bool,
-) -> tuple[BytesOrStr, bool]:
+    path: str, replacements: Replacements | None, length: int, extension: str
+) -> tuple[str, bool]:
     """Perform a single round of path legalization steps
-    (sanitation/replacement, encoding from Unicode to bytes,
-    extension-appending, and truncation). Return the path (Unicode if
-    `fragment` is set, `bytes` otherwise) and whether truncation was
-    required.
+    1. sanitation/replacement
+    2. appending the extension
+    3. truncation.
+
+    Return the path and whether truncation was required.
     """
     # Perform an initial sanitization including user replacements.
     path = sanitize_path(path, replacements)
-
-    # Encode for the filesystem.
-    if not fragment:
-        path = bytestring_path(path)  # type: ignore
 
     # Preserve extension.
     path += extension.lower()
@@ -771,57 +764,41 @@ def _legalize_stage(
 
 
 def legalize_path(
-    path: str,
-    replacements: Replacements | None,
-    length: int,
-    extension: bytes,
-    fragment: bool,
-) -> tuple[BytesOrStr, bool]:
+    path: str, replacements: Replacements | None, length: int, extension: str
+) -> tuple[str, bool]:
     """Given a path-like Unicode string, produce a legal path. Return
     the path and a flag indicating whether some replacements had to be
     ignored (see below).
 
-    The legalization process (see `_legalize_stage`) consists of
-    applying the sanitation rules in `replacements`, encoding the string
-    to bytes (unless `fragment` is set), truncating components to
-    `length`, appending the `extension`.
+    This function uses `_legalize_stage` function to legalize the path, see its
+    documentation for the details of what this involves. It is called up to
+    three times in case truncation conflicts with replacements (as can happen
+    when truncation creates whitespace at the end of the string, for example).
 
-    This function performs up to three calls to `_legalize_stage` in
-    case truncation conflicts with replacements (as can happen when
-    truncation creates whitespace at the end of the string, for
-    example). The limited number of iterations iterations avoids the
-    possibility of an infinite loop of sanitation and truncation
-    operations, which could be caused by replacement rules that make the
-    string longer. The flag returned from this function indicates that
+    The limited number of iterations avoids the possibility of an infinite loop
+    of sanitation and truncation operations, which could be caused by
+    replacement rules that make the string longer.
+
+    The flag returned from this function indicates that
     the path has to be truncated twice (indicating that replacements
     made the string longer again after it was truncated); the
     application should probably log some sort of warning.
     """
+    args = length, as_string(extension)
 
-    if fragment:
-        # Outputting Unicode.
-        extension = extension.decode("utf-8", "ignore")
-
-    first_stage_path, _ = _legalize_stage(
-        path, replacements, length, extension, fragment
+    first_stage, _ = os.path.splitext(
+        _legalize_stage(path, replacements, *args)[0]
     )
-
-    # Convert back to Unicode with extension removed.
-    first_stage_path, _ = os.path.splitext(displayable_path(first_stage_path))
 
     # Re-sanitize following truncation (including user replacements).
-    second_stage_path, retruncated = _legalize_stage(
-        first_stage_path, replacements, length, extension, fragment
-    )
+    second_stage, truncated = _legalize_stage(first_stage, replacements, *args)
 
-    # If the path was once again truncated, discard user replacements
+    if not truncated:
+        return second_stage, False
+
+    # If the path was truncated, discard user replacements
     # and run through one last legalization stage.
-    if retruncated:
-        second_stage_path, _ = _legalize_stage(
-            first_stage_path, None, length, extension, fragment
-        )
-
-    return second_stage_path, retruncated
+    return _legalize_stage(first_stage, None, *args)[0], True
 
 
 def str2bool(value: str) -> bool:

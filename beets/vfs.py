@@ -49,7 +49,7 @@ def libtree(lib):
     """
     root = Node({}, {})
     for item in lib.items():
-        dest = item.destination(fragment=True)
-        parts = util.components(dest)
+        dest = item.destination(relative_to_libdir=True)
+        parts = util.components(util.as_string(dest))
         _insert(root, parts, item.id)
     return root

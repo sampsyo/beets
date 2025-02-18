@@ -614,13 +614,7 @@ class ConvertPlugin(BeetsPlugin):
             # strings we get from item.destination to bytes.
             items_paths = [
                 os.path.relpath(
-                    util.bytestring_path(
-                        item.destination(
-                            basedir=dest,
-                            path_formats=path_formats,
-                            fragment=False,
-                        )
-                    ),
+                    item.destination(basedir=dest, path_formats=path_formats),
                     pl_dir,
                 )
                 for item in items

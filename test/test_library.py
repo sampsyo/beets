@@ -23,6 +23,7 @@ import sys
 import time
 import unicodedata
 import unittest
+from unittest.mock import patch
 
 import pytest
 from mediafile import MediaFile, UnreadableFileError
@@ -34,7 +35,7 @@ from beets.library import Album
 from beets.test import _common
 from beets.test._common import item
 from beets.test.helper import BeetsTestCase, ItemInDBTestCase
-from beets.util import bytestring_path, syspath
+from beets.util import as_string, bytestring_path, syspath
 
 # Shortcut to path normalization.
 np = util.normpath
@@ -411,14 +412,16 @@ class DestinationTest(BeetsTestCase):
     def test_unicode_normalized_nfd_on_mac(self):
         instr = unicodedata.normalize("NFC", "caf\xe9")
         self.lib.path_formats = [("default", instr)]
-        dest = self.i.destination(platform="darwin", fragment=True)
-        assert dest == unicodedata.normalize("NFD", instr)
+        with patch("sys.platform", "darwin"):
+            dest = self.i.destination(relative_to_libdir=True)
+        assert as_string(dest) == unicodedata.normalize("NFD", instr)
 
     def test_unicode_normalized_nfc_on_linux(self):
         instr = unicodedata.normalize("NFD", "caf\xe9")
         self.lib.path_formats = [("default", instr)]
-        dest = self.i.destination(platform="linux", fragment=True)
-        assert dest == unicodedata.normalize("NFC", instr)
+        with patch("sys.platform", "linux"):
+            dest = self.i.destination(relative_to_libdir=True)
+        assert as_string(dest) == unicodedata.normalize("NFC", instr)
 
     def test_non_mbcs_characters_on_windows(self):
         oldfunc = sys.getfilesystemencoding
@@ -436,8 +439,9 @@ class DestinationTest(BeetsTestCase):
     def test_unicode_extension_in_fragment(self):
         self.lib.path_formats = [("default", "foo")]
         self.i.path = util.bytestring_path("bar.caf\xe9")
-        dest = self.i.destination(platform="linux", fragment=True)
-        assert dest == "foo.caf\xe9"
+        with patch("sys.platform", "linux"):
+            dest = self.i.destination(relative_to_libdir=True)
+        assert as_string(dest) == "foo.caf\xe9"
 
     def test_asciify_and_replace(self):
         config["asciify_paths"] = True
@@ -461,17 +465,6 @@ class DestinationTest(BeetsTestCase):
         self.i.title = "foo"
         self.i.album = "bar"
         assert self.i.destination() == np("base/ber/foo")
-
-    def test_destination_with_replacements_argument(self):
-        self.lib.directory = b"base"
-        self.lib.replacements = [(re.compile(r"a"), "f")]
-        self.lib.path_formats = [("default", "$album/$title")]
-        self.i.title = "foo"
-        self.i.album = "bar"
-        replacements = [(re.compile(r"a"), "e")]
-        assert self.i.destination(replacements=replacements) == np(
-            "base/ber/foo"
-        )
 
     @unittest.skip("unimplemented: #359")
     def test_destination_with_empty_component(self):
