@@ -1,14 +1,13 @@
 MBSync Plugin
 =============
 
-This plugin provides the ``mbsync`` command, which lets you fetch metadata
-from MusicBrainz for albums and tracks that already have MusicBrainz IDs. This
-is useful for updating tags as they are fixed in the MusicBrainz database, or
-when you change your mind about some config options that change how tags are
-written to files. If you have a music library that is already nicely tagged by
-a program that also uses MusicBrainz like Picard, this can speed up the
-initial import if you just import "as-is" and then use ``mbsync`` to get
-up-to-date tags that are written to the files according to your beets
+This plugin provides the ``mbsync`` command, which lets you synchronize
+metadata for albums and tracks that have external data source IDs.
+
+This is useful for syncing your library with online data or when changing
+configuration options that affect tag writing. If your music library already
+contains correct tags, you can speed up the initial import by importing files
+"as-is" and then using ``mbsync`` to write tags according to your beets
 configuration.
 
 
