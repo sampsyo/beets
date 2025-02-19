@@ -7,40 +7,53 @@
         href="{{ url_for('static', filename='beets.css') }}" type="text/css">
 
         <script src="{{ url_for('static', filename='jquery.js') }}"></script>
-        <script src="{{ url_for('static', filename='underscore.js') }}">
-        </script>
+        <script src="{{ url_for('static', filename='underscore.js') }}"></script>
         <script src="{{ url_for('static', filename='backbone.js') }}"></script>
         <script src="{{ url_for('static', filename='beets.js') }}"></script>
     </head>
     <body>
         <div id="header">
-            <h1>beets</h1>
-            <div id="player">
-                <audio></audio>
+            <div class="headerLeft">
+                <h1>beets</h1>
+                <div id="player">
+                    <audio></audio>
 
-                <button class="disabled">&#9654;</button>
-                <button class="play">&#9654;</button>
-                <button class="pause" style="letter-spacing: 1px;">&#10073;&#10073;</button>
+                    <button class="disabled">&#9654;</button>
+                    <button class="play">&#9654;</button>
+                    <button class="pause" style="letter-spacing: 1px;">&#10073;&#10073;</button>
 
-                <span class="times">
-                    <span class="currentTime">
+                    <span class="nowPlaying">
+                        <span class="nowPlayingName"></span>
+                        <span class="currentTime"></span>
                     </span>
-                </span>
+                </div>
+            </div>
+            <div class="headerRight">
+                <div id="album-browser">
+                    <button class="browseAlbums">&#x25A6;</a>
+                </div>
             </div>
         </div>
 
-        <div id="entities">
-            <form id="queryForm">
-                <input type="search" id="query" placeholder="Query">
-            </form>
-            <ul id="results">
-            </ul>
-        </div>
+        <div id="content">
+            <div id="entities">
+                <form id="queryForm">
+                    <input type="search" id="query" placeholder="Query">
+                </form>
+                <ul id="results">
+                </ul>
+            </div>
 
-        <div id="main-detail">
-        </div>
+            <div id="details">
+                <div id="main-detail">
+                </div>
 
-        <div id="extra-detail">
+                <div id="extra-detail">
+                </div>
+
+                <div id="cover-grid">
+                </div>
+            </div>
         </div>
 
         <!-- Templates. -->
@@ -93,6 +106,24 @@
                     <dd><%= comments %></dd>
                 <% } %>
             </dl>
+        </script>
+
+        <!--
+            Use a single-cell table for album covers so that we can easily display
+            alt text nicely centered vertically. It's pretty likely that at least
+            some of the album covers won't load so alt text should look nice.
+        -->
+        <script type="text/template" id="album-cover-template">
+            <tr>
+                <td>
+                    <img
+                        src=""
+                        data-id="<%= id %>"
+                        alt="<%= altText %>"
+                        title="<%= altText %>"
+                    />
+                </td>
+            </tr>
         </script>
     </body>
 </html>

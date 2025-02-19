@@ -21,7 +21,8 @@ $.fn.player = function(debug) {
     var playBtn = $('.play', this);
     var pauseBtn = $('.pause', this);
     var disabledInd = $('.disabled', this);
-    var timesEl = $('.times', this);
+    var nowPlayingEl = $('.nowPlaying', this);
+    var nowPlayingNameEl = $('.nowPlayingName', this);
     var curTimeEl = $('.currentTime', this);
     var totalTimeEl  = $('.totalTime', this);
     var sliderPlayedEl = $('.slider .played', this);
@@ -58,17 +59,17 @@ $.fn.player = function(debug) {
             playBtn.hide();
             pauseBtn.hide();
             disabledInd.show();
-            timesEl.hide();
+            nowPlayingEl.hide();
         } else if (audio.paused) {
             playBtn.show();
             pauseBtn.hide();
             disabledInd.hide();
-            timesEl.show();
+            nowPlayingEl.show();
         } else {
             playBtn.hide();
             pauseBtn.show();
             disabledInd.hide();
-            timesEl.show();
+            nowPlayingEl.show();
         }
     }
     var showTimes = function() {
@@ -138,7 +139,28 @@ $.fn.disableSelection = function() {
             });
 };
 
+var loadAlbumCovers = function(entries, observer) {
+    entries.map(function(entry) {
+        if (entry.isIntersecting) {
+            var $targetImg = $(entry.target).find("img");
+            var albumID = $targetImg.data("id");
+            $.ajax({
+                url: 'album/' + albumID + '/art?b64',
+                dataType: 'text',
+            }).done(
+                function(data) {
+                    // encode data as base64 using btoa
+                    $targetImg.attr('src', 'data:image/jpeg;base64,' + data);
+                }
+            );
+            observer.unobserve(entry.target);
+        }
+    })
+}
+
 $(function() {
+
+var albumCoverLoader = new IntersectionObserver(loadAlbumCovers);
 
 // Routes.
 var BeetsRouter = Backbone.Router.extend({
@@ -155,7 +177,7 @@ var BeetsRouter = Backbone.Router.extend({
             var results = new Items(models);
             app.showItems(results);
         });
-    }
+    },
 });
 var router = new BeetsRouter();
 
@@ -165,6 +187,27 @@ var Item = Backbone.Model.extend({
 });
 var Items = Backbone.Collection.extend({
     model: Item
+});
+
+var Album = Backbone.Model.extend({});
+var Albums = Backbone.Collection.extend({
+    model: Album
+});
+
+
+// Album cover view.
+var AlbumCoverView = Backbone.View.extend({
+    tagName: "table",
+    className: "albumCover",
+    template: _.template($('#album-cover-template').html()),
+    render: function() {
+        var altText = [
+            (this.model.get('albumartist') || 'Unknown Artist'),
+            (this.model.get('album') || 'Unknown Album'),
+        ].join('\n');
+        $(this.el).html(this.template({altText: altText, ...this.model.toJSON()}));
+        return this;
+    },
 });
 
 // Item views.
@@ -191,10 +234,11 @@ var ItemEntryView = Backbone.View.extend({
     },
     setPlaying: function(val) {
         this.playing = val;
-        if (val)
+        if (val) {
             this.$('.playing').show();
-        else
+        } else {
             this.$('.playing').hide();
+        }
     }
 });
 //Holds Title, Artist, Album etc.
@@ -226,9 +270,11 @@ var AppView = Backbone.View.extend({
     el: $('body'),
     events: {
         'submit #queryForm': 'querySubmit',
+        'click .browseAlbums': 'showAlbums',
     },
     querySubmit: function(ev) {
         ev.preventDefault();
+        $('#results').html('<li>Loading...</li>')
         router.navigate('item/query/' + encodeURIComponent($('#query').val()), true);
     },
     initialize: function() {
@@ -251,22 +297,45 @@ var AppView = Backbone.View.extend({
             $('#results').append(view.render().el);
         });
     },
+    showAlbums: function() {
+        $.getJSON('album?random', function(data) {
+            var models = _.map(
+                data['albums'],
+                function(d) { return new Album(d); }
+            );
+            var albums = new Albums(models);
+            $('#main-detail').hide();
+            $('#extra-detail').hide();
+            $('#cover-grid').empty().show();
+            albums.each(function(album) {
+                var view = new AlbumCoverView({model: album});
+                album.entryView = view;
+                var el = view.render().el;
+                $('#cover-grid').append(el);
+                albumCoverLoader.observe(el);
+            });
+        });
+    },
     selectItem: function(view) {
         // Mark row as selected.
         $('#results li').removeClass("selected");
         $(view.el).addClass("selected");
 
+        // Hide album covers.
+        $('#cover-grid').hide();
+
         // Show main and extra detail.
         var mainDetailView = new ItemMainDetailView({model: view.model});
-        $('#main-detail').empty().append(mainDetailView.render().el);
+        $('#main-detail').empty().append(mainDetailView.render().el).show();
 
         var extraDetailView = new ItemExtraDetailView({model: view.model});
-        $('#extra-detail').empty().append(extraDetailView.render().el);
+        $('#extra-detail').empty().append(extraDetailView.render().el).show();
     },
     playItem: function(item) {
         var url = 'item/' + item.get('id') + '/file';
         $('#player audio').attr('src', url);
         $('#player audio').get(0).play();
+        $('#player .nowPlayingName').html(item.get('title'));
 
         if (this.playingItem != null) {
             this.playingItem.entryView.setPlaying(false);
