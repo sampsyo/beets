@@ -138,6 +138,8 @@ New features:
 * Beets now uses ``platformdirs`` to determine the default music directory.
   This location varies between systems -- for example, users can configure it
   on Unix systems via ``user-dirs.dirs(5)``.
+* :doc:`plugins/inline`: Add access to the ``album`` or ``item`` object in
+  inline fields.
 
 Bug fixes:
 
