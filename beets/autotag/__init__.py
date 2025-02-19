@@ -118,7 +118,7 @@ def _apply_metadata(
         if value is None and field not in nullable_fields:
             continue
 
-        db_obj[field] = value
+        setattr(db_obj, field, value)
 
 
 def correct_list_fields(m: LibModel) -> None:

@@ -432,7 +432,7 @@ class Model(ABC, Generic[D]):
     # Essential field accessors.
 
     @classmethod
-    def _type(cls, key) -> types.Type:
+    def _type(cls, key):
         """Get the type of a field, a `Type` instance.
 
         If the field has no explicit type, it is given the base `Type`,
@@ -528,7 +528,7 @@ class Model(ABC, Generic[D]):
     def update(self, values):
         """Assign all values in the given dict."""
         for key, value in values.items():
-            self[key] = value
+            setattr(self, key, value)
 
     def items(self) -> Iterator[tuple[str, Any]]:
         """Iterate over (key, value) pairs that this object contains.
@@ -559,7 +559,11 @@ class Model(ABC, Generic[D]):
                 raise AttributeError(f"no such field {key!r}")
 
     def __setattr__(self, key, value):
-        if key.startswith("_"):
+        if (
+            key.startswith("_")
+            or key in dir(self)
+            and isinstance(getattr(self.__class__, key), property)
+        ):
             super().__setattr__(key, value)
         else:
             self[key] = value
@@ -714,7 +718,7 @@ class Model(ABC, Generic[D]):
 
     def set_parse(self, key, string: str):
         """Set the object's key to a value represented by a string."""
-        self[key] = self._parse(key, string)
+        setattr(self, key, self._parse(key, string))
 
 
 # Database controller and supporting interfaces.
